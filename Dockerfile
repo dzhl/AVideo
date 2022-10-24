@@ -1,4 +1,4 @@
-FROM ubuntu/apache2:2.4-20.04_edge
+FROM ubuntu/apache2:2.4-22.10_beta
 
 LABEL maintainer="TRW <trw@acoby.de>" \
       org.label-schema.schema-version="1.0" \
