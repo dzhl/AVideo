@@ -4,6 +4,7 @@ if (!isset($global['systemRootPath'])) {
     require_once '../videos/configuration.php';
 }
 require_once $global['systemRootPath'] . 'objects/Object.php';
+require_once $global['systemRootPath'] . 'objects/mysql_dal.php';
 require_once $global['systemRootPath'] . 'objects/user.php';
 
 class Plugin extends ObjectYPT
@@ -227,7 +228,8 @@ class Plugin extends ObjectYPT
         if ($comparePluginVersion) {
             $pluginsMarketplace = ObjectYPT::getSessionCache('getAvailablePlugins', 600); // 10 min cache
             if (empty($pluginsMarketplace)) {
-                $pluginsMarketplace = _json_decode(url_get_contents("https://tutorials.wwbn.net/info?version=1", "", 2));
+                //$pluginsMarketplace = _json_decode(url_get_contents("https://tutorials.wwbn.net/info?version=1", "", 2));
+                $pluginsMarketplace = _json_decode(url_get_contents("https://youphp.tube/marketplace/plugins.json.php", "", 2));
                 if (!empty($pluginsMarketplace)) {
                     ObjectYPT::setSessionCache('getAvailablePlugins', $pluginsMarketplace);
                 }
@@ -248,6 +250,8 @@ class Plugin extends ObjectYPT
                                 }else{
                                     _error_log("Plugin Not Found 1 hide: {$value}");
                                 }
+                            }else{
+                                _error_log("Plugin Not loaded: {$value}");
                             }
                             continue;
                         }
@@ -266,7 +270,7 @@ class Plugin extends ObjectYPT
                         $obj->pluginMenu = $p->getPluginMenu();
                         $obj->tags = $p->getTags();
                         $obj->pluginversion = $p->getPluginVersion();
-                        $obj->pluginversionMarketPlace = (!empty($pluginsMarketplace->plugins->{$obj->uuid}) ? $pluginsMarketplace->plugins->{$obj->uuid}->pluginversion : 0);
+                        $obj->pluginversionMarketPlace = (!empty($pluginsMarketplace->{$obj->name}) ? $pluginsMarketplace->{$obj->name}->version : 0);
                         $obj->pluginversionCompare = (!empty($obj->pluginversionMarketPlace) ? version_compare($obj->pluginversion, $obj->pluginversionMarketPlace) : 0);
                         $obj->permissions = $obj->enabled ? Permissions::getPluginPermissions($obj->id) : [];
                         if (User::isAdmin()) {
@@ -276,6 +280,8 @@ class Plugin extends ObjectYPT
                             $obj->tags[] = "update";
                         }
                         $getAvailablePlugins[] = $obj;
+                    }else{
+
                     }
                 }
             }
@@ -592,4 +598,5 @@ class PluginTags
     public static $FREE = ['info', 'Free', '<i class="fas fa-check"></i>', 'FREE'];
     public static $PREMIUM = ['info', 'Premium', '<i class="fas fa-thumbs-up"></i>', 'PREMIUM'];
     public static $DEPRECATED = ['danger', 'Deprecated', '<i class="fas fa-times-circle"></i>', 'DEPRECATED'];
+    public static $UNDERDEVELOPMENT = ['warning', 'Under Development', '<i class="fa-solid fa-terminal"></i>', 'UNDERDEVELOPMENT'];
 }

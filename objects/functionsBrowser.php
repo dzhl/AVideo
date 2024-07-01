@@ -136,8 +136,15 @@ function fakeBrowser($url)
     return $output;
 }
 
+function getUserAgentInfo(){
+    return get_browser_name() . '/' . getOS(). ' ('.(isMobile() ? "Mobile" : "PC").')';
+}
+
 function get_browser_name($user_agent = "")
 {
+    if(isCommandLineInterface()){
+        return 'Commandline';
+    }
     if (empty($user_agent)) {
         $user_agent = @$_SERVER['HTTP_USER_AGENT'];
     }
@@ -225,10 +232,10 @@ function get_browser_name($user_agent = "")
         strpos($t, 'bot') || strpos($t, 'archive') ||
         strpos($t, 'info') || strpos($t, 'data')
     ) {
-        return '[Bot] Other';
+        return '[Bot] Other '.$user_agent;
     }
     //_error_log("Unknow user agent ($t) IP=" . getRealIpAddr() . " URI=" . getRequestURI());
-    return 'Other (Unknown)';
+    return 'Other (Unknown) '.$user_agent;
 }
 
 /**

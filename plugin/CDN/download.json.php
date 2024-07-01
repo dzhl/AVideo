@@ -60,14 +60,24 @@ $resp->deleteProgress = false;
 
 $video = Video::getVideoLight($json->videos_id);
 $resp->file = "{$video['filename']}/index.{$json->format}.log";
-$convertedFile = "{$global['systemRootPath']}videos/{$video['filename']}/index.mp4";
+$relativeFilename = "{$video['filename']}/index.mp4";
+$convertedFile = "{$global['systemRootPath']}videos/{$relativeFilename}";
+
 
 $progressFile = getVideosDir() . $resp->file;
 //$resp->progressFile = $progressFile;
 $resp->progress = parseFFMPEGProgress($progressFile);
 
+$resp->file_exists_on_cdn = CDNStorage::file_exists_on_cdn($relativeFilename);
+if($resp->file_exists_on_cdn){
+    $resp->progress->progress = 100;
+}
+
 $resp->lines[] = __LINE__;
-if (empty($_REQUEST['delete']) && file_exists($progressFile) && $resp->progress->progress < 100) {
+
+
+
+if (!$resp->file_exists_on_cdn && empty($_REQUEST['delete']) && file_exists($progressFile) && $resp->progress->progress < 100) {
     if ($resp->progress->secondsOld < 30 && $resp->progress->progress < 100) {
         $resp->lines[] = __LINE__;
         $resp->msg = ("We are still processing the video, please wait");

@@ -11,6 +11,7 @@ ob_end_flush();
 
 function download($url, $filename, $path, $forceDownload = false) {
     if(empty($url) || preg_match('/view.img/', $url)){
+        echo ("importChannel::download ERROR on url {$url}").PHP_EOL;
         return false;
     }
     $parts = explode("/{$filename}/", $url);
@@ -18,11 +19,14 @@ function download($url, $filename, $path, $forceDownload = false) {
     if (empty($parts[1])) {
         if (preg_match("/\.mp3$/", $url)) {
             $parts[1] = "{$filename}.mp3";
+        }else if (preg_match("/s3\.cdn\.ypt\.me.*\.mp4$/", $url)) {
+            $partsCDN = explode("s3.cdn.ypt.me/", $url);
+            $parts[1] = $partsCDN[1];
         }
     }
 
     if (empty($parts[1])) {
-        echo ("importChannel::download ERROR on download {$url}").PHP_EOL;
+        echo ("importChannel::download ERROR on download filename=$filename {$url}").PHP_EOL;
         return false;
     }
 

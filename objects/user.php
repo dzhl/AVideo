@@ -432,7 +432,7 @@ if (typeof gtag !== \"function\") {
             $name = preg_replace('/\s+/', '', $name);
             $name = cleanString($name);
         }
-        if(!is_string($name)){
+        if (!is_string($name)) {
             $name = json_encode($name);
         }
         // in case is a email get only the username
@@ -750,12 +750,12 @@ if (typeof gtag !== \"function\") {
             //echo "u:" . $this->user . "|p:" . strlen($this->password);
             if (empty($this->user)) {
                 //echo "u:" . $this->user . "|p:" . strlen($this->password);
-                _error_log('Error : 1 You need a user to register ' . json_encode(debug_backtrace()));
+                _error_log('User:save:Error : 1 You need a user to register ' . getRealIpAddr() . ' ' . json_encode(debug_backtrace()));
                 return false;
             }
             if (empty($this->password)) {
                 //echo "u:" . $this->user . "|p:" . strlen($this->password);
-                _error_log('Error : 2 You need a password to register');
+                _error_log('User:save:Error : 2 You need a password to register ' . getRealIpAddr());
                 return false;
             }
 
@@ -857,6 +857,7 @@ if (typeof gtag !== \"function\") {
                 . " first_name = ? , last_name = ? , address = ? , zip_code = ? , country = ? , region = ? , city = ? , donationLink = ? , phone = ? , is_company = " . (empty($this->is_company) ? 'NULL' : intval($this->is_company)) . ", "
                 . " modified = now() WHERE id = ?";
             //var_dump(__LINE__, debug_backtrace());exit;
+            _error_log("Update user user=$user, email={$this->email}, name=$name " . ' IP=' . getRealIpAddr() . ' ' . $_SERVER['HTTP_USER_AGENT'] . json_encode(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS)));
         } else {
             $formats = "ssssiiiisssssssi";
             $values = [
@@ -868,7 +869,7 @@ if (typeof gtag !== \"function\") {
                 . " VALUES (?,?,?,?,?,?,?,?, false, "
                 . "?,?,?, now(), now(),?,?,?,?," . (empty($this->is_company) ? 'NULL' : intval($this->is_company)) . ",?)";
 
-            _error_log("Insert new user user=$user, email={$this->email}, name=$name " . json_encode(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS)));
+            _error_log("Insert new user user=$user, email={$this->email}, name=$name " . ' IP=' . getRealIpAddr() . ' ' . $_SERVER['HTTP_USER_AGENT'] . json_encode(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS)));
         }
         $insert_row = sqlDAL::writeSql($sql, $formats, $values);
 
@@ -894,7 +895,7 @@ if (typeof gtag !== \"function\") {
             $this->id = $id;
             return $id;
         } else {
-            _error_log(' Error : (' . $global['mysqli']->errno . ') ' . $global['mysqli']->error . " $sql");
+            _error_log('User:save:Error : (' . $global['mysqli']->errno . ') ' . $global['mysqli']->error . " $sql");
             return false;
         }
     }
@@ -959,7 +960,7 @@ if (typeof gtag !== \"function\") {
             return $cache;
         }
         if (empty($videos_id)) {
-            _error_log("User::canWatchVideo Video is empty ({$videos_id})");
+            _error_log("User::canWatchVideo Video is empty ({$videos_id}) ".json_encode(debug_backtrace()));
             return false;
         }
 
@@ -1134,7 +1135,7 @@ if (typeof gtag !== \"function\") {
     public const SYSTEM_ERROR = 5;
 
     public function login($noPass = false, $encodedPass = false, $ignoreEmailVerification = false)
-    {        
+    {
         global $global, $advancedCustom, $advancedCustomUser, $config;
         require_once $global['systemRootPath'] . 'plugin/AVideoPlugin.php';
         if (!class_exists('AVideoPlugin')) {
@@ -1199,7 +1200,7 @@ if (typeof gtag !== \"function\") {
             _session_regenerate_id();
             _session_write_close();
 
-            _error_log('User:login finish with success users_id=' . json_encode($_SESSION['user']['id']));
+            _error_log("User:login finish with success users_id= {$_SESSION['user']['id']} {$_SERVER['HTTP_USER_AGENT']} IP=" . getRealIpAddr());
             return self::USER_LOGGED;
         } else {
             unset($_SESSION['user']);
@@ -1207,43 +1208,47 @@ if (typeof gtag !== \"function\") {
         }
     }
 
-    static function setUserCookie($rememberme, $users_id, $user, $pass, $expires){
+    static function setUserCookie($rememberme, $users_id, $user, $pass, $expires)
+    {
         //_error_log("setUserCookie rememberme=$rememberme users_id={$users_id}");
-        if(!empty($rememberme)){
+        if (!empty($rememberme)) {
             self::setUserCookieCredentials($users_id, $user, $pass, $expires);
         }
     }
 
-    static function setUserCookieCredentials($users_id, $user, $pass, $expires){
+    static function setUserCookieCredentials($users_id, $user, $pass, $expires)
+    {
         $array = self::getUserCookieCredentials();
-        if(!empty($array->users_id)){
+        if (!empty($array->users_id)) {
             _error_log("setUserCookieCredentials there is already a cookie");
-            if($array->users_id == $users_id){
+            if ($array->users_id == $users_id) {
                 _error_log("setUserCookieCredentials there is already a cookie and is the same user");
                 return true;
             }
         }
-        $array = array('users_id'=>$users_id,'user'=>$user,'pass'=>$pass,'ip'=>getRealIpAddr());
+        $array = array('users_id' => $users_id, 'user' => $user, 'pass' => $pass, 'ip' => getRealIpAddr());
         $cookieValue = encryptString(json_encode($array));
         _setcookie("credentials", $cookieValue, $expires);
         _error_log("setUserCookieCredentials credentials set");
     }
 
-    static function getUserCookieCredentials(){
+    static function getUserCookieCredentials()
+    {
         $array = false;
-        if(!empty($_COOKIE['credentials'])){
-           $string = decryptString($_COOKIE['credentials']);
-           $array = json_decode($string);
-           if($array->ip !== getRealIpAddr()){
+        if (!empty($_COOKIE['credentials'])) {
+            $string = decryptString($_COOKIE['credentials']);
+            $array = json_decode($string);
+            if ($array->ip !== getRealIpAddr()) {
                 _error_log("getUserCookieCredentials ip does not match {$array->ip}");
                 return false;
-           }
+            }
         }
         return $array;
     }
 
-    static function unsetUserCookie(){
-        _error_log("unsetUserCookie _unsetcookie('credentials') ".json_encode(debug_backtrace()));
+    static function unsetUserCookie()
+    {
+        _error_log("unsetUserCookie _unsetcookie('credentials') " . json_encode(debug_backtrace()));
         _unsetcookie('credentials');
     }
 
@@ -1370,7 +1375,7 @@ if (typeof gtag !== \"function\") {
                 $user->setPassword($userCookie->pass, true);
                 $resp = $user->login(false, true);
                 _error_log("user::recreateLoginFromCookie: resp=$resp");
-                
+
                 $userCookie = User::getUserCookieCredentials();
                 if (!empty($userCookie) && $user->id != $userCookie->users_id) {
                     _error_log("user::recreateLoginFromCookie: do logoff because the cookie users_id does not match: {$userCookie->user} result: " . $resp);
@@ -1380,7 +1385,7 @@ if (typeof gtag !== \"function\") {
                         _error_log("user::recreateLoginFromCookie: do cookie-login: {$userCookie->user} id: " . $_SESSION['user']['id']);
                     } else {
                         _error_log("user::recreateLoginFromCookie: do cookie-login: user={$userCookie->user} pass={$userCookie->pass} login does not match resp=$resp");
-                        if($resp != User::SYSTEM_ERROR){
+                        if ($resp != User::SYSTEM_ERROR) {
                             self::logoff();
                         }
                     }
@@ -1752,7 +1757,7 @@ if (typeof gtag !== \"function\") {
             return false;
         }
         $sql = "SELECT * FROM users WHERE  id = ? LIMIT 1;";
-        $res = sqlDAL::readSql($sql, "i", [$id]);
+        $res = sqlDAL::readSql($sql, "i", [$id], true);
         $user = sqlDAL::fetchAssoc($res);
         sqlDAL::close($res);
         if ($user !== false) {
@@ -1823,7 +1828,7 @@ if (typeof gtag !== \"function\") {
         $formats .= 's';
         $values[] = $user;
 
-        if (class_exists('AVideoPlugin') && empty($advancedCustomUser)) {
+        if (class_exists('AVideoPlugin') && empty($advancedCustomUser)) {            
             $advancedCustomUser = AVideoPlugin::getObjectData("CustomizeUser");
         }
         if (
@@ -1939,7 +1944,8 @@ if (typeof gtag !== \"function\") {
         $this->name = strip_tags($name);
     }
 
-    static function isEmailUniqeOrFromUser($email, $users_id){
+    static function isEmailUniqeOrFromUser($email, $users_id)
+    {
 
         if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return false;
@@ -1949,7 +1955,6 @@ if (typeof gtag !== \"function\") {
             return true;
         }
         return $userFromEmail['id'] == $users_id;
-
     }
 
     public function setEmail($email)
@@ -2414,9 +2419,13 @@ if (typeof gtag !== \"function\") {
     {
         // let the same recover pass if it was 10 minutes ago
         if ($this->isRecoverPassValid($this->recoverPass) && empty($forceChange) && !empty($this->recoverPass) && !empty($recoverPass) && !empty($this->modified) && strtotime($this->modified) > strtotime("-10 minutes")) {
+
+            _error_log("setRecoverPass:isRecoverPassValid {$this->modified}");
             return $this->recoverPass;
         }
         $this->recoverPass = $this->createRecoverPass($this->id);
+
+        _error_log("setRecoverPass:created " . json_encode(!empty($this->recoverPass)));
         return $this->recoverPass;
     }
 
@@ -2426,6 +2435,7 @@ if (typeof gtag !== \"function\") {
         $json->id = $id;
         $json->uniqid = uniqid();
         $json->valid = strtotime("+{$secondsValid} seconds");
+        _error_log("createRecoverPass " . getRealIpAddr() . ' ' . json_encode($_SERVER));
         return encryptString(json_encode($json));
     }
 
@@ -2717,6 +2727,21 @@ if (typeof gtag !== \"function\") {
         return intval($this->emailVerified);
     }
 
+    
+    public static function _getEmailVerified($users_id = 0)
+    {
+        global $global, $config;
+        if (empty($users_id)) {
+            $users_id = self::getId();
+        }
+        $user = new User($users_id);
+        if (empty($user)) {
+            return false;
+        }
+
+        return $user->getEmailVerified();
+    }
+
     public static function validateChannelName($channelName)
     {
         return trim(preg_replace("/[^0-9A-Z_-]/i", "", ucwords($channelName)));
@@ -2875,7 +2900,7 @@ if (typeof gtag !== \"function\") {
                 return true;
             }
         } else {
-            _error_log('verifyCode wrong recover pass');
+            _error_log("verifyCode wrong recover pass for user {$obj->users_id} [{$recoverPass}] != [{$obj->recoverPass}]");
         }
         return false;
     }
@@ -2899,8 +2924,8 @@ if (typeof gtag !== \"function\") {
 
             $user = new User($users_id);
             $obj->recoverPass = $user->setRecoverPass();
-            $user->save();
-
+            $saved = $user->save();
+            _error_log("createVerificationCode: save " . json_encode($saved));
             $_createVerificationCode[$users_id] = base64_encode(json_encode($obj));
         }
 
@@ -3156,7 +3181,7 @@ if (typeof gtag !== \"function\") {
         $gallery = AVideoPlugin::isEnabledByName('Gallery');
         if (!empty($gallery)) {
             return Gallery::getAddChannelToGalleryButton($users_id);
-        }else{
+        } else {
             $gallery = AVideoPlugin::isEnabledByName('YouPHPFlix2');
             if (!empty($gallery)) {
                 return YouPHPFlix2::getAddChannelToYouPHPFlix2Button($users_id);
@@ -3516,7 +3541,7 @@ if (typeof gtag !== \"function\") {
                     ?>
                 </div>
             </div>
-            <div class="panel-footer " style="font-size: 0.8em">
+            <div class="panel-footer channelsFooter" style="font-size: 0.8em">
                 <div class=" text-muted">
                     <?php echo number_format_short(VideoStatistic::getChannelsTotalViews($users_id)), " ", __("Views in the last 30 days"); ?>
                 </div>

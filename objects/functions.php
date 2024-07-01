@@ -1331,7 +1331,7 @@ function getSources($fileName, $returnArray = false, $try = 0)
     if ($returnArray) {
         $return = array_merge($videoSources, $audioTracks, $subtitleTracks,  $captionsTracks);
     } else {
-        $return = $videoSources . $audioTracks . $subtitleTracks.$captionsTracks;
+        $return = $videoSources . $audioTracks  . PHP_EOL . $subtitleTracks  . PHP_EOL . $captionsTracks;
     }
 
     $obj = new stdClass();
@@ -1362,7 +1362,6 @@ function getSources($fileName, $returnArray = false, $try = 0)
     }
     return $return;
 }
-
 
 function getSourceFromURL($url)
 {
@@ -1705,6 +1704,52 @@ function url_get_contents_with_cache($url, $lifeTime = 60, $ctx = "", $timeout =
     _error_log("url_get_contents_with_cache setCache {$url} " . json_encode($response));
     return $return;
 }
+
+function url_get_response($url)
+{
+    $responseObj = new stdClass();
+    $responseObj->error = true;
+    $responseObj->code = 0;
+    $responseObj->msg = '';
+    $responseObj->response = '';
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+    curl_setopt($ch, CURLOPT_HEADER, true); // Include the header in the output
+    curl_setopt($ch, CURLOPT_NOBODY, true); // Exclude the body from the output
+
+    $responseObj->response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    $responseObj->code = $httpCode;
+
+    // Map of HTTP status codes to messages
+    $httpMessages = [
+        200 => "Success",
+        400 => "Bad request. Please check the parameters.",
+        401 => "Unauthorized. Please check your credentials.",
+        403 => "Forbidden. You don't have permission to access this resource.",
+        404 => "Not found. The stream key does not exist.",
+        500 => "Internal server error. Please try again later.",
+        502 => "Bad gateway. There might be an issue with the server.",
+        503 => "Service unavailable. The server is currently unable to handle the request.",
+    ];
+
+    if (array_key_exists($httpCode, $httpMessages)) {
+        $responseObj->msg = $httpMessages[$httpCode];
+        if ($httpCode == 200) {
+            $responseObj->error = false;
+        }
+    } else {
+        $responseObj->msg = "Unexpected error occurred.";
+    }
+
+    return $responseObj;
+}
+
 
 function url_get_contents($url, $ctx = "", $timeout = 0, $debug = false, $mantainSession = false)
 {
@@ -2195,7 +2240,7 @@ function getPorts()
     $ports = array();
     $ports[80] = 'Apache http';
     $ports[443] = 'Apache https';
-    if(AVideoPlugin::isEnabled('Live')){  
+    if(AVideoPlugin::isEnabledByName('Live')){  
         $ports[8080] = 'NGINX http';
         $ports[8443] = 'NGINX https';
         $ports[1935] = 'RTMP';      
@@ -3515,11 +3560,8 @@ function getVideos_id($returnPlaylistVideosIDIfIsSerie = false)
 
         $videos_id = videosHashToID($videos_id);
     }
-    if ($returnPlaylistVideosIDIfIsSerie && !empty($videos_id)) {
-        if (isPlayList()) {
-            $videos_id = getPlayListCurrentVideosId();
-            //var_dump($videos_id);exit;
-        }
+    if ($returnPlaylistVideosIDIfIsSerie && empty($videos_id)) {
+        $videos_id = getPlayListCurrentVideosId();
     }
     return $videos_id;
 }
@@ -3604,11 +3646,17 @@ function getPlayListCurrentVideosId($setVideos_id = true)
 {
     $playListData = getPlayListData();
     $playlist_index = getPlayListIndex();
-    if (empty($playListData[$playlist_index])) {
-        //var_dump($playlist_index, $playListData);
-        return false;
+    if(empty($playListData) && !empty($_REQUEST['playlist_id']) && class_exists('PlayList')){
+        $videosArrayId = PlayList::getVideosIdFromPlaylist($_REQUEST['playlist_id']);
+        $videos_id = $videosArrayId[$playlist_index];
+    }else {
+        if (empty($playListData[$playlist_index])) {
+            //var_dump($playlist_index, $playListData);
+            return false;
+        }else{
+            $videos_id = $playListData[$playlist_index]->getVideos_id();
+        }
     }
-    $videos_id = $playListData[$playlist_index]->getVideos_id();
     if ($setVideos_id) {
         setVideos_id($videos_id);
     }
@@ -5321,7 +5369,7 @@ function getStatsNotifications($force_recreate = false, $listItIfIsAdminOrOwner 
     $isLiveEnabled = AVideoPlugin::isEnabledByName('Live');
     $cacheHandler = new LiveCacheHandler();
     unset($_POST['sort']);
-    if ($force_recreate) {
+    if ($force_recreate || !empty($_REQUEST['debug'])) {
         if ($isLiveEnabled) {
             deleteStatsNotifications();
             TimeLogEnd($timeName, __LINE__);
@@ -5334,7 +5382,9 @@ function getStatsNotifications($force_recreate = false, $listItIfIsAdminOrOwner 
     }
     TimeLogEnd($timeName, __LINE__);
     if ($isLiveEnabled) {
-        //_error_log('getStatsNotifications: 1 ' . json_encode(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS)));
+        if(!empty($_REQUEST['debug'])){
+            _error_log('getStatsNotifications: 1 ' . json_encode(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS)));
+        }
         $json = Live::getStats();
         $json = object_to_array($json);
         // make sure all the applications are listed on the same array, even from different live servers
@@ -5416,9 +5466,12 @@ function getStatsNotifications($force_recreate = false, $listItIfIsAdminOrOwner 
 
     TimeLogEnd($timeName, __LINE__);
     foreach ($json['applications'] as $key => $value) {
-        if (!Live::isApplicationListed(@$value['key'], $listItIfIsAdminOrOwner)) {
+        $isListed = Live::isApplicationListed(@$value['key'], $listItIfIsAdminOrOwner);
+        if (!$isListed) {
             $json['hidden_applications'][] = $value;
             unset($json['applications'][$key]);
+        }else{
+            $json['applications'][$key]['isListed'] = $isListed;
         }
     }
     TimeLogEnd($timeName, __LINE__);
@@ -6901,7 +6954,7 @@ function rowToRoku($row)
     $video->videoType = Video::getVideoTypeText($row['filename']);
     $content->videos = [$video];
 
-    if (function_exists('getVTTTracks') || AVideoPlugin::isEnabled('SubtitleSwitcher')) {
+    if (function_exists('getVTTTracks') || AVideoPlugin::isEnabledByName('SubtitleSwitcher')) {
         $captions = getVTTTracks($row['filename'], true);
         if (!empty($captions)) {
             $content->captions = array();
@@ -6989,7 +7042,10 @@ function getActivationCode()
 function fix_parse_url($url, $parameter)
 {
     $cleanParameter = str_replace('.', '_', $parameter);
-    return str_replace("{$cleanParameter}=", "{$parameter}=", $url);
+    //var_dump("{$cleanParameter}%3D", "{$parameter}%3D", $url);
+    $url = str_replace("{$cleanParameter}%3D", "{$parameter}%3D", $url);
+    $url = str_replace("{$cleanParameter}=", "{$parameter}=", $url);
+    return $url;
 }
 
 function generateHorizontalFlickity($items)
@@ -7182,6 +7238,26 @@ function calculateCenterCrop($originalWidth, $originalHeight, $aspectRatio) {
     return ['newWidth' => intval($newWidth), 'newHeight' => intval($newHeight), 'x' => intval($x), 'y' => intval($y)];
 }
 
+function getTourHelpButton($stepsFileRelativePath, $class = 'btn btn-default'){
+    /*
+    [
+        {
+            "element": "#elementId1",
+            "intro": "Welcome to our feature!"
+        },
+        {
+            "element": "#elementId2",
+            "intro": "Here's how you can use this tool."
+        }
+    ]
+    */
+    return "<button class=\"startTourBtn {$class}\" onclick=\"startTour('{$stepsFileRelativePath}')\"><i class=\"fa-solid fa-circle-question\"></i> ".__('Help')."</button>";
+}
+
+function getInfoButton($info){
+    $html = '<button class="btn btn-default btn-block infoButton" data-toggle="tooltip" title="'.__('Info').'"><i class="fa-solid fa-circle-info"></i><div class="hidden">'.$info.'</div></button>';
+    return $html;
+}
 
 require_once __DIR__.'/functionsSecurity.php';
 require_once __DIR__.'/functionsMySQL.php';

@@ -117,6 +117,23 @@ class PlayList extends ObjectYPT
         return $videosP;
     }
 
+    public static function getUserSpecialPlaylist($users_id, $type){
+
+        $sql = "SELECT pl.* FROM  " . static::getTableName() . " pl WHERE users_id = ? ";
+        if($type=='favorite'){
+            $sql .= " AND status = 'favorite' ";
+        }else{
+            $sql .= " AND status = 'watch_later' ";
+        }
+
+        
+        $res = sqlDAL::readSql($sql, 'i', [$users_id], true);
+        $row = sqlDAL::fetchAssoc($res);
+        sqlDAL::close($res);
+        return $row;
+
+    }
+
     /**
      *
      * @global array $global
@@ -159,14 +176,21 @@ class PlayList extends ObjectYPT
             }
         }
 
-        if(!empty($_REQUEST['searchPlaylist'])){
+        if (!empty($_REQUEST['searchPlaylist'])) {
             $sql .= " AND pl.name LIKE CONCAT('%', ?, '%') ";
             $formats .= "s";
-            $values[] = $_REQUEST['searchPlaylist'];
+            $values[] = trim($_REQUEST['searchPlaylist']);
         }
 
         $sql .= self::getSqlFromPost("pl.");
-        //var_dump($sql, $formats, $values);
+
+        $sql = preg_replace('/ORDER +BY +pl.`created` +DESC/i', 'ORDER BY CASE 
+                            WHEN pl.status = \'favorite\' THEN 1
+                            WHEN pl.status = \'watch_later\' THEN 1
+                            ELSE 2
+                        END, pl.created DESC', $sql);
+
+        //var_dump($sql, $formats, $values, getCurrentPage());exit;
         $TimeLog1 = "playList getAllFromUser 1($userId)";
         TimeLogStart($TimeLog1);
         $cacheName = md5($sql . json_encode($values));
@@ -291,11 +315,11 @@ class PlayList extends ObjectYPT
             }
         }
         $sql .= self::getSqlSearchFromPost("pl.");
-        
-        if(!empty($_REQUEST['searchPlaylist'])){
+
+        if (!empty($_REQUEST['searchPlaylist'])) {
             $sql .= " AND pl.name LIKE CONCAT('%', ?, '%') ";
             $formats .= "s";
-            $values[] = $_REQUEST['searchPlaylist'];
+            $values[] = trim($_REQUEST['searchPlaylist']);
         }
         $res = sqlDAL::readSql($sql, $formats, $values, $refreshCacheFromPlaylist);
         $row = sqlDAL::fetchAssoc($res);
@@ -326,8 +350,8 @@ class PlayList extends ObjectYPT
             $sql .= " LEFT JOIN videos v ON pl.id = serie_playlists_id  ";
         }
         $sql .= " LEFT JOIN users u ON u.id = pl.users_id WHERE 1=1 ";
-        
-        if($includeSeries && isForKidsSet()){
+
+        if ($includeSeries && isForKidsSet()) {
             $sql .= " AND v.made_for_kids = 1 ";
         }
         if (!empty($playlists_id)) {
@@ -487,6 +511,15 @@ class PlayList extends ObjectYPT
         return 0;
     }
 
+    private static function getOrderBy($prefix=''){
+        $order = " ORDER BY {$prefix}`order` ASC";
+
+        //if add in the top
+        //$order = " ORDER BY {$prefix}`order` ASC";
+
+        return $order;
+    }
+
     public static function getVideosIDFromPlaylistLight($playlists_id)
     {
         global $global, $getVideosIDFromPlaylistLight;
@@ -501,12 +534,15 @@ class PlayList extends ObjectYPT
 
         if (empty($playlists_id)) {
             $sql = "SELECT 0 as playlists_id, id as videos_id FROM videos p WHERE status = ?  ORDER BY `created` DESC ";
-            $res = sqlDAL::readSql($sql, "s", [Video::$statusActive]);
+            $formats = 's';
+            $values = [Video::$statusActive];
         } else {
-            $sql = "SELECT * FROM playlists_has_videos p WHERE playlists_id = ?  ORDER BY `order` ASC ";
-            $res = sqlDAL::readSql($sql, "i", [$playlists_id]);
+            $sql = "SELECT * FROM playlists_has_videos p WHERE playlists_id = ? ".self::getOrderBy('p.');
+            $formats = 'i';
+            $values = [$playlists_id];
         }
-
+        $res = sqlDAL::readSql($sql, $formats, $values);
+        //var_dump($sql, $formats, $values);
         $fullData = sqlDAL::fetchAllAssoc($res);
         sqlDAL::close($res);
         $rows = [];
@@ -586,7 +622,7 @@ class PlayList extends ObjectYPT
                             $row['videoTagsObject'] = Tags::getObjectFromVideosId($row['videos_id']);
                         }
                         if (empty($row['externalOptions'])) {
-                            $row['externalOptions'] = json_encode(['videoStartSeconds' => '00:00:00']);
+                            $row['externalOptions'] = json_encode(Video::getBlankExternalOptions());
                         }
                     }
                     $row['id'] = $row['videos_id'];
@@ -713,7 +749,7 @@ class PlayList extends ObjectYPT
             $sql .= ' AND serie_playlists_id IS NOT NULL ';
         }
 
-        $sql .= ' ORDER BY p.`order` ASC ';
+        $sql .= self::getOrderBy('p.');
 
         $res = sqlDAL::readSql($sql, "i", [$playlists_id]);
         $fullData = sqlDAL::fetchAllAssoc($res);
@@ -889,6 +925,9 @@ class PlayList extends ObjectYPT
         if (!User::isLogged()) {
             return false;
         }
+
+        _error_log('Playlist::save '.json_encode(debug_backtrace()));
+
         $this->clearEmptyLists();
         if (empty($this->getUsers_id()) || !PlayLists::canManageAllPlaylists()) {
             $users_id = User::getId();
@@ -927,7 +966,8 @@ class PlayList extends ObjectYPT
         return sqlDAL::writeSql($sql);
     }
 
-    static function getNextOrder($playlists_id){
+    static function getNextOrder($playlists_id)
+    {
         $sql = 'SELECT MAX(`order`) AS max_order
         FROM playlists_has_videos
         WHERE playlists_id = ? ';
@@ -936,10 +976,10 @@ class PlayList extends ObjectYPT
         $row = sqlDAL::fetchAssoc($res);
         sqlDAL::close($res);
         $max_order = 0;
-        if(!empty($row['max_order'])){
+        if (!empty($row['max_order'])) {
             $max_order = intval($row['max_order']);
         }
-        return ($max_order+1);
+        return ($max_order + 1);
     }
 
     public function addVideo($videos_id, $add, $order = 0, $_deleteCache = true)
@@ -949,7 +989,7 @@ class PlayList extends ObjectYPT
         $this->id = intval($this->id);
         $videos_id = intval($videos_id);
         $order = intval($order);
-        
+
         if (empty($this->id) || empty($videos_id)) {
             return false;
         }
@@ -963,7 +1003,7 @@ class PlayList extends ObjectYPT
             $values[] = $videos_id;
         } else {
             $this->addVideo($videos_id, false, 0, false);
-            if(empty($order)){
+            if (empty($order)) {
                 $order = self::getNextOrder($this->id);
             }
             $sql = "INSERT INTO playlists_has_videos ( playlists_id, videos_id , `order`) VALUES (?, ?, ?) ";
@@ -988,11 +1028,11 @@ class PlayList extends ObjectYPT
     static function deleteCacheDir($playlists_id)
     {
         $cacheHandler = new PlayListCacheHandler($playlists_id);
-        $cacheHandler->deleteCache();
-        
+        $cacheHandler->deleteCache(false, false);
+
         $pl = new PlayList($playlists_id);
         $cacheHandler = new PlayListUserCacheHandler($pl->getUsers_id());
-        $cacheHandler->deleteCache();
+        $cacheHandler->deleteCache(false, false);
     }
 
     public function delete()
@@ -1073,7 +1113,7 @@ class PlayList extends ObjectYPT
     {
         global $playListCanSee;
         $index = "$playlist_id, $users_id";
-        if(isset($playListCanSe[$index])){
+        if (isset($playListCanSe[$index])) {
             return $playListCanSe[$index];
         }
         $playListCanSe[$index] = true;
@@ -1162,7 +1202,7 @@ class PlayList extends ObjectYPT
         }
         $sql = "SELECT u.*, pl.* FROM  playlists pl "
             . " LEFT JOIN users u ON users_id = u.id "
-            . " WHERE showOnFirstPage=1 ";
+            . " WHERE showOnFirstPage=1 ORDER BY pl.name ASC";
 
         //$sql .= self::getSqlFromPost();
         //echo $sql;exit;
@@ -1238,5 +1278,40 @@ class PlayList extends ObjectYPT
             }
         }
         return $rows;
+    }
+
+    public static function clone($playlists_id)
+    {
+        // Modify the name to include " (Clone)"
+        $sql = "INSERT INTO playlists (name, created, modified, users_id, status, showOnTV, showOnFirstPage)
+        SELECT 
+            CONCAT(name, ' (Clone)') AS name, 
+            NOW() AS created, 
+            NOW() AS modified, 
+            users_id, 
+            status, 
+            showOnTV, 
+            showOnFirstPage
+        FROM 
+            playlists 
+        WHERE 
+            id = ?";
+
+        $new_playlist_id = sqlDAL::writeSql($sql, 'i', [$playlists_id]);
+
+        // Clone the videos associated with the playlist
+        $sql = "INSERT INTO playlists_has_videos (playlists_id, videos_id, `order`)
+        SELECT 
+            ? AS playlists_id, 
+            videos_id, 
+            `order`
+        FROM 
+            playlists_has_videos 
+        WHERE 
+            playlists_id = ?";
+
+        sqlDAL::writeSql($sql, 'ii', [$new_playlist_id, $playlists_id]);
+
+        return $new_playlist_id;
     }
 }

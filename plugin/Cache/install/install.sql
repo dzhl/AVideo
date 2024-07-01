@@ -1,3 +1,7 @@
+-- Drop the table if it exists
+DROP TABLE IF EXISTS `CachesInDB`;
+
+-- Create the table
 CREATE TABLE IF NOT EXISTS `CachesInDB` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `created` DATETIME NULL,
@@ -16,9 +20,18 @@ CREATE TABLE IF NOT EXISTS `CachesInDB` (
   INDEX `caches2` (`ishttps` ASC),
   INDEX `caches3` (`loggedType` ASC),
   INDEX `caches4` (`user_location` ASC),
-  INDEX `caches9` (`name` ASC))
-ENGINE = InnoDB;
-ALTER TABLE CachesInDB ADD FULLTEXT(name);
+  INDEX `caches9` (`name` ASC),
+  UNIQUE INDEX `unique_cache_index`(`name`(250), `domain`(50), `ishttps`, `user_location`(50), `loggedType`),
+  FULLTEXT INDEX `name_fulltext` (`name`)
+) ENGINE = InnoDB;
 
-ALTER TABLE CachesInDB 
-ADD UNIQUE `unique_cache_index`(`name`(250), `domain`(50), `ishttps`, `user_location`(50), `loggedType`);
+-- Drop the cache_schedule_delete table if it exists
+DROP TABLE IF EXISTS `cache_schedule_delete`;
+
+-- Create the cache_schedule_delete table
+CREATE TABLE IF NOT EXISTS `cache_schedule_delete` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(500) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `name_UNIQUE` (`name` ASC)
+) ENGINE = InnoDB;

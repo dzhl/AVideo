@@ -4,6 +4,11 @@ $isChannel = 1; // still workaround, for gallery-functions, please let it there.
 if (!isset($global['systemRootPath'])) {
     require_once '../videos/configuration.php';
 }
+
+if(isBot()){
+    return '';
+}
+
 require_once $global['systemRootPath'] . 'objects/user.php';
 require_once $global['systemRootPath'] . 'objects/video.php';
 require_once $global['systemRootPath'] . 'objects/playlist.php';
@@ -108,7 +113,7 @@ unset($_POST['current']);
         $startC = microtime(true);
         $countSuccess++;
     ?>
-
+        <!-- channelPlaylistItems -->
         <div class="panel panel-default" playListId="<?php echo $playlist['id']; ?>">
             <div class="panel-heading clearfix">
                 <div class="pull-left">

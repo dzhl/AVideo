@@ -398,18 +398,22 @@ class AVideoPlugin
                 if (!class_exists($name)) {
                     require_once $loadPluginFile;
                 }
-
-                $code = "\$p = new {$name}();";
-                eval($code);
+                try {
+                    $code = "\$p = new {$name}();";
+                    eval($code);
+                } catch (\Throwable $th) {
+                    error_log("[loadPlugin] ".$th->getMessage(), AVideoLog::$ERROR);
+                }
                 if (is_object($p)) {
                     $pluginIsLoaded[$name] = $p;
                 } else {
-                    _error_log("[loadPlugin] eval failed for plugin ($name) code ($code) code result ($codeResult) included file $loadPluginFile", AVideoLog::$ERROR);
+                    error_log("[loadPlugin] eval failed for plugin ($name) code ($code) code result ($codeResult) included file $loadPluginFile", AVideoLog::$ERROR);
                 }
             } else if (!$fexists && $name == 'Live') {
-                _error_log("loadPlugin($name) Error file not exists {$loadPluginFile}", AVideoLog::$ERROR);
+                error_log("loadPlugin($name) Error file not exists {$loadPluginFile}", AVideoLog::$ERROR);
             }
         }
+        
         return $pluginIsLoaded[$name];
     }
 
@@ -880,8 +884,9 @@ class AVideoPlugin
             return false;
         }
         $plugins = Plugin::getAllEnabled();
-        foreach ($plugins as $value) {
+        foreach ($plugins as $key => $value) {
             self::YPTstart();
+            //error_log("{$key} onNewVideo {$value['dirName']} load");
             $p = static::loadPlugin($value['dirName']);
             if (is_object($p)) {
                 $p->onNewVideo($videos_id);
@@ -1145,7 +1150,12 @@ class AVideoPlugin
                 self::YPTstart();
                 $p = static::loadPlugin($value['dirName']);
                 if (is_object($p)) {
-                    $appArray = $p->getLiveApplicationArray();
+                    try {
+                        $appArray = $p->getLiveApplicationArray();
+                    } catch (\Throwable $th) {
+                        _error_log('AVideoPlugin::getLiveApplicationArray '.$th->getMessage(), AVideoLog::$ERROR);
+                        $appArray = array();
+                    }
                     if (is_array($appArray)) {
                         if (!is_array($array)) {
                             $array = $appArray;
@@ -3105,6 +3115,39 @@ class AVideoPlugin
             }
             self::YPTend("{$value['dirName']}::" . __FUNCTION__);
         }
+    }
+
+    public static function canRecordVideo($key)
+    {
+        $plugins = Plugin::getAllEnabled();
+        foreach ($plugins as $value) {
+            self::YPTstart();
+            $p = static::loadPlugin($value['dirName']);
+            if (is_object($p)) {
+                if(!$p->canRecordVideo($key)){
+                    _error_log("{$value['dirName']} said you cannot record this key $key");
+                    return false;
+                }
+            }
+            self::YPTend("{$value['dirName']}::" . __FUNCTION__);
+        }
+        return true;
+    }
+
+    public static function videoHLSProtectionByPass($videos_id)
+    {
+        $plugins = Plugin::getAllEnabled();
+        foreach ($plugins as $value) {
+            self::YPTstart();
+            $p = static::loadPlugin($value['dirName']);
+            if (is_object($p)) {
+                if($p->videoHLSProtectionByPass($videos_id)){
+                    return true;
+                }
+            }
+            self::YPTend("{$value['dirName']}::" . __FUNCTION__);
+        }
+        return false;
     }
 }
 

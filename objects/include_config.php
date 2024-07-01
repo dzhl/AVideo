@@ -21,7 +21,8 @@ if (!empty($global['stopHeadRequests'])) {
  * @property mixed $global[] Dynamically loaded variables.
  */
 if (!empty($doNotIncludeConfig)) {
-    error_log('AVideo includeconfig ignored');
+    //error_log('AVideo includeconfig ignored');
+    // in this line the mysql connection will not be opened and session will not be opened
     require_once $global['systemRootPath'] . 'objects/plugin.php';
     require_once $global['systemRootPath'] . 'plugin/AVideoPlugin.php';
     require_once $global['systemRootPath'] . 'objects/functions.php';
@@ -54,7 +55,7 @@ if (!empty($global['stopBotsList']) && is_array($global['stopBotsList'])) {
                     }
                 }
             }
-            die('Bot Found ' . $_SERVER['HTTP_USER_AGENT']);
+            die("Bot Found [{$value}] " . $_SERVER['HTTP_USER_AGENT']);
         }
     }
 }

@@ -28,6 +28,8 @@ ini_set('max_execution_time', $_2hours);
 $sort = @$argv[1];
 if(empty($sort) || strtolower($sort) !== 'asc'){
     $sort = 'DESC';
+}else if(strtolower($sort) == 'asc'){
+    $alsoMoveUnlisted = 1;
 }
 
 $sql = "SELECT * FROM  videos WHERE 1=1 ORDER BY id $sort ";
@@ -81,7 +83,7 @@ if ($res != false) {
                 $statusSkipped[$row['status']] = 0;
             }
             $statusSkipped[$row['status']]++;
-            echo "{$info} ERROR skipped {$row['status']}". PHP_EOL;
+            echo "{$info} ERROR skipped status={$row['status']}". PHP_EOL;
         }
     }
 } else {

@@ -1,76 +1,4 @@
 <?php
-
-
-function cutVideoWithFFmpeg($inputFile, $startTimeInSeconds, $endTimeInSeconds, $outputFile, $aspectRatio)
-{
-    // Ensure start and end times are numeric
-    $startTimeInSeconds = (int)$startTimeInSeconds;
-    $endTimeInSeconds = (int)$endTimeInSeconds;
-
-    // Define aspect ratio dimensions
-    $aspectRatioDimensions = [
-        Video::ASPECT_RATIO_ORIGINAL,
-        Video::ASPECT_RATIO_SQUARE,
-        Video::ASPECT_RATIO_VERTICAL,
-        Video::ASPECT_RATIO_HORIZONTAL,
-    ];
-
-    // Validate aspect ratio parameter
-    if (!in_array($aspectRatio, $aspectRatioDimensions)) {
-        _error_log('cutVideoWithFFmpeg: Invalid aspect ratio parameter');
-        return false;
-    }
-
-    make_path($outputFile);
-
-    // Escape arguments to ensure command is safe to execute
-    $escapedInputFile = escapeshellarg($inputFile);
-    $escapedOutputFile = escapeshellarg($outputFile);
-    $escapedStartTime = escapeshellarg($startTimeInSeconds);
-    $escapedEndTime = escapeshellarg($endTimeInSeconds);
-
-    if($aspectRatio === Video::ASPECT_RATIO_ORIGINAL){
-        _error_log("cutAndAdaptVideoWithFFmpeg Original ratio");
-        // Construct the FFmpeg command
-        $cmd = get_ffmpeg() . " -ss {$escapedStartTime} -to {$escapedEndTime} -i {$escapedInputFile} -c:a copy {$escapedOutputFile}";
-    }else{
-        // Use ffprobe to get video dimensions
-        $ffprobeCommand = get_ffprobe()." -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 {$inputFile}";
-        $ffprobeCommand = removeUserAgentIfNotURL($ffprobeCommand);
-        
-        _error_log("cutAndAdaptVideoWithFFmpeg start shell_exec($ffprobeCommand)");
-        $videoDimensions = shell_exec($ffprobeCommand);
-        _error_log("cutAndAdaptVideoWithFFmpeg response ($videoDimensions)");
-        list($width, $height) = explode('x', trim($videoDimensions));
-        $width = intval($width);
-        $height = intval($height);
-        $cropParams = calculateCenterCrop($width, $height, $aspectRatio);
-    
-        // Calculate crop dimensions
-        $cropDimension = "{$cropParams['newWidth']}:{$cropParams['newHeight']}:{$cropParams['x']}:{$cropParams['y']}";
-    
-        $escapedCropDimension = escapeshellarg($cropDimension);
-    
-        // Construct the FFmpeg command
-        $cmd = get_ffmpeg() . " -ss {$escapedStartTime} -to {$escapedEndTime} -i {$escapedInputFile} -vf \"crop={$escapedCropDimension}\" -c:a copy {$escapedOutputFile}";
-    
-    }
-    $cmd = removeUserAgentIfNotURL($cmd);
-    // Execute the command
-    _error_log('cutAndAdaptVideoWithFFmpeg start ' . $cmd);
-
-    exec($cmd, $output, $returnVar);
-
-    // Check if the command was executed successfully
-    if ($returnVar === 0) {
-        _error_log('cutAndAdaptVideoWithFFmpeg success ' . $outputFile);
-        return true; // Command executed successfully
-    } else {
-        _error_log('cutAndAdaptVideoWithFFmpeg error ');
-        return false; // Command failed
-    }
-}
-
 function getDurationFromFile($file)
 {
     global $config, $getDurationFromFile;
@@ -95,14 +23,14 @@ function getDurationFromFile($file)
     if (!file_exists($videoFile)) {
         $file_headers = @get_headers($videoFile);
         if (!$file_headers || $file_headers[0] == 'HTTP/1.1 404 Not Found') {
-            error_log('getDurationFromFile try 1, File (' . $videoFile . ') Not Found');
+            error_log('getDurationFromFile try 1, File (' . $videoFile . ') Not Found original='.$file);
             $videoFile = $hls;
         }
     }
     if (!file_exists($videoFile)) {
         $file_headers = @get_headers($videoFile);
         if (!$file_headers || $file_headers[0] == 'HTTP/1.1 404 Not Found') {
-            error_log('getDurationFromFile try 2, File (' . $videoFile . ') Not Found');
+            error_log('getDurationFromFile try 2, File (' . $videoFile . ') Not Found original='.$file);
             $videoFile = '';
         }
     }
@@ -176,7 +104,7 @@ function wget($url, $filename, $debug = false)
         _error_log("wget: ERROR the url download but is empty $url, $filename");
         return true;
     }
-    return false;
+    return file_exists($filename);
 }
 
 function getDirSize($dir, $forceNew = false)
@@ -221,96 +149,6 @@ function getDirSize($dir, $forceNew = false)
             return $return;
         }
     }
-}
-
-function convertVideoFileWithFFMPEGIsLockedInfo($toFileLocation){
-    $localFileLock = $toFileLocation. ".lock";
-    $ageInSeconds = time() - @filemtime($localFileLock);
-    $isOld = $ageInSeconds > 300;
-    $file_exists = file_exists($localFileLock);
-    return array(
-        'ageInSeconds'=>$ageInSeconds,
-        'isOld'=>$isOld ,
-        'file_exists'=>file_exists($localFileLock),
-        'localFileLock'=>$localFileLock,
-        'isUnlocked'=> $isOld || !$file_exists,
-    );
-}
-function convertVideoFileWithFFMPEG($fromFileLocation, $toFileLocation, $logFile = '', $try = 0)
-{
-    $f = convertVideoFileWithFFMPEGIsLockedInfo($toFileLocation);
-    $localFileLock = $f['localFileLock'];
-    if ($f['isOld']) {
-        _error_log("convertVideoFileWithFFMPEG: age: {$f['ageInSeconds']} too long without change, unlock it " . $fromFileLocation. ' '.json_encode(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS)));
-        @unlink($localFileLock);
-    } elseif ($f['file_exists']) {
-        _error_log("convertVideoFileWithFFMPEG: age: {$f['ageInSeconds']} download from CDN There is a process running for {$fromFileLocation} localFileLock=$localFileLock log=$logFile");
-        return false;
-    } else {
-        _error_log("convertVideoFileWithFFMPEG: creating file: localFileLock: {$localFileLock} toFileLocation: {$toFileLocation}");
-    }
-    make_path($toFileLocation);
-    file_put_contents($localFileLock, time());
-    $fromFileLocationEscaped = escapeshellarg($fromFileLocation);
-    $toFileLocationEscaped = escapeshellarg($toFileLocation);
-
-    $format = pathinfo($toFileLocation, PATHINFO_EXTENSION);
-
-    if ($format == 'mp3') {
-        switch ($try) {
-            case 0:
-                $command = get_ffmpeg() . " -i \"{$fromFileLocation}\" -c:a libmp3lame \"{$toFileLocation}\"";
-                break;
-            default:
-                return false;
-                break;
-        }
-    } else {
-        if ($try === 0 && preg_match('/_offline\.mp4/', $toFileLocation)) {
-            $try = 'offline';
-            $fromFileLocationEscaped = "\"$fromFileLocation\"";
-            $command = get_ffmpeg() . " -i {$fromFileLocationEscaped} -crf 30 {$toFileLocationEscaped}";
-        } else {
-            switch ($try) {
-                case 0:
-                    $command = get_ffmpeg() . " -i {$fromFileLocationEscaped} -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 128k {$toFileLocationEscaped}";
-                    break;
-                case 1:
-                    $command = get_ffmpeg() . " -i {$fromFileLocationEscaped} -c copy {$toFileLocationEscaped}";
-                    break;
-                case 2:
-                    $command = get_ffmpeg() . " -allowed_extensions ALL -y -i {$fromFileLocationEscaped} -c:v copy -c:a copy -bsf:a aac_adtstoasc -strict -2 {$toFileLocationEscaped}";
-                    break;
-                case 3:
-                    $command = get_ffmpeg() . " -y -i {$fromFileLocationEscaped} -c:v copy -c:a copy -bsf:a aac_adtstoasc -strict -2 {$toFileLocationEscaped}";
-                    break;
-                default:
-                    return false;
-                    break;
-            }
-        }
-    }
-    if (!empty($logFile)) {
-        $progressFile = getConvertVideoFileWithFFMPEGProgressFilename($toFileLocation);
-    } else {
-        $progressFile = $logFile;
-    }
-    if(empty($progressFile)){
-        $progressFile = "{$toFileLocation}.log";
-    }
-    $command = removeUserAgentIfNotURL($command);
-    $command .= " > {$progressFile}";
-    _session_write_close();
-    _mysql_close();
-    _error_log("convertVideoFileWithFFMPEG try[{$try}]: " . $command . ' ' . json_encode(debug_backtrace()));
-    exec($command, $output, $return);
-    _session_start();
-    _mysql_connect();
-    _error_log("convertVideoFileWithFFMPEG try[{$try}] output: " . json_encode($output));
-
-    unlink($localFileLock);
-
-    return ['return' => $return, 'output' => $output, 'command' => $command, 'fromFileLocation' => $fromFileLocation, 'toFileLocation' => $toFileLocation, 'progressFile' => $progressFile];
 }
 
 function rrmdirCommandLine($dir, $async = false)
@@ -409,48 +247,15 @@ function getPIDUsingPort($port)
     return false;
 }
 
-function execAsync($command)
+function canExecutePgrep()
 {
-    //$command = escapeshellarg($command);
-    // If windows, else
-    if (isWindows()) {
-        //echo $command;
-        //$pid = system("start /min  ".$command. " > NUL");
-        //$commandString = "start /B " . $command;
-        //pclose($pid = popen($commandString, "r"));
-        _error_log($command);
-        $pid = exec($command, $output, $retval);
-        _error_log('execAsync Win: ' . json_encode($output) . ' ' . $retval);
-    } else {
-        $newCommand = $command . " > /dev/null 2>&1 & echo $!; ";
-        _error_log('execAsync Linux: ' . $newCommand);
-        $pid = exec($newCommand);
-    }
-    return $pid;
-}
-
-function killProcess($pid)
-{
-    $pid = intval($pid);
-    if (empty($pid)) {
-        return false;
-    }
-    if (isWindows()) {
-        exec("taskkill /F /PID $pid");
-    } else {
-        exec("kill -9 $pid");
-    }
-    return true;
-}
-
-
-function canExecutePgrep() {
     // Check if we can successfully pgrep the init or systemd process
     $test = shell_exec('pgrep -f init || pgrep -f systemd');
     return !empty($test); // Return true if we can execute pgrep, false otherwise
 }
 
-function getProcessPids($processName) {
+function getProcessPids($processName)
+{
     if (!canExecutePgrep()) {
         return null; // If we can't execute pgrep, return null
     }
@@ -473,14 +278,15 @@ function getProcessPids($processName) {
         }
         //_error_log("getProcessPids($processName) $line");
         // Extract PID from the start of the line
-        list($pid, ) = explode(' ', trim($line), 2);
+        list($pid,) = explode(' ', trim($line), 2);
         $pids[] = $pid;
     }
 
     return $pids;
 }
 
-function getCommandByPid($pid) {
+function getCommandByPid($pid)
+{
     $cmdlineFile = "/proc/{$pid}/cmdline";
 
     // Check if the cmdline file exists for the given PID
@@ -493,9 +299,151 @@ function getCommandByPid($pid) {
     $cmdArray = explode("\0", $cmd);
 
     // Remove any empty elements from the array
-    $cmdArray = array_filter($cmdArray, function($value) {
+    $cmdArray = array_filter($cmdArray, function ($value) {
         return $value !== '';
     });
 
     return $cmdArray;
+}
+
+function execAsync($command, $keyword = null)
+{
+    if ($keyword) {
+        // Sanitize the keyword to make it a valid filename
+        $keyword = preg_replace('/[^a-zA-Z0-9_-]/', '_', $keyword);
+    }
+
+    if (isWindows()) {
+        if ($keyword) {
+            // Add the keyword as a comment to the command for Windows
+            $commandWithKeyword = "start /B cmd /c \"$command & REM $keyword\" > NUL 2>&1";
+        } else {
+            $commandWithKeyword = "start /B cmd /c \"$command\" > NUL 2>&1";
+        }
+        _error_log($commandWithKeyword);
+        $pid = exec($commandWithKeyword, $output, $retval);
+        if ($retval !== 0) {
+            _error_log('execAsync Win Error: ' . json_encode($output) . ' Return Value: ' . $retval);
+        } else {
+            _error_log('execAsync Win: ' . json_encode($output) . ' ' . $retval);
+        }
+    } else {
+        if ($keyword) {
+            // Add the keyword as a comment to the command for Linux
+            $commandWithKeyword = "nohup sh -c \"$command & echo \\$! > /tmp/$keyword.pid\" > /dev/null 2>&1 &";
+        } else {
+            $commandWithKeyword = "nohup sh -c \"$command & echo \\$!\" > /dev/null 2>&1 &";
+        }
+        _error_log('execAsync Linux: ' . $commandWithKeyword);
+        exec($commandWithKeyword, $output, $retval);
+        _error_log('Command output: ' . json_encode($output));
+        _error_log('Return value: ' . $retval);
+        if ($retval !== 0) {
+            _error_log('execAsync Linux Error: ' . json_encode($output) . ' Return Value: ' . $retval);
+        } else {
+            if ($keyword) {
+                $pidFile = "/tmp/$keyword.pid";
+                _error_log('Checking PID file: ' . $pidFile);
+                sleep(1); // Wait a bit to ensure the PID file is written
+                if (file_exists($pidFile) && filesize($pidFile) > 0) {
+                    $pid = (int)file_get_contents($pidFile);
+                    _error_log('PID file exists, PID: ' . $pid);
+                } else {
+                    _error_log('PID file does not exist or is empty. Using output[0].');
+                    if (!empty($output[0])) {
+                        $pid = (int)$output[0];
+                        _error_log('PID from output[0]: ' . $pid);
+                        // Save the PID to the file as a fallback
+                        file_put_contents($pidFile, $pid);
+                        _error_log('PID saved to file: ' . $pidFile);
+                    } else {
+                        _error_log('Output[0] is also empty. Unable to determine PID.');
+                        $pid = null;
+                    }
+                }
+            } else {
+                if(empty($output)){
+                    return $output;
+                }
+                $pid = (int)$output[0];
+            }
+        }
+    }
+    return $pid;
+}
+
+
+// Function to find the process by keyword using the pid file
+function findProcess($keyword)
+{
+    $output = [];
+    if ($keyword) {
+        // Sanitize the keyword to make it a valid filename
+        $keyword = preg_replace('/[^a-zA-Z0-9_-]/', '_', $keyword);
+    }
+    // Use pgrep to find processes with the keyword (case insensitive)
+    exec("pgrep -fai " . escapeshellarg($keyword), $pgrepOutput, $retval);
+    //var_dump($pgrepOutput);
+    if ($retval === 0) {
+        foreach ($pgrepOutput as $pgrepPid) {
+            if(preg_match('/pgrep /i', $pgrepPid)){
+                continue;
+            }
+            if(preg_match('/([0-9]+) (.*)/i', $pgrepPid, $matches)){
+                if(!empty($matches[2])){
+                    $output[] = array('pid'=>(int)$matches[1], 'command'=>trim($matches[2]));
+                }
+            }
+            //$output[] = (int)$pgrepPid;
+            //$output[] = $pgrepPid;
+        }
+    }
+
+    // Remove duplicate PIDs
+    $output = array_unique($output);
+
+    return $output; // Returns an array of PIDs
+}
+
+
+// Function to kill the process by keyword using the pid file
+function killProcessFromKeyword($keyword)
+{
+    $pids = findProcess($keyword);
+    _error_log("killProcessFromKeyword($keyword) findProcess " . json_encode($pids));
+    foreach ($pids as $pid) {
+        killProcess($pid);
+    }
+}
+
+function killProcess($pid)
+{
+    if (is_array($pid)) {
+        $pid = $pid['pid'];
+    }
+
+    $pid = intval($pid);
+    if (empty($pid)) {
+        _error_log("killProcess: Invalid PID $pid");
+        return false;
+    }
+
+    _error_log("killProcess($pid)");
+
+    if (isWindows()) {
+        $cmd = "taskkill /F /PID $pid";
+    } else {
+        $cmd = "kill -9 $pid";
+    }
+    _error_log("Executing command: $cmd");
+
+    exec($cmd, $output, $retval);
+
+    if ($retval === 0) {
+        _error_log("killProcess: Successfully killed process $pid");
+        return true;
+    } else {
+        _error_log("killProcess: Failed to kill process $pid. Command output: " . json_encode($output) . " Return value: $retval");
+        return false;
+    }
 }

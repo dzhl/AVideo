@@ -1,6 +1,11 @@
 <?php
 global $statusThatShowTheCompleteMenu;
 require_once $global['systemRootPath'] . 'objects/video.php';
+
+$video_id = $_REQUEST['video_id'];
+if (!empty($video_id) && Video::canEdit($video_id)) {
+    $editVideo = Video::getVideo($video_id, '');
+}
 ?>
 <style>
     <?php
@@ -127,11 +132,39 @@ require_once $global['systemRootPath'] . 'objects/video.php';
     .typeLabels span {
         width: 100% !important;
     }
+
+    body.youtube .bootgrid-table {
+        table-layout: auto;
+    }
+
+    body.compact .hideIfCompact {
+        display: none;
+    }
+
+    body.compact .scrollIfCompact {
+        max-height: 90px;
+        overflow-y: scroll;
+    }
+
+    body.compact #grid img {
+        max-height: 50px !important;
+    }
 </style>
 <script>
     var filterStatus = '';
     var filterType = '';
     var filterCategory = '';
+    var _editVideo = false;
+    <?php
+    if (!empty($editVideo)) {
+        $json = json_encode($editVideo);
+        if (!empty($json)) {
+    ?>
+            _editVideo = <?php echo $json; ?>;
+    <?php
+        }
+    }
+    ?>
 </script>
 <div class="container-fluid">
     <?php
@@ -465,10 +498,14 @@ require_once $global['systemRootPath'] . 'objects/video.php';
 
                         <?php
                         foreach (Video::$searchFieldsNamesLabels as $key => $value) {
+                            $checked = 'checked';
+                            if (!empty($editVideo)) {
+                                $checked = Video::$searchFieldsNames[$key] == 'v.id' ? 'checked' : '';
+                            }
                         ?>
                             <li onclick="$('#grid').bootgrid('reload');event.stopPropagation();">
                                 <div class="form-check" style="padding-left: 5px;">
-                                    <input class="form-check-input searchFieldsNames" type="checkbox" value="<?php echo Video::$searchFieldsNames[$key]; ?>" id="searchFieldsNames<?php echo $key; ?>" checked>
+                                    <input class="form-check-input searchFieldsNames" type="checkbox" value="<?php echo Video::$searchFieldsNames[$key]; ?>" id="searchFieldsNames<?php echo $key; ?>" <?php echo $checked; ?>>
                                     <label class="form-check-label" for="searchFieldsNames<?php echo $key; ?>">
                                         <?php echo __($value); ?>
                                     </label>
@@ -480,6 +517,35 @@ require_once $global['systemRootPath'] . 'objects/video.php';
                     </ul>
                 </div>
             </div>
+            <div class="material-switch pull-right" style="margin-right: 20px; margin-top: 10px;">
+                <?php echo __('Compact Mode'); ?>
+                <input class="" data-toggle="toggle" type="checkbox" id="compactMode">
+                <label for="compactMode" class="label-success" style="margin-left: 10px;"></label>
+            </div>
+            <script>
+                $(document).ready(function() {
+                    // Check if the compact mode cookie exists and apply the class
+                    if (Cookies.get('compactMode') === 'on') {
+                        $('body').addClass('compact');
+                        $('#compactMode').prop('checked', true);
+                    }
+
+                    // Toggle compact mode on checkbox change
+                    $('#compactMode').change(function() {
+                        if ($(this).is(':checked')) {
+                            $('body').addClass('compact');
+                            Cookies.set('compactMode', 'on', {
+                                expires: 7
+                            }); // Cookie expires in 7 days
+                        } else {
+                            $('body').removeClass('compact');
+                            Cookies.set('compactMode', 'off', {
+                                expires: 7
+                            });
+                        }
+                    });
+                });
+            </script>
         </div>
         <div class="panel-body">
 
@@ -723,6 +789,9 @@ if (empty($advancedCustom->disableHTMLDescription)) {
                 if (response.encoding && response.encoding.length) {
                     for (i = 0; i < response.encoding.length; i++) {
                         var encoding = response.encoding[i];
+                        if (typeof encoding.return_vars === 'undefined') {
+                            continue;
+                        }
                         var id = encoding.return_vars.videos_id;
                         $("#downloadProgress" + id).slideDown();
                         var download_status = response.download_status[i];
@@ -853,6 +922,7 @@ if (empty($advancedCustom->disableHTMLDescription)) {
         $('#inputVideoId').val(row.id);
         $('#inputTitle').val(row.title);
         $('#inputVideoPassword').val(row.video_password);
+        $('#videoStatus').val(row.status);
         $('#inputTrailer').val(row.trailer1);
         $('#inputCleanTitle').val(row.clean_title);
         $('#created').val(row.created);
@@ -965,7 +1035,6 @@ if (empty($advancedCustom->disableHTMLDescription)) {
     }
 
     function createFileInput(selector, row, type) {
-        var videos_id = row.id;
         var filename = row.filename;
         var uploadUrl = webSiteRootURL + "objects/uploadPoster.php";
         var suffix = '.' + type;
@@ -975,8 +1044,8 @@ if (empty($advancedCustom->disableHTMLDescription)) {
             suffix = '_portrait.gif';
         }
         var initialPreview = "<img style='height:160px' src='" + webSiteRootURL + "videos/" + filename + "/" + filename + suffix + "'>";
-        uploadUrl = addQueryStringParameter(uploadUrl, 'video_id', videos_id);
         uploadUrl = addQueryStringParameter(uploadUrl, 'type', type);
+
         $(selector).fileinput({
             maxFileCount: 1,
             uploadUrl: uploadUrl,
@@ -985,34 +1054,52 @@ if (empty($advancedCustom->disableHTMLDescription)) {
             initialPreviewShowDelete: false,
             showRemove: false,
             showClose: false,
-            allowedFileExtensions: ["jpg", "jpeg", "png", "bmp"],
+            allowedFileExtensions: ["jpg", "jpeg", "png", "bmp", 'gif', "webp"],
+            uploadExtraData: function() {
+                return {
+                    video_id: videos_id,
+                    type: type
+                };
+            }
         }).on('fileuploaderror', function(event, data, msg) {
-            avideoAlertError(data.response.msg);
             console.log('fileuploaderror', data, msg);
-        }).on('filebatchuploaderror', function(event, preview, config, tags, extraData) {
-            // Handle file batch upload error
+
+            var form = data.form,
+                files = data.files,
+                extra = data.extra,
+                response = data.response,
+                reader = data.reader,
+                jqXHR = data.jqXHR;
+
+            console.log('FormData:', form);
+            console.log('Files:', files);
+            console.log('Extra Data:', extra);
+            console.log('Response:', response);
+            console.log('FileReader:', reader);
+            console.log('jqXHR:', jqXHR);
+
+            avideoAlertError(msg || 'An error occurred during file upload.');
+
+            if (response && response.error) {
+                avideoAlertError(response.msg);
+                data.context.addClass('error');
+            } else {
+                console.log('Unexpected error occurred without response error');
+                avideoAlertError('An unexpected error occurred.');
+            }
+        }).on('filebatchuploaderror', function(event, data, config, tags, extraData) {
+            console.log('filebatchuploaderror', data, config, tags, extraData);
             avideoAlertError(data.response.msg);
-            console.log('filebatchuploaderror', preview, config, tags, extraData);
         }).on('fileerror', function(event, data, previewId, index, fileId) {
-            // Handle file error
+            console.log('fileerror', data);
             avideoAlertError(data.response.msg);
             modal.hidePleaseWait();
         }).on('fileuploaded', function(event, data, previewId, index, fileId) {
-            // Handle file uploaded successfully
             console.log('fileuploaded', data, previewId, index, fileId);
-
-            // Check if there is a non-empty response from the server and it indicates an error
-            if (data.response && data.response.msg) {
-                // Display red alert below the image with the response message
-                avideoAlertError(data.response.msg);
-            } else {
-                // Hide any previous error alerts
-                // (Assuming avideoAlertError() handles the display of alerts and has a method to clear/hide alerts)
-                // avideoAlertClear(); // Example function to clear alerts, replace it with your implementation
-            }
         });
-
     }
+
+
 
     function reloadFileInput(row) {
         if (!row || typeof row === 'undefined') {
@@ -1081,6 +1168,7 @@ if (empty($advancedCustom->disableHTMLDescription)) {
                 "title": $('#inputTitle').val(),
                 "trailer1": $('#inputTrailer').val(),
                 "video_password": $('#inputVideoPassword').val(),
+                "videoStatus": $('#videoStatus').val(),
                 "videoLink": $('#videoLink').val(),
                 "epg_link": $('#epg_link').val(),
                 "videoLinkType": $('#videoLinkType').val(),
@@ -1156,12 +1244,15 @@ if (empty($advancedCustom->disableHTMLDescription)) {
         videos_id = 0;
         waitToSubmit = false;
         resetVideoEditClasses();
+        $('#upload > ul > li').remove();
         $('#fileUploadVideos_id').val(0);
         $('#inputVideoId').val(0);
         $('#inputTitle').val("");
         $('#inputTrailer').val("");
         $('#videoStartSeconds').val('00:00:00');
+        $('#videoSkipIntroSecond').val('00:00:00');
         $('#inputVideoPassword').val("");
+        $('#videoStatus').val('a');
         $('#inputCleanTitle').val("");
         $('#created').val("");
         $('#inputDescription').val("");
@@ -1402,21 +1493,25 @@ if (empty($advancedCustom->disableHTMLDescription)) {
                 tpl.find('input').knob();
                 // Listen for clicks on the cancel icon
                 tpl.find('span').click(function() {
-
                     if (tpl.hasClass('working')) {
                         jqXHR.abort();
                     }
-
                     tpl.fadeOut(function() {
                         tpl.remove();
                     });
                 });
+                // Extract the filename without extension
+                var filenameWithoutExt = data.files[0].name.replace(/\.[^/.]+$/, "");
+                // Add the filename without extension as a title parameter
+                data.formData = {
+                    title: filenameWithoutExt,
+                    videos_id: videos_id
+                };
                 // Automatically upload the file once it is added to the queue
                 var jqXHR = data.submit();
                 videoUploaded = true;
             },
             progress: function(e, data) {
-
                 // Calculate the completion percentage of the upload
                 var progress = parseInt(data.loaded / data.total * 100, 10);
                 // Update the hidden input field and trigger a change
@@ -1432,7 +1527,7 @@ if (empty($advancedCustom->disableHTMLDescription)) {
             },
             done: function(e, data) {
                 if (data.result.error && data.result.msg) {
-                    avideoAlert("<?php echo __("Sorry!"); ?>", data.result.msg, "error");
+                    avideoAlertError(data.result.ms);
                     data.context.addClass('error');
                     data.context.find('p.action').text("Error");
                 } else if (data.result.status === "error") {
@@ -1441,18 +1536,19 @@ if (empty($advancedCustom->disableHTMLDescription)) {
                     } else {
                         msg = data.result.msg[data.result.msg.length - 1];
                     }
-
-                    avideoAlert("<?php echo __("Sorry!"); ?>", msg, "error");
+                    avideoAlertError(msg);
                     data.context.addClass('error');
                     data.context.find('p.action').text("Error");
                 } else {
+                    console.log('upload done', data.result);
+                    videos_id = data.result.videos_id;
                     data.context.find('p.action').html("Upload done");
                     data.context.addClass('working');
                     $("#grid").bootgrid("reload");
                 }
             }
-
         });
+
         // Prevent the default action when a file is dropped on the window
         $(document).on('drop dragover', function(e) {
             e.preventDefault();
@@ -1473,19 +1569,10 @@ if (empty($advancedCustom->disableHTMLDescription)) {
 
             return (bytes / 1000).toFixed(2) + ' KB';
         }
-        <?php
-        if (!empty($row)) {
-            $json = json_encode($row);
-            if (!empty($json)) {
-        ?>
-                waitToSubmit = true;
-                editVideo(<?php echo $json; ?>);
-        <?php
-            } else {
-                echo "/*Json error for Video ID*/";
-            }
+        if (!empty(_editVideo)) {
+            waitToSubmit = true;
+            editVideo(_editVideo);
         }
-        ?>
 
         $('#linkExternalVideo').click(function() {
             newVideoLink();
@@ -1614,12 +1701,12 @@ if (empty($advancedCustom->disableHTMLDescription)) {
         var grid = $("#grid").bootgrid({
             padding: 4,
             labels: {
-                noResults: "<?php echo __("No results found!"); ?>",
-                all: "<?php echo __("All"); ?>",
+                noResults: __("No results found!"),
+                all: __("All"),
                 infos: "<?php echo __("Showing {{ctx.start}} to {{ctx.end}} of {{ctx.total}} entries"); ?>",
-                loading: "<?php echo __("Loading..."); ?>",
-                refresh: "<?php echo __("Refresh"); ?>",
-                search: "<?php echo __("Search"); ?>",
+                loading: __("Loading..."),
+                refresh: __("Refresh"),
+                search: __("Search"),
             },
             rowCount: <?php echo $advancedCustom->videosManegerRowCount; ?>,
             ajax: true,
@@ -1765,10 +1852,11 @@ if (empty($advancedCustom->disableHTMLDescription)) {
 
                     var bigButtons = _edit + _thumbnail + _download;
 
-                    return playBtn + embedBtn + editBtn + deleteBtn + status + suggestBtn + editLikes + bigButtons + pluginsButtons + download + nextIsSet;
+                    return '<div class="scrollIfCompact">' + playBtn + embedBtn + editBtn + deleteBtn + status + suggestBtn + editLikes + bigButtons + pluginsButtons + download + nextIsSet + '<div>';
                 },
                 "tags": function(column, row) {
                     var tags = '';
+                    tags += "<div class=\"clearfix\"></div><span class='label label-primary  tagTitle'>#ID</span><span class=\"label label-default \">" + row.id + "</span>";
                     <?php
                     if (Permissions::canAdminVideos()) {
 
@@ -1809,7 +1897,7 @@ if (empty($advancedCustom->disableHTMLDescription)) {
                         }, 1000);
                     }
 
-                    return tags;
+                    return '<div class="tagsContainer scrollIfCompact">' + tags + '</div>';
                 },
                 "filesize": function(column, row) {
                     return formatFileSize(row.filesize);
@@ -1882,7 +1970,7 @@ if (empty($advancedCustom->disableHTMLDescription)) {
                     <?php
                     if (AVideoPlugin::isEnabledByName('PlayLists')) {
                     ?>
-                        var playList = "<hr><div class='videoPlaylist' videos_id='" + row.id + "' id='videoPlaylist" + row.id + "' style='height:200px; overflow-y: scroll; padding:10px 5px;'></div>";
+                        var playList = "<hr class='hideIfCompact'><div class='videoPlaylist hideIfCompact' videos_id='" + row.id + "' id='videoPlaylist" + row.id + "' style='height:200px; overflow-y: scroll; padding:10px 5px;'></div>";
                     <?php
                     } else {
                     ?>
@@ -1893,7 +1981,7 @@ if (empty($advancedCustom->disableHTMLDescription)) {
                     //img = img + '<div class="hidden-md hidden-lg"><i class="fas fa-stopwatch"></i> ' + row.duration + '</div>';
                     var pluginsButtons = '<?php echo AVideoPlugin::getVideosManagerListButtonTitle(); ?>';
                     var buttonTitleLink = '<a href="' + row.link + '" class="btn btn-default btn-block titleBtn" style="overflow: hidden;" target="_top">' + img + '<br>' + type + row.title + '</a>';
-                    return '<div>' + buttonTitleLink + tags + "<div class='clearfix'></div><div class='gridYTPluginButtons'>" + yt + pluginsButtons + "</div>" + playList + '</div>';
+                    return '<div>' + buttonTitleLink + tags + "<div class='clearfix hideIfCompact'></div><div class='gridYTPluginButtons hideIfCompact'>" + yt + pluginsButtons + "</div>" + playList + '</div>';
                 }
 
 
@@ -1921,6 +2009,12 @@ if (empty($advancedCustom->disableHTMLDescription)) {
                     //$(this).html($(this).attr('videos_id'));
                 });
             }
+            if (!empty(_editVideo)) {
+                $(".bootgrid-header .search-field").val(_editVideo.id);
+                // Opcional: Execute uma busca automaticamente com o valor padrão
+                grid.bootgrid("search", _editVideo.id);
+            }
+
             /* Executes after data is loaded and rendered */
             grid.find(".command-edit").on("click", function(e) {
                     waitToSubmit = true;

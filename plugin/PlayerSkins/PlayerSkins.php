@@ -60,6 +60,12 @@ class PlayerSkins extends PluginAbstract
         $obj->showSocialShareOnEmbed = true;
         $obj->showLoopButton = true;
         $obj->showPictureInPicture = true;
+        
+        $o = new stdClass();
+        $o->type = array(0=>'Show In all devices', 1=>'Show In Mobile Only', 2=>'Show In Desktop Only');
+        $o->value = 0;
+        $obj->showFullscreenToggle = $o;
+
         $obj->showLogo = false;
         $obj->showShareSocial = true;
         $obj->showShareAutoplay = true;
@@ -139,7 +145,8 @@ class PlayerSkins extends PluginAbstract
                         class="embed-responsive-item video-js vjs-default-skin vjs-big-play-centered vjs-16-9" id="mainVideo">';
                 if ($video['type'] == Video::$videoTypeVideo) {
                     $sources = getSources($video['filename']);
-                    $htmlMediaTag .= "<!-- Video title={$video['title']} {$video['filename']} -->" .$sources; //var_dump($sources);exit;
+                    //var_dump($video['filename'], $sources);exit;
+                    $htmlMediaTag .= "<!-- Video title={$video['title']} {$video['filename']} -->" . $sources; //var_dump($sources);exit;
                 } else { // video link
                     $url = AVideoPlugin::modifyURL($video['videoLink'], $video['id']);
                     //var_dump($video['videoLink'], $url);exit;
@@ -250,7 +257,7 @@ class PlayerSkins extends PluginAbstract
         if (isWebRTC() || !empty($global['isForbidden'])) {
             return '';
         }
-        if(is_object($video)){
+        if (is_object($video)) {
             $video = Video::getVideoLight($video->getId());
         }
         $obj = $this->getDataObject();
@@ -261,6 +268,11 @@ class PlayerSkins extends PluginAbstract
             $js .= "<script>var isLive = true;</script>";
         }
         if (isVideo() || !empty($_GET['videoName']) || !empty($_GET['u']) || !empty($_GET['evideo']) || !empty($_GET['playlists_id'])) {
+            
+            if (self::showSkipIntro()) {
+                $css .= "<link href=\"" . getURL('plugin/PlayerSkins/skipIntro.css') . "\" rel=\"stylesheet\" type=\"text/css\"/>";
+            }
+
             if (!empty($_REQUEST['autoplay']) || !empty($obj->forceAlwaysAutoplay)) {
                 $js .= "<script>var autoplay = true;var forceautoplay = true;</script>";
             } else if (self::isAutoplayEnabled()) {
@@ -302,6 +314,11 @@ class PlayerSkins extends PluginAbstract
                 $css .= "{display: none !important;}";
                 $css .= "</style>";
             }
+            if (self::includeFullscreenBlock()) { 
+                $css .= "<style>";
+                $css .= ".video-js .vjs-fullscreen-control {display: none;}";
+                $css .= "</style>";
+            }
 
             $css .= "<script src=\"" . getURL('plugin/PlayerSkins/player.js') . "\"></script>";
             if ($obj->showLogoOnEmbed && isEmbed() || $obj->showLogo) {
@@ -328,7 +345,7 @@ class PlayerSkins extends PluginAbstract
 }"
                     . "</style>";
             }
-            
+
             if ($obj->showShareSocial && CustomizeUser::canShareVideosFromVideo(@$video['id'])) {
                 $css .= "<link href=\"" . getURL('plugin/PlayerSkins/shareButton.css') . "\" rel=\"stylesheet\" type=\"text/css\"/>";
             }
@@ -368,6 +385,17 @@ class PlayerSkins extends PluginAbstract
          */
     }
 
+    static function showSkipIntro(){
+        $videos_id = getVideos_id();
+        $video = Video::getVideoLight($videos_id);
+        $video['externalOptions'] = _json_decode($video['externalOptions']);
+
+        if(!empty($video['externalOptions']->videoSkipIntroSecond)){
+            return parseDurationToSeconds($video['externalOptions']->videoSkipIntroSecond);
+        }
+        return 0;
+    }
+
     public function getFooterCode()
     {
         if (isWebRTC()) {
@@ -399,11 +427,19 @@ class PlayerSkins extends PluginAbstract
             if ($obj->showPictureInPicture) {
                 PlayerSkins::getStartPlayerJS(file_get_contents("{$global['systemRootPath']}plugin/PlayerSkins/pipButton.js"));
             }
+            if (self::includeFullscreenBlock()) { 
+                PlayerSkins::getStartPlayerJS(file_get_contents("{$global['systemRootPath']}plugin/PlayerSkins/fullscrenCheck.js"));
+            }
             if ($obj->showShareSocial && CustomizeUser::canShareVideosFromVideo(@$video['id'])) {
                 $social = getSocialModal(@$video['id'], @$url, @$title);
                 PlayerSkins::getStartPlayerJS(file_get_contents("{$global['systemRootPath']}plugin/PlayerSkins/shareButton.js"));
                 $js .= $social['html'];
                 $js .= "<script>function tooglePlayersocial(){showSharing{$social['id']}();}</script>";
+            }
+
+            if ($skipTime = self::showSkipIntro()) {
+                PlayerSkins::getStartPlayerJS(file_get_contents("{$global['systemRootPath']}plugin/PlayerSkins/skipintro.js"));
+                $js .= "<script>var skipintroTime = {$skipTime};</script>";
             }
 
             if (self::showAutoplay()) {
@@ -465,6 +501,18 @@ class PlayerSkins extends PluginAbstract
         return $js;
     }
 
+    static function includeFullscreenBlock(){
+        //$o->type = array(0=>'Show In all devices', 1=>'Show In Mobile Only', 2=>'Show In Desktop Only');
+        $obj = AVideoPlugin::getObjectData('PlayerSkins');
+        //var_dump($obj->showFullscreenToggle->value);exit;
+        if (!empty($obj->showFullscreenToggle->value)) {
+            if (($obj->showFullscreenToggle->value==1 && !isMobile()) || $obj->showFullscreenToggle->value==2) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     static function getDataSetup($str = "")
     {
         global $video, $disableYoutubeIntegration, $global;
@@ -488,8 +536,15 @@ class PlayerSkins extends PluginAbstract
                 $dataSetup[] = "vimeo:{customVars: {wmode: \"transparent\", origin: \"{$global['webSiteRootURL']}\"}}";
             }
         }
+        $controlBar = array();
         if (!$obj->showPictureInPicture) {
-            $dataSetup[] = "controlBar: {pictureInPictureToggle: false}";
+            $controlBar[] = 'pictureInPictureToggle: false';
+        }
+        if (self::includeFullscreenBlock()) {            
+            //$controlBar[] = "fullscreenToggle: false";
+        }
+        if (!empty($controlBar)) {
+            $dataSetup[] = "controlBar: {" . implode(', ', $controlBar) . "}";
         }
 
         $pluginsDataSetup = AVideoPlugin::dataSetup();
@@ -862,7 +917,7 @@ class PlayerSkins extends PluginAbstract
     {
         global $global;
         $obj = AVideoPlugin::getObjectData('PlayerSkins');
-        if($obj->autoGenerateAndCacheEPG){
+        if ($obj->autoGenerateAndCacheEPG) {
             include "{$global['systemRootPath']}plugin/PlayerSkins/epg.php";
         }
     }

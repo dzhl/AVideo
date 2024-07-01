@@ -471,14 +471,14 @@ class Message implements MessageComponentInterface {
         $time = time();
         foreach ($rows as $key => $client) {
             if($client['time']+$this->disconnectAfter < $time){
-                _error_log("resourceId={$client['resourceId']} is too old, close it");
+                //_error_log("resourceId={$client['resourceId']} is too old, close it");
                 if(!empty($this->clients[$client['resourceId']])){
                     $this->clients[$client['resourceId']]->close();
                 }
                 unset($this->clients[$client['resourceId']]);
             }
             if($client['isCommandLine']){
-                if($client['time']+60 < $time){
+                if($client['time']+60 < $time && !empty($this->clients) && !empty($this->clients[$client['resourceId']])){
                     _error_log("resourceId={$client['resourceId']} disconnect commandline after 1 min");
                     $this->clients[$client['resourceId']]->close();
                     unset($this->clients[$client['resourceId']]);

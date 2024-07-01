@@ -92,10 +92,15 @@ function startModeFlix(container) {
         if ($('#poster' + crc).is(":hidden")) {
             $('#poster' + crc).css('background-image', 'url(' + $('#poster' + crc).attr('poster') + ')');
             $('#poster' + crc).slideDown('fast', function () {
-                var top = row.offset().top;
-                $('html, body').animate({
-                    scrollTop: top - myEleTop
-                }, 'fast');
+                console.log('#poster' + crc+' slideDown');
+                console.log('#row', row);
+                setTimeout(() => {
+                    var _top = row.offset().top;
+                    console.log('#poster' + crc+' row.offset().top', _top, myEleTop, _top - myEleTop);
+                    $('html, body').animate({
+                        scrollTop: _top - myEleTop
+                    }, 'fast');
+                }, 200);
             });
         } else {
             if ($(this).closest('.flickity-area').length) {

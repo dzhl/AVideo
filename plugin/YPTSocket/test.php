@@ -20,7 +20,22 @@ $socketobj = AVideoPlugin::getDataObject("YPTSocket");
 $address = $socketobj->host;
 $port = $socketobj->port;
 $socketobj->forceNonSecure = false;
-        
+
+if (!isPortOpen('127.0.0.1', $port)) {
+    _log("Port {$port} is not open on localhost");
+    die();
+}
+
+if (!isDomainResolving($address)) {
+    _log("Domain {$address} is not resolving");
+    die();
+}
+
+if (!isPortOpen($address, $port)) {
+    _log("Port {$port} is not open on {$address}");
+    die();
+}
+
 $url = "://localhost:{$port}";
 $SocketURL = 'ws' . $url;
 _test_send($SocketURL, 'ws');
@@ -45,6 +60,26 @@ if (empty($socketobj->forceNonSecure)) {
     _test_send($SocketURL, 'wss');
 }
 
+function isPortOpen($host, $port) {
+    $output = [];
+    $result = null;
+    exec("nc -zv {$host} {$port} 2>&1", $output, $result);
+    foreach ($output as $line) {
+        _log($line);
+    }
+    return $result === 0;
+}
+
+function isDomainResolving($domain) {
+    $output = [];
+    $result = null;
+    exec("nslookup {$domain} 2>&1", $output, $result);
+    foreach ($output as $line) {
+        _log($line);
+    }
+    return $result === 0;
+}
+
 function _test_send($SocketURL, $msg) {
     global $SocketSendObj, $count;
     $_count = $count;
@@ -59,12 +94,17 @@ function _test_send($SocketURL, $msg) {
         global $SocketSendObj;
         $conn->on('message', function($msg) use ($conn, $_count) {
             global $responses;
-            $json = _json_decode($msg->getPayload());
+            $payload = $msg->getPayload();
+            $json = _json_decode($payload);
             //var_dump($json);
-            $parts = explode(':', $json->msg->test_msg);
-            $c = new AVideoSocketConfiguration($parts[0], $parts[2], $parts[1], true);
-            $responses[] = $c;
-            $c->log();
+            if(!empty($json->msg) && !is_object($json->msg)){
+                $parts = explode(':', $json->msg->test_msg);
+                $c = new AVideoSocketConfiguration($parts[0], $parts[2], $parts[1], true);
+                $responses[] = $c;
+                $c->log();
+            }else{
+                $responses[] = "Could not decode response {$payload}";
+            }
             printIfComplete();
         });
 

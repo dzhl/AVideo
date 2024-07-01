@@ -8,6 +8,13 @@ if (!isset($global['systemRootPath'])) {
     require_once '../videos/configuration.php';
 }
 
+if (empty($advancedCustomUser)) {
+    $advancedCustomUser = AVideoPlugin::getObjectData("CustomizeUser");
+}
+if (!empty($advancedCustomUser->disableNativeSignUp) && !User::isAdmin()) {
+    forbiddenPage("Sign Up Disabled");
+}
+
 allowOrigin();
 require_once $global['systemRootPath'] . 'objects/user.php';
 
@@ -38,7 +45,7 @@ if (empty($ignoreCaptcha)) {
 $userCheck = new User(0, $_POST['user'], false);
 
 if (!empty($userCheck->getBdId())) {
-    $obj->error = __("User already exists");
+    $obj->msg = __("User already exists");
     die(json_encode($obj));
 }
 

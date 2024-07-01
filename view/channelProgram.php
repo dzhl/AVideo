@@ -35,7 +35,7 @@ if (empty($programs)) {
     $videos_id = @$videosArrayId[0];
 }
 $playListsObj = AVideoPlugin::getObjectData("PlayLists");
-//var_dump($_GET['program_id']);exit;
+//var_dump($_GET['program_id'], $videosArrayId, $programs);exit;
 PlayLists::loadScripts();
 
 
@@ -96,6 +96,7 @@ $_page->setExtraStyles(
         }
     ?>
         <br>
+        <!-- channelProgram -->
         <div class="panel panel-default program" playListId="<?php echo $program['id']; ?>">
             <div class="panel-heading clearfix" style="padding-left: 10px;">
                 <span class="badge pull-right"><?php echo $totalVideos; ?> <?php echo __('Videos'); ?></span>
@@ -113,7 +114,7 @@ $_page->setExtraStyles(
                 if (PlayLists::canManageAllPlaylists()) {
                 ?>
                     <br>
-                    <div class="pull-right" style="padding: 10px 0 0 0;">
+                    <div class="pull-right" style="padding: 2px 0 0 0;">
                         <label for="addOnFirstPage<?php echo $program['id']; ?>">
                             <span style="margin-right: 10px;"><?php echo __('Add to first page'); ?></span>
                         </label>

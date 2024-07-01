@@ -191,17 +191,37 @@
                                                 </li>
                                             <?php
                                             }
-                                            if (!empty($advancedCustomUser->userCanProtectVideosWithPassword) || Permissions::canAdminVideos()) {
                                             ?>
-                                                <li class="list-group-item">
-                                                    <label class="control-label" for="inputVideoPassword"><?php echo __("Password Protected"); ?></label>
-                                                    <input type="text" id="inputVideoPassword" class="form-control" placeholder="<?php echo __("Password"); ?>">
-                                                </li>
-                                                <?php
-                                            }
+                                            <li class="list-group-item">
+                                                <div class="row">
+                                                    <?php
+                                                    $col = 12;
+                                                    if (!empty($advancedCustomUser->userCanProtectVideosWithPassword) || Permissions::canAdminVideos()) {
+                                                        $col = 6;
+                                                    ?>
+                                                        <div class="col-sm-6">
+                                                            <label class="control-label" for="inputVideoPassword"><?php echo __("Password Protected"); ?></label>
+                                                            <input type="text" id="inputVideoPassword" class="form-control" placeholder="<?php echo __("Password"); ?>">
+                                                        </div>
+                                                    <?php
+                                                    }
+                                                    ?>
+                                                    <div class="col-sm-<?php echo $col; ?>">
+                                                        <label for="videoStatus"><?php echo __('Video Status'); ?></label>
+                                                        <select class="form-control last" id="videoStatus">
+                                                            <?php
+                                                            foreach ($statusThatTheUserCanUpdate as $value) {
+                                                                echo "<option value=\"{$value[0]}\">" . __(Video::$statusDesc[$value[0]]) . "</option>";
+                                                            }
+                                                            ?>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </li>
+                                            <?php
                                             if (empty($advancedCustomUser->userCanNotChangeUserGroup) || Permissions::canAdminVideos()) {
                                                 if ($advancedCustom->paidOnlyUsersTellWhatVideoIs || Permissions::canAdminVideos()) {
-                                                ?>
+                                            ?>
                                                     <li class="list-group-item">
                                                         <i class="fas fa-money-check-alt"></i> <?php echo __("Only Paid Users Can see"); ?>
                                                         <div class="material-switch pull-right">
@@ -265,7 +285,7 @@
                                             <label for="madeForKids" class="label-primary"></label>
                                         </div>
                                     </div>
-                                    <div class="col-md-5">
+                                    <div class="col-md-4">
                                         <label class="control-label" for="inputRrating">
                                             <?php echo __("R Rating"); ?>
                                         </label>
@@ -283,10 +303,25 @@
                                             ?>
                                         </select>
                                     </div>
-                                    <div class="col-md-5">
+                                    <div class="col-md-4">
                                         <?php
                                         include $global['systemRootPath'] . 'view/managerVideos_owner.php';
                                         ?>
+                                    </div>
+
+                                    <div class="col-md-2">
+                                        <?php
+                                        if (Permissions::canAdminVideos()) {
+                                        ?>
+                                            <div>
+                                                <label class="control-label" for="views_count"><?php echo __("Video Views"); ?></label>
+                                                <input type="number" step="1" id="views_count" class="form-control externalOptions">
+                                            </div>
+                                        <?php
+                                        } else {
+                                        ?><input type="hidden" id="views_count" value="-1"><?php
+                                                                                        }
+                                                                                            ?>
                                     </div>
                                 </div>
 
@@ -320,26 +355,17 @@
                                         <input type="text" id="inputTrailer" class="form-control" placeholder="<?php echo __("Embed URL for trailer"); ?>" required>
 
                                     </div>
-                                    <div class="col-md-6">
-
+                                    <div class="col-md-3">
                                         <div>
                                             <label class="control-label" for="videoStartSecond"><?php echo __("Start video at"); ?></label>
                                             <input type="text" id="videoStartSeconds" class="form-control externalOptions" placeholder="00:00:00" value="00:00:00" required>
                                         </div>
                                     </div>
-                                    <div class="col-md-6">
-                                        <?php
-                                        if (Permissions::canAdminVideos()) {
-                                        ?>
-                                            <div>
-                                                <label class="control-label" for="videoStartSecond"><?php echo __("Video Views"); ?></label>
-                                                <input type="number" step="1" id="views_count" class="form-control externalOptions">
-                                            </div>
-                                        <?php
-                                        } else {
-                                        ?><input type="hidden" id="views_count" value="-1"><?php
-                                                                                        }
-                                                                                            ?>
+                                    <div class="col-md-3">
+                                        <div>
+                                            <label class="control-label" for="videoSkipIntroSecond"><?php echo __("Skip intro to"); ?></label>
+                                            <input type="text" id="videoSkipIntroSecond" class="form-control externalOptions" placeholder="00:00:00" value="00:00:00" required>
+                                        </div>
                                     </div>
 
                                 </div>

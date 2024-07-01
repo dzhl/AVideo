@@ -52,6 +52,18 @@ try {
             } else {
                 tryToPlayMuted(currentTime);
             }
+        }else{
+            console.log('eventer messageEvent', e.data);
+        }
+        /*
+        if (e.data !== 'closeFullscreen') {
+            forwardToIframe(e.data);
+        }
+        */
+
+        // this is for plugin/SocialMediaPublisher/script.js
+        if (typeof e.data.provider !== 'undefined' && typeof saveYPT !== 'undeined') {
+            forwardToIframe(e.data);
         }
     }, false);
 
@@ -79,6 +91,15 @@ var urlParams = new URLSearchParams(queryString);
 
 if (urlParams.has('debug')) {
     isDebuging = false;
+}
+
+function forwardToIframe(data) {
+    var iframe = document.getElementById('avideoModalIframe'); // Get the iframe by ID
+    if (iframe && iframe.contentWindow) {
+        console.trace('forwardToIframe');
+        console.log('forwardToIframe', data);
+        iframe.contentWindow.postMessage(data, '*'); // Send the message to the iframe, replace '*' with the iframe's origin for security
+    }
 }
 
 function escapeRegExp(string) {
@@ -499,12 +520,17 @@ async function mouseEffect() {
 
 function isMobile() {
     var check = false;
-    (function (a) {
-        if (/(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino|android|ipad|playbook|silk/i.test(a) || /1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s\-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|\-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw\-(n|u)|c55\/|capi|ccwa|cdm\-|cell|chtm|cldc|cmd\-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc\-s|devi|dica|dmob|do(c|p)o|ds(12|\-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(\-|_)|g1 u|g560|gene|gf\-5|g\-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd\-(m|p|t)|hei\-|hi(pt|ta)|hp( i|ip)|hs\-c|ht(c(\-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i\-(20|go|ma)|i230|iac( |\-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc\-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|\-[a-w])|libw|lynx|m1\-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m\-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(\-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)\-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|\-([1-8]|c))|phil|pire|pl(ay|uc)|pn\-2|po(ck|rt|se)|prox|psio|pt\-g|qa\-a|qc(07|12|21|32|60|\-[2-7]|i\-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h\-|oo|p\-)|sdk\/|se(c(\-|0|1)|47|mc|nd|ri)|sgh\-|shar|sie(\-|m)|sk\-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h\-|v\-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl\-|tdg\-|tel(i|m)|tim\-|t\-mo|to(pl|sh)|ts(70|m\-|m3|m5)|tx\-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|\-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(\-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas\-|your|zeto|zte\-/i.test(a.substr(0, 4)))
-            check = true
-    })(navigator.userAgent || navigator.vendor || window.opera);
+    try {
+        (function (a) {
+            if (/(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino|android|ipad|playbook|silk/i.test(a) || /1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s\-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|\-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw\-(n|u)|c55\/|capi|ccwa|cdm\-|cell|chtm|cldc|cmd\-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc\-s|devi|dica|dmob|do(c|p)o|ds(12|\-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(\-|_)|g1 u|g560|gene|gf\-5|g\-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd\-(m|p|t)|hei\-|hi(pt|ta)|hp( i|ip)|hs\-c|ht(c(\-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i\-(20|go|ma)|i230|iac( |\-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc\-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|\-[a-w])|libw|lynx|m1\-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m\-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(\-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)\-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|\-([1-8]|c))|phil|pire|pl(ay|uc)|pn\-2|po(ck|rt|se)|prox|psio|pt\-g|qa\-a|qc(07|12|21|32|60|\-[2-7]|i\-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h\-|oo|p\-)|sdk\/|se(c(\-|0|1)|47|mc|nd|ri)|sgh\-|shar|sie(\-|m)|sk\-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h\-|v\-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl\-|tdg\-|tel(i|m)|tim\-|t\-mo|to(pl|sh)|ts(70|m\-|m3|m5)|tx\-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|\-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(\-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas\-|your|zeto|zte\-/i.test(a.substr(0, 4)))
+                check = true;
+        })(navigator.userAgent || navigator.vendor || window.opera);
+    } catch (e) {
+        console.error("Error detecting mobile device:", e);
+    }
     return check;
 }
+
 
 
 function getPlayerButtonIndex(name) {
@@ -1251,7 +1277,23 @@ function avideoAlertOnceADay(title, msg, type, uid) {
     avideoAlertWithCookie(title, msg, type, uid, timeUntilMidnight / 24); // Convert time from hours to a fraction of a day
 }
 
+async function avideoConfirmCallBack(msg, confirmCallBackFunction, cancelCallBackFunction) {
+    const response = await avideoConfirm(msg);
 
+    if (response) {
+        if (typeof confirmCallBackFunction === 'function') {
+            confirmCallBackFunction(response);
+        } else {
+            console.log("confirmCallBackFunction is not a function");
+        }
+    } else {
+        if (typeof cancelCallBackFunction === 'function') {
+            cancelCallBackFunction(response);
+        } else {
+            console.log("cancelCallBackFunction is not a function");
+        }
+    }
+}
 
 async function avideoConfirm(msg) {
     var span = document.createElement("span");
@@ -1405,7 +1447,9 @@ function avideoModalIframeClose() {
     }
     try {
         if (inIframe()) {
-            window.parent.swal.close();
+            if ($('.swal-overlay iframe').length == 0) {
+                window.parent.swal.close();
+            }
         }
     } catch (e) {
 
@@ -1417,13 +1461,13 @@ function avideoModalIframeFullScreenClose() {
 }
 
 function closeFullscreenVideo() {
+    console.trace('closeFullscreenVideo');
     avideoModalIframeClose();
 }
 
 // Listen for messages from child frames
 window.addEventListener('message', function (event) {
     if (event.data === 'closeFullscreen') {
-        // Call the function to close fullscreen video
         closeFullscreenVideo();
     }
 });
@@ -1747,6 +1791,9 @@ function avideoResponse(response) {
             avideoToastInfo(response.msg);
         } else {
             avideoToastSuccess(response.msg);
+            if (typeof response.eval !== 'undefined') {
+                eval(response.eval);
+            }
         }
     }
 }
@@ -2342,41 +2389,40 @@ function changeVideoStatus(videos_id, status) {
 }
 
 function avideoAjax(url, data) {
-    if (!url.startsWith('http')) {
-        url = webSiteRootURL + url;
-    }
-    avideoAjax2(url, data, true);
+    avideoAjaxWithResponse(url, data, true, ()=>{});
 }
 
-function avideoAjax2(url, data, pleaseWait) {
+function avideoAjaxWithResponse(url, data, pleaseWait, returnFunction) {
     if (pleaseWait) {
         modal.showPleaseWait();
+    }
+    if (!url.startsWith('http')) {
+        url = webSiteRootURL + url;
     }
     $.ajax({
         url: url,
         data: data,
         type: 'post',
-        success: function (response) {
-            if (response.error) {
-                avideoAlertError(response.msg);
-            } else {
-                avideoToastSuccess(response.msg);
-                if (typeof response.eval !== 'undefined') {
-                    eval(response.eval);
-                }
-            }
-        },
-        error: function (response) {
-            //console.error('avideoAjax2', url, data, pleaseWait, response.responseJSON);
-            if (response.responseJSON.error) {
-                avideoAlertError(response.responseJSON.msg);
-            } else {
-                avideoToastError(response.responseJSON.msg);
-            }
-        },
-        complete: function (response) {
+        complete: function (jqXHR, textStatus) {
             if (pleaseWait) {
                 modal.hidePleaseWait();
+            }
+            if (jqXHR.status >= 200 && jqXHR.status < 300) {
+                // Successful response
+                if (jqXHR.responseJSON) {
+                    avideoResponse(jqXHR.responseJSON);
+                    returnFunction(jqXHR.responseJSON);
+                } else {
+                    returnFunction(jqXHR.responseText);
+                }
+            } else {
+                // Error response
+                console.error('Error:', textStatus, jqXHR.statusText);
+                if (jqXHR.responseJSON) {
+                    avideoResponse(jqXHR.responseJSON);
+                } else {
+                    avideoAlertError(textStatus + ': ' + jqXHR.statusText);
+                }
             }
         }
     });
@@ -2936,6 +2982,10 @@ $(document).ready(function () {
     _alertFromGet('success');
     _alertFromGet('toast');
 
+    $(".infoButton").click(function() {
+        var innerDiv = $(this).find("div.hidden");
+        avideoAlertInfo(innerDiv.html());
+    });
 });
 
 /*!
@@ -3964,8 +4014,6 @@ function addCloseButton(elementToAppend) {
         // Add event listener
         closeButton.on('click', function () {
             if (window.self !== window.top) {
-                console.log('close parent iframe');
-                //window.parent.closeFullscreenVideo();
                 window.parent.postMessage('closeFullscreen', '*');
             } else {
                 console.log('close history.back');
@@ -4163,3 +4211,136 @@ function findLargestCookies() {
     return sortedCookies;
 }
 
+function confirmAndDelete(urlToDelete, id, functionForResponse) {
+    swal({
+        title: __("Are you sure?"),
+        text: __("You will not be able to recover this action!"),
+        icon: "warning",
+        buttons: true,
+        dangerMode: true,
+    })
+        .then(function (willDelete) {
+            if (willDelete) {
+                modal.showPleaseWait();
+                $.ajax({
+                    type: "POST",
+                    url: urlToDelete,
+                    data: {
+                        id: id
+                    }
+                }).done(function (response) {
+                    modal.hidePleaseWait();
+                    avideoResponse(response);
+                    functionForResponse(response);
+                });
+            } else {
+
+            }
+        });
+}
+
+function getTinyMCEVal(id) {
+    if (tinymce && tinymce.get(id)) {
+        return tinymce.get(id).getContent();
+    } else {
+        return $('#' + id).val();
+    }
+}
+
+function setTinyMCEVal(id, val) {
+    $('#' + id).val(val);
+    tinymce.get(id).setContent(val);
+}
+
+var _displayJsonAsHtmlCount = 0;
+function displayJsonAsHtml(jsonObjectOrString) {
+    // Check if the input is a string and parse it into an object if so
+    var jsonObject = (typeof jsonObjectOrString === "string") ? JSON.parse(jsonObjectOrString) : jsonObjectOrString;
+
+    var html = '';
+
+    $.each(jsonObject, function (key, value) {
+        var rowHtml = '<div class="displayJsonAsHtml">';
+
+        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+            // Generate a unique collapsible section
+            var collapseId = 'collapse' + (key + '_' + (_displayJsonAsHtmlCount++)).replace(/[^a-zA-Z0-9_]/g, '');
+            var panelHtml = '<div class="panel panel-default">' +
+                '<div class="panel-heading">' +
+                '<h4 class="panel-title">' +
+                '<a data-toggle="collapse" href="#' + collapseId + '" target="_blank" class="btn btn-xs btn-default btn-block" >' + key + ' Details</a>' +
+                '</h4>' +
+                '</div>' +
+                '<div id="' + collapseId + '" class="panel-collapse collapse">' +
+                '<div class="panel-body">' + displayJsonAsHtml(value) + '</div>' +
+                '</div>' +
+                '</div>';
+            rowHtml += panelHtml;
+        } else {
+            // Handle non-object values
+            if (typeof value === 'string' && isURL(value)) {
+                value = '<a href="' + value + '" target="_blank" class="btn btn-xs btn-default" >' + value + '</a>';
+            }
+            rowHtml += '<strong>' + key + ':</strong> ' + value;
+        }
+        rowHtml += '</div>';
+        html += rowHtml;
+    });
+
+    return html;
+}
+
+function startTour(stepsFileRelativePath) {
+    let id = stepsFileRelativePath.replace(/[^a-zA-Z0-9]/g, '');
+    // Check if Intro.js is already loaded
+    if (typeof introJs === 'undefined') {
+        // Load Intro.js CSS
+        $('head').append('<link rel="stylesheet" href="' + webSiteRootURL + 'node_modules/intro.js/minified/introjs.min.css" type="text/css" />');
+
+        // Load Intro.js JavaScript
+        $.getScript(webSiteRootURL + 'node_modules/intro.js/minified/intro.min.js', function () {
+            loadAndStartTour(stepsFileRelativePath);
+        });
+    } else {
+        loadAndStartTour(stepsFileRelativePath);
+    }
+    function loadAndStartTour(stepsFileRelativePath) {
+        // Fetch the tour steps from a server
+        $.ajax({
+            url: webSiteRootURL + stepsFileRelativePath, // URL to the server-side script that returns JSON
+            type: 'GET',
+            dataType: 'json',
+            success: function (response) {
+                // Initialize the tour with the fetched data
+                var tour = introJs();
+                tour.setOptions({
+                    steps: response
+                });
+                tour.start();
+            },
+            error: function (xhr, status, error) {
+                console.log("Error fetching tour data: " + error);
+            }
+        });
+    }
+}
+
+function findIndex(value, array) {
+    return array.indexOf(value);
+}
+
+function getNextValue(value, array) {
+    const index = findIndex(value, array);
+    if (index !== -1 && index < array.length - 1) {
+        return array[index + 1];
+    }
+    return null; // Return null if there is no next value
+}
+
+function getPreviousValue(value, array) {
+    const index = findIndex(value, array);
+    if (index > 0) {
+        return array[index - 1];
+    }
+    return null; // Return null if there is no previous value
+}

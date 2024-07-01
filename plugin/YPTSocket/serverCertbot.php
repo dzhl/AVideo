@@ -23,4 +23,4 @@ _session_write_close();
 killProcessOnPort();
 
 exec('certbot renew');
-exec("sudo nohup php {$global['systemRootPath']}plugin/YPTSocket/server.php &");
+exec("sudo ".YPTSocket::getStartServerCommand());
