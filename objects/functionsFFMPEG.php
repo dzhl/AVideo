@@ -56,6 +56,16 @@ function convertVideoToMP3FileIfNotExists($videos_id, $forceTry = 0)
     $paths = Video::getPaths($video['filename']);
     $mp3HLSFile = "{$paths['path']}index.mp3";
     $mp3File = "{$paths['path']}{$video['filename']}.mp3";
+
+    if($forceTry){
+        if(file_exists($mp3HLSFile)){
+            unlink($mp3HLSFile);
+        }
+        if(file_exists($mp3File)){
+            unlink($mp3File);
+        }
+    }
+
     if (file_exists($mp3HLSFile) || file_exists($mp3File)) {
         return Video::getSourceFile($video['filename'], ".mp3", true);
     } else {
@@ -150,7 +160,7 @@ function m3u8ToMP4($input, $makeItPermanent = false, $force = false)
     if (file_exists($lockFile) || $force) {
         $lockFileAge = time() - filemtime($lockFile);
         if ($lockFileAge <= 600) { // 10 minutes = 600 seconds
-            _error_log("m3u8ToMP4: Another process is already running. Lock file age: {$lockFileAge} seconds.");
+            _error_log("m3u8ToMP4: Another process is already running. Lock file age: {$lockFileAge} seconds. [$lockFile]");
             return [
                 'error' => true,
                 'msg' => 'Another process is already running. Please wait and try again.',
