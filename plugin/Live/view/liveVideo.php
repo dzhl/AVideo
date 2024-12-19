@@ -1,6 +1,6 @@
 <?php
 $_REQUEST['live_servers_id'] = Live::getLiveServersIdRequest();
-$poster = Live::getPosterImage($livet['users_id'], $_REQUEST['live_servers_id'], @$_REQUEST['live_schedule']);
+$poster = Live::getRegularPosterImage($livet['users_id'], $_REQUEST['live_servers_id'], @$_REQUEST['live_schedule'], @$_REQUEST['ppv_schedule_id']);
 $posterURL = $global['webSiteRootURL'] . $poster . '?' . filectime($global['systemRootPath'] . $poster);
 $playerSkinsObj = AVideoPlugin::getObjectData("PlayerSkins");
 $isLive = 1;
@@ -15,5 +15,6 @@ $htmlMediaTag = '<video poster="' . $posterURL . '" controls '.PlayerSkins::getP
 
 $htmlMediaTag .= getLiveUsersLabelHTML();
 echo PlayerSkins::getMediaTag(false, $htmlMediaTag);
+//include $global['systemRootPath'] . 'plugin/PlayerSkins/buffering.debug.php';
 ?>
 <!-- Live finish -->

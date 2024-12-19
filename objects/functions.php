@@ -333,11 +333,11 @@ function safeString($text, $strict = false, $try = 0)
 
     if (empty($try) && empty($text) && function_exists('mb_convert_encoding')) {
         $originalText2 = preg_replace('/[^\PC\s]/u', '', $originalText);
-        if(empty($originalText2)){
+        if (empty($originalText2)) {
             $originalText2 = mb_convert_encoding($originalText, 'UTF-8', 'auto');
             $originalText2 = preg_replace('/[^\PC\s]/u', '', $originalText2);
-        }        
-        if(!empty($originalText2)){
+        }
+        if (!empty($originalText2)) {
             $originalText = $originalText2;
         }
         // Remove leading and trailing whitespace
@@ -1056,7 +1056,10 @@ function getAudioOrVideoURLOnly($fileName, $recreateCache = false)
         _error_log("getAudioOrVideoURLOnly($fileName) " . json_encode($allFiles));
     }
     foreach ($allFiles as $key => $value) {
-        if ($value['type'] !== 'video' && $value['type'] !== 'audio') {
+        if (
+            ($value['type'] !== 'video' && $value['type'] !== 'audio') ||
+            (preg_match('/offline/i', $key) || preg_match('/.lock/i', $key))
+        ) {
             unset($allFiles[$key]);
         }
     }
@@ -1169,8 +1172,8 @@ function getVideosURL_V2($fileName, $recreateCache = false, $checkFiles = true)
             }
             if ($parts['filename'] == 'index') {
                 $parts['filename'] = str_replace(Video::getPathToFile($parts['dirname']), '', $parts['dirname']);
+                $parts['filename'] = str_replace(getVideosDir(), '', $parts['filename']);
             }
-
             //$timeName2 = "getVideosURL_V2::Video::getSourceFile({$parts['filename']}, .{$parts['extension']})";
             //TimeLogStart($timeName2);
             $source = Video::getSourceFile($parts['filename'], ".{$parts['extension']}");
@@ -1214,8 +1217,20 @@ function getVideosURL_V2($fileName, $recreateCache = false, $checkFiles = true)
                 }
             }
 
+            $_filename = "{$parts['filename']}.{$parts['extension']}";
+            if ($parts['basename'] == 'index.mp4') {
+                $_filename = "index.mp4";
+                $source['url'] = str_replace("{$parts['filename']}.mp4", 'index.mp4', $source['url']);
+                $source['url_noCDN'] = str_replace("{$parts['filename']}.mp4", 'index.mp4', $source['url_noCDN']);
+            }
+            if ($parts['basename'] == 'index.mp3') {
+                $_filename = "index.mp3";
+                $source['url'] = str_replace("{$parts['filename']}.mp3", 'index.mp3', $source['url']);
+                $source['url_noCDN'] = str_replace("{$parts['filename']}.mp3", 'index.mp3', $source['url_noCDN']);
+            }
+
             $_file = [
-                'filename' => "{$parts['filename']}.{$parts['extension']}",
+                'filename' => $_filename,
                 'path' => $file,
                 'url' => $source['url'],
                 'url_noCDN' => @$source['url_noCDN'],
@@ -1373,6 +1388,9 @@ function getSources($fileName, $returnArray = false, $try = 0)
     if ($returnArray) {
         $return = array_merge($videoSources, $audioTracks, $subtitleTracks,  $captionsTracks);
     } else {
+        // remove index.mp4
+        $videoSources = preg_replace('/<source src=".*index.mp4.*" type="video\/mp4" label="Low" res="360">/', '<!-- index.mp4 removed -->', $videoSources);
+        //var_dump($videoSources);exit;
         $return = $videoSources . $audioTracks  . PHP_EOL . $subtitleTracks  . PHP_EOL . $captionsTracks;
     }
 
@@ -2632,7 +2650,7 @@ function rrmdir($dir)
 function getAdsDebugTag($adCode)
 {
     global $global;
-    if(!empty($_REQUEST['AdsDebug']) && User::isAdmin()){
+    if (!empty($_REQUEST['AdsDebug']) && User::isAdmin()) {
         $function = debug_backtrace()[1]["function"];
         $function = str_replace('get', '', $function);
         $adCode = "<div class=\"AdsDebug\">{$function}<br>{$global['lastAdsCodeReason']}<br>$adCode</div>";
@@ -3152,7 +3170,7 @@ function verifyToken($token, $salt = "")
         _error_log("verifyToken salt fail");
         return false;
     }
-    if(!empty($obj->videos_id) && $obj->videos_id != getVideos_id()){
+    if (!empty($obj->videos_id) && $obj->videos_id != getVideos_id()) {
         _error_log("This is not to this videos ID");
         return false;
     }
@@ -4414,7 +4432,8 @@ function isContentTypeXML()
     return preg_match('/xml/i', $contentType);
 }
 
-function successJsonMessage($message){
+function successJsonMessage($message)
+{
     $obj = new stdClass();
     $obj->error = false;
     $obj->msg = $message;
@@ -5007,6 +5026,77 @@ function pathToRemoteURL($filename, $forceHTTP = false, $ignoreCDN = false)
     return $url;
 }
 
+function pathOrURLToValidURL($filenameOrURL)
+{
+    global $global;
+    $videosURL = "{$global['webSiteRootURL']}videos/";
+    $videosPath = getVideosDir();
+    $relativePath = '';
+    $filePath = '';
+
+    $parts = explode('?', $filenameOrURL);
+    $filenameOrURL = $parts[0];
+
+    $defaultURL = $filenameOrURL;
+    if (strpos($filenameOrURL, $videosURL) === 0) {
+        $relativePath = str_replace($videosURL, '', $filenameOrURL);
+        $filePath = "{$videosPath}{$relativePath}";
+        $defaultURL = getCDN() . 'videos/'.$relativePath;
+    }else if(file_exists($filenameOrURL)){
+        $relativePath = str_replace($videosPath, '', $filenameOrURL);
+        $filePath = $filenameOrURL;
+        $defaultURL = getCDN() . 'videos/'.$relativePath;
+    }else if(file_exists("{$global['systemRootPath']}{$filenameOrURL}")){
+        $relativePath = str_replace('videos/', '', $filenameOrURL);
+        $filePath = "{$global['systemRootPath']}videos/{$relativePath}";
+        $defaultURL = getCDN() . 'videos/'.$relativePath;
+    }else if(file_exists("{$videosPath}{$filenameOrURL}")){
+        $relativePath = "{$filenameOrURL}";
+        $filePath = "{$global['systemRootPath']}videos/{$relativePath}";
+        $defaultURL = getCDN() . 'videos/'.$relativePath;
+    }
+
+    if (file_exists($filePath)) {
+        if (!isDummyFile($filePath)) {
+            return $defaultURL;
+        }
+
+        $obj = AVideoPlugin::getDataObjectIfEnabled('CDN');
+        if (!empty($obj) && $obj->enable_storage) {
+            $pz = CDNStorage::getPZ();
+            return "https://{$pz}{$relativePath}";
+        }
+        $yptStorage = AVideoPlugin::loadPluginIfEnabled("YPTStorage");
+        if (!empty($yptStorage)) {
+            $source = $yptStorage->getAddress($relativePath);
+            if(!empty($source['url'])){
+                return $source['url'];
+            }
+        }
+
+        if (!preg_match('/index.m3u8$/', $filePath)) {
+            if ($aws_s3 = AVideoPlugin::loadPluginIfEnabled("AWS_S3")) {
+                $source = $aws_s3->getAddress("{$filePath}");
+                if(!empty($source['url'])){
+                    return $source['url'];
+                }
+            } elseif ($bb_b2 = AVideoPlugin::loadPluginIfEnabled("Blackblaze_B2")) {
+                $source = $bb_b2->getAddress("{$filePath}");
+                if(!empty($source['url'])){
+                    return $source['url'];
+                }
+            } elseif ($ftp = AVideoPlugin::loadPluginIfEnabled("FTP_Storage")) {
+                $source = $ftp->getAddress("{$filePath}");
+                if(!empty($source['url'])){
+                    return $source['url'];
+                }
+            }
+        }
+    }
+
+    return $defaultURL;
+}
+
 function getFilenameFromPath($path)
 {
     global $global;
@@ -5129,7 +5219,8 @@ function isWindowsServer()
     return strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
 }
 
-function isWindows() {
+function isWindows()
+{
     global $global;
     // Check if the HTTP_USER_AGENT is set
     if (isset($_SERVER['HTTP_USER_AGENT'])) {
@@ -6508,7 +6599,7 @@ function getMediaSession()
     if ($liveLink = isLiveLink()) {
         $MediaMetadata = LiveLinks::getMediaSession($liveLink);
     } elseif ($live = isLive()) {
-        $MediaMetadata = Live::getMediaSession($live['key'], $live['live_servers_id'], @$live['live_schedule_id']);
+        $MediaMetadata = Live::getMediaSession($live['key'], $live['live_servers_id'], @$live['live_schedule_id'], 0);
     } elseif (!empty($videos_id)) {
         if (!empty($videos_id)) {
             $MediaMetadata = Video::getMediaSession($videos_id);
@@ -6518,7 +6609,7 @@ function getMediaSession()
     } elseif (!empty($_REQUEST['videos_id'])) {
         $MediaMetadata = Video::getMediaSession($_REQUEST['videos_id']);
     } elseif (!empty($_REQUEST['key'])) {
-        $MediaMetadata = Live::getMediaSession($_REQUEST['key'], @$_REQUEST['live_servers_id'], @$_REQUEST['live_schedule_id']);
+        $MediaMetadata = Live::getMediaSession($_REQUEST['key'], @$_REQUEST['live_servers_id'], @$_REQUEST['live_schedule_id'], 0);
     }
     if (empty($MediaMetadata) || empty($MediaMetadata->title)) {
         $MediaMetadata = new stdClass();
