@@ -2,7 +2,7 @@
 
 class SocialUploader
 {
-    public static function upload($publisher_user_preferences_id, $videoPath, $title, $description, $visibility = 'public', $isShort = false)
+    public static function upload($publisher_user_preferences_id, $videoPathMP4, $title, $description, $visibility = 'public', $isShort = false)
     {
         $title = strip_tags($title);
         $description = strip_tags($description);
@@ -11,18 +11,32 @@ class SocialUploader
             return array('error' => true, 'msg' => 'Empty access token', 'line' => __LINE__);
         }
         $pub = new Publisher_user_preferences($publisher_user_preferences_id);
+        _error_log("SocialMediaPublisher::upload provider=" . $pub->getProviderName());
+        
+        $videoPathMP4['url'] = addQueryStringParameter($videoPathMP4['url'], 'globalToken', getToken(30));
         try {
             switch ($pub->getProviderName()) {
                 case SocialMediaPublisher::SOCIAL_TYPE_YOUTUBE['name']:
-                    return SocialUploader::uploadYouTube($accessToken, $videoPath, $title, $description, $visibility, $isShort);
+                    return SocialUploader::uploadYouTube($accessToken, $videoPathMP4['path'], $title, $description, $visibility, $isShort);
                     break;
                 case SocialMediaPublisher::SOCIAL_TYPE_FACEBOOK['name']:
                     $json = json_decode($pub->getJson());
                     $pageId = $json->{'restream.ypt.me'}->facebook->broadcaster_id;
-                    return SocialUploader::uploadFacebook($accessToken, $pageId, $videoPath, $title, $description, $visibility, $isShort);
+                    _error_log("SocialMediaPublisher::upload json=" . json_encode($json));
+                    return SocialUploader::uploadFacebook($accessToken, $pageId, $videoPathMP4['url'], $title, $description, $visibility, $isShort);
                     break;
                 case SocialMediaPublisher::SOCIAL_TYPE_INSTAGRAM['name']:
-                    //return SocialUploader::uploadYouTube($accessToken, $videoPath, $title, $description, $visibility, $isShort);
+                    $pub = Publisher_user_preferences::getFromDb($publisher_user_preferences_id);
+                    $broadcaster_id = 0;
+                    if (!empty($pub)) {
+                        $json = json_decode($pub['json']);
+                        //var_dump($json);
+                        if (!empty($json) && !empty($json->{"restream.ypt.me"}->instagram) && !empty($json->{"restream.ypt.me"}->instagram->access_token)) {
+                            $accessToken = $json->{"restream.ypt.me"}->instagram->access_token;
+                            $broadcaster_id = $json->{"restream.ypt.me"}->instagram->broadcaster_id;
+                        }
+                    }
+                    return SocialUploader::uploadInstagram($accessToken, $videoPathMP4['url'], $title, $description, $broadcaster_id);
                     break;
                 case SocialMediaPublisher::SOCIAL_TYPE_TWITCH['name']:
                     //return SocialUploader::uploadYouTube($accessToken, $videoPath, $title, $description, $visibility, $isShort);
@@ -31,7 +45,7 @@ class SocialUploader
                     $json = json_decode($pub->getJson());
                     $urn = $json->{'restream.ypt.me'}->linkedin->urn;
                     $id = $json->{'restream.ypt.me'}->linkedin->profile_id;
-                    $upload = SocialUploader::uploadLinkedIn($accessToken, $urn, $id, $videoPath, $title, $description, $visibility, $isShort);
+                    $upload = SocialUploader::uploadLinkedIn($accessToken, $urn, $id, $videoPathMP4['path'], $title, $description, $visibility, $isShort);
                     return $upload;
                     break;
             }
@@ -78,6 +92,7 @@ class SocialUploader
 
         return  $uploadResult;
     }
+
     private static function uploadYouTube($accessToken, $videoPath, $title, $description, $visibility = 'public', $isShort = false)
     {
         $title = _substr($title, 0, 90);
@@ -133,12 +148,19 @@ class SocialUploader
     private static function uploadFacebook($accessToken, $pageId, $videoPath, $title, $description, $visibility = 'public', $isShort = false)
     {
         if ($isShort) {
+            _error_log("SocialMediaPublisher::uploadFacebook Short");
             return FacebookUploader::uploadFacebookReels($accessToken, $pageId, $videoPath, $title, $description);
         } else {
+            _error_log("SocialMediaPublisher::uploadFacebook Video");
             return FacebookUploader::uploadFacebookVideo($accessToken, $pageId, $videoPath, $title, $description);
         }
     }
 
+    private static function uploadInstagram($accessToken, $videoPath, $title, $description, $broadcaster_id)
+    {
+        $caption = $title . PHP_EOL . PHP_EOL . $description;
+        return InstagramUploader::upload($accessToken, $videoPath, $caption, $broadcaster_id);
+    }
 
     static public function getErrorMsg($obj)
     {
@@ -167,14 +189,16 @@ class SocialUploader
 }
 
 
+
 class FacebookUploader
 {
     static function uploadFacebookVideo($accessToken, $pageId, $videoPath, $title, $description)
     {
         global  $global;
         // Upload a local video directly
-        $videoUrl = str_replace(getVideosDir(), $global['webSiteRootURL'], $videoPath);
-        $VideoUploadResponse = FacebookUploader::uploadDirectHostedVideo($pageId, $accessToken, $videoUrl);
+        $videoUrl = str_replace($global['systemRootPath'], $global['webSiteRootURL'], $videoPath);
+
+        $VideoUploadResponse = FacebookUploader::uploadDirectHostedVideo($pageId, $accessToken, $videoUrl, $title, PHP_EOL . $description);
         //$VideoUploadResponse = FacebookUploader::uploadDirectLocalVideo($pageId, $accessToken, $videoPath);
 
         $return = [
@@ -185,13 +209,16 @@ class FacebookUploader
         $return['videoUrl'] = $videoUrl;
         $return['VideoUploadResponse'] = $VideoUploadResponse;
 
-        if (isset($VideoUploadResponse['success']) && $VideoUploadResponse['success']) {
+        if (isset($VideoUploadResponse['id'])) {
             $return['line'][] = __LINE__;
             $return['error'] = false;
             return $return;
         } else {
             $return['line'][] = __LINE__;
             $return['msg'] = isset($VideoUploadResponse['error']) ? $VideoUploadResponse['error'] : 'Unknown error occurred during video upload.';
+            if (!empty($return['VideoUploadResponse']) && !empty($return['VideoUploadResponse']['error']) && !empty($return['VideoUploadResponse']['error']['error_user_msg'])) {
+                $return['msg'] = $return['VideoUploadResponse']['error']['error_user_msg'];
+            }
             return $return;
         }
     }
@@ -254,7 +281,9 @@ class FacebookUploader
 
     static function uploadLocalVideoToFacebook($videoId, $accessToken, $filePath)
     {
-        $url = "https://rupload.facebook.com/video-upload/v19.0/{$videoId}";
+        $url = "https://upload.facebook.com/video-upload/v19.0/{$videoId}";
+        //$url = "https://graph.facebook.com/{$pageId}/videos";
+
         $fileSize = filesize($filePath);
 
         $ch = curl_init();
@@ -280,8 +309,7 @@ class FacebookUploader
 
     static function uploadHostedVideoToFacebook($videoId, $accessToken, $fileUrl)
     {
-        $url = "https://rupload.facebook.com/video-upload/v19.0/{$videoId}";
-
+        $url = "https://upload.facebook.com/video-upload/v19.0/{$videoId}";
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
@@ -300,7 +328,7 @@ class FacebookUploader
         return json_decode($response, true);
     }
 
-    static function uploadDirectLocalVideo($pageId, $accessToken, $filePath)
+    static function uploadDirectLocalVideo($pageId, $accessToken, $filePath, $description = '')
     {
         $fileSize = filesize($filePath);
         if ($fileSize > 1 * 1024 * 1024 * 1024) {
@@ -335,27 +363,82 @@ class FacebookUploader
         return json_decode($response, true);
     }
 
-    static function uploadDirectHostedVideo($pageId, $accessToken, $videoUrl)
+    // Fetch Page Access Token
+    static function getPageAccessToken($accessToken, $pageId)
     {
-        $url = "https://graph-video.facebook.com/v19.0/{$pageId}/videos";
+        $url = "https://graph.facebook.com/me/accounts?access_token={$accessToken}";
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        $response = curl_exec($ch);
+        $error = curl_error($ch);
+        curl_close($ch);
+
+        if ($response === false) {
+            $return = [
+                'error' => true,
+                'msg' => 'Error fetching pages: ' . $error,
+                'line' => array(__LINE__)
+            ];
+            die(json_encode($return));
+        }
+
+        $data = json_decode($response, true);
+        if (isset($data['data'])) {
+            foreach ($data['data'] as $page) {
+                if ($page['id'] == $pageId && isset($page['access_token'])) {
+                    _error_log("SocialMediaPublisher::getPageAccessToken access_token found tp pageId=$pageId " . json_encode($page['access_token']));
+                    return $page['access_token'];
+                }
+            }
+        } else if (isset($data['error'])) {
+            $return = [
+                'error' => true,
+                'msg' => "Failed to fetch page access token with error for pageId={$pageId} {$data['error']['message']}",
+                'line' => array(__LINE__),
+                'url' => $url,
+            ];
+            die(json_encode($return));
+        }
+
+        // Handle unexpected case where no page access token is found
+        $msg  = "Unexpected failure to fetch page access token for pageId={$pageId}.";
+        $msg .= "<br>This might happen if you are trying to publish to a personal profile. Please delete the connection and connect to a Facebook Page.";
+
+        $return = [
+            'error' => true,
+            'msg' => $msg,
+            'line' => array(__LINE__),
+            'url' => $url,
+        ];
+        die(json_encode($return));
+    }
+
+    static function uploadDirectHostedVideo($pageId, $accessToken, $videoUrl, $description = '')
+    {
+        $pageAccessToken = self::getPageAccessToken($accessToken, $pageId);
+
+        $url = "https://graph.facebook.com/{$pageId}/videos";
+
         $postData = [
-            'access_token' => $accessToken,
+            'description' => $description,
+            'access_token' => $pageAccessToken,
             'file_url' => $videoUrl
         ];
 
+        _error_log("SocialMediaPublisher::uploadDirectHostedVideo $url " . json_encode($postData));
+
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-            "Authorization: Bearer {$accessToken}"
-        ]);
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 0); // No timeout
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 300); // 300 seconds
 
         $response = curl_exec($ch);
         if (curl_errno($ch)) {
-            return json_encode(['error' => curl_error($ch)]);
+            return json_encode(['error' => curl_error($ch), 'errno' => curl_errno($ch)]);
         }
         curl_close($ch);
 
@@ -759,6 +842,229 @@ class LinkedInUploader
                 'xRestLiId' => $xRestLiId,
                 'response' => $responseArray
             ];
+        }
+    }
+}
+
+class InstagramUploader
+{
+    /**
+     * Upload and publish a video to Instagram.
+     *
+     * @param string $accessToken Instagram user access token.
+     * @param string $videoUrl Public URL to the video file.
+     * @param string $caption Caption for the video.
+     * @param string $instagramAccountId Instagram Business Account ID.
+     * @return array Response from the Instagram API.
+     */
+    public static function upload($accessToken, $videoUrl, $caption, $instagramAccountId)
+    {
+        $return = [
+            'error' => true,
+            'msg' => '',
+            'containerId' => null,
+            'publishResponse' => null
+        ];
+        // Step 1: Create Media Container
+        $containerResponse = self::createMediaContainer($accessToken, $videoUrl, $caption, $instagramAccountId);
+        if ($containerResponse['error']) {
+            $return['msg'] = 'Error creating media container: ' . $containerResponse['msg'];
+            return $return;
+        }
+
+        $containerId = $containerResponse['id'];
+        $return['accessToken'] = $accessToken;
+        $return['containerId'] = $containerId;
+        $return['containerResponse'] = $containerResponse;
+        $return['instagramAccountId'] = $instagramAccountId;
+
+        if (!empty($return['containerId'])) {
+            $return['error'] = false;
+        }
+
+        $waitForMediaProcessing = self::waitForMediaProcessing($accessToken, $containerId);
+        $return['waitForMediaProcessing'] = $waitForMediaProcessing;
+        return $return;
+    }
+
+    private static function createMediaContainer($accessToken, $videoUrl, $caption, $instagramAccountId)
+    {
+        global $global;
+        $url = "https://graph.facebook.com/{$instagramAccountId}/media";
+
+        $videoUrl = str_replace($global['systemRootPath'], $global['webSiteRootURL'], $videoUrl);
+        $data = [
+            'media_type' => 'REELS',
+            'video_url' => $videoUrl,
+            'is_carousel_item' => false,
+            'caption' => $caption,
+            'access_token' => $accessToken
+        ];
+
+        $response = self::makeCurlRequest($url, $data);
+
+        if ($response['httpCode'] !== 200 || empty($response['response']['id'])) {
+            return [
+                'error' => true,
+                'msg' => $response['response']['error']['message'] ?? 'Failed to create media container.',
+                'url' => $url,
+                'data' => $data,
+                'response' => $response
+            ];
+        }
+
+        return ['error' => false, 'id' => $response['response']['id'], 'url' => $url, 'data' => $data, 'response' => $response];
+    }
+
+
+    public static function publishMediaIfIsReady($accessToken, $containerId, $instagramAccountId)
+    {
+
+        $return = [
+            'error' => true,
+            'msg' => '',
+            'containerId' => null,
+            'publishResponse' => null
+        ];
+        $return['accessToken'] = $accessToken;
+        $return['containerId'] = $containerId;
+        $return['instagramAccountId'] = $instagramAccountId;
+
+        $waitForMediaProcessing = self::waitForMediaProcessing($accessToken, $containerId);
+        $return['waitForMediaProcessing'] = $waitForMediaProcessing;
+        //var_dump($isReady);exit;
+
+        if(empty($waitForMediaProcessing['error']) || $waitForMediaProcessing["response"]["status_code"] === "PUBLISHED"){
+            // Step 3: Publish Media
+            $publishResponse = self::publishMedia($accessToken, $containerId, $instagramAccountId);
+            
+            $mediaResponse = self::getInstagramVideoLink($publishResponse['id'], $accessToken);
+
+            $return['publishResponse'] = $publishResponse;
+            $return['mediaResponse'] = $mediaResponse;
+        }
+
+        if ($waitForMediaProcessing['error']) {
+            $return['msg'] = $waitForMediaProcessing['msg'];
+            return $return;
+        }
+
+
+        if ($publishResponse['error']) {
+            $return['msg'] = 'Error publishing media: ' . $publishResponse['msg'];
+            return $return;
+        }
+
+        $return['error'] = false;
+        $return['msg'] = 'Video uploaded and published successfully!';
+        $return['publishResponse'] = $publishResponse;
+        return $return;
+    }
+
+    private static function waitForMediaProcessing($accessToken, $containerId, $maxAttempts = 1)
+    {
+        $url = "https://graph.facebook.com/{$containerId}?fields=status_code,status,id&access_token={$accessToken}";
+        $return = [
+            'error' => true,
+            'msg' => '',
+            'response' => null,
+            'url' => $url,
+        ];
+        $attempts = 0;
+        do {
+            sleep(5); // Wait for 5 seconds
+            $response = self::makeCurlRequest($url);
+            $status = $response['response']['status_code'] ?? null;
+            $return['response'] = $response['response'];
+            if ($status === 'FINISHED') {
+                $return['error'] = false;
+                return $return;
+            }
+            if (!empty($return['response']['error']) && !empty($return['response']['error']['message'])) {
+                $return['msg'] = $return['response']['error']['message'];
+            }
+
+            $attempts++;
+        } while ($attempts < $maxAttempts);
+        _error_log("waitForMediaProcessing($accessToken, $containerId, $maxAttempts) " . json_encode($response));
+        return $return;;
+    }
+
+    private static function publishMedia($accessToken, $containerId, $instagramAccountId)
+    {
+        $url = "https://graph.facebook.com/v17.0/{$instagramAccountId}/media_publish";
+
+        $data = [
+            'creation_id' => $containerId,
+            'access_token' => $accessToken
+        ];
+
+        $response = self::makeCurlRequest($url, $data);
+
+        if ($response['httpCode'] !== 200) {
+            return [
+                'error' => true,
+                'msg' => $response['response']['error']['message'] ?? 'Failed to publish media.'
+            ];
+        }
+
+        return ['error' => false, 'id' => $response['response']['id']];
+    }
+
+    private static function makeCurlRequest($url, $data = [])
+    {
+        $ch = curl_init($url);
+
+        if (!empty($data)) {
+            // POST request if $data is not empty
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+        } else {
+            // GET request if $data is empty
+            curl_setopt($ch, CURLOPT_HTTPGET, true);
+        }
+
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30); // Optional: Timeout after 30 seconds
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+
+        if ($response === false) {
+            return [
+                'httpCode' => $httpCode,
+                'response' => ['error' => ['message' => $error]]
+            ];
+        }
+
+        return [
+            'httpCode' => $httpCode,
+            'response' => json_decode($response, true)
+        ];
+    }
+
+    static function getInstagramVideoLink($mediaId, $accessToken)
+    {
+        $url = "https://graph.facebook.com/{$mediaId}?fields=permalink&access_token={$accessToken}";
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        $response = curl_exec($ch);
+        $error = curl_error($ch);
+        curl_close($ch);
+
+        if ($response === false) {
+            return ['error' => true, 'msg' => 'Error fetching permalink: ' . $error];
+        }
+
+        $data = json_decode($response, true);
+
+        if (isset($data['permalink'])) {
+            return ['error' => false, 'permalink' => $data['permalink']];
+        } else {
+            return ['error' => true, 'msg' => 'Failed to retrieve video link.'];
         }
     }
 }

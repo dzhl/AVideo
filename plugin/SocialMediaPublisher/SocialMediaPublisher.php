@@ -163,6 +163,7 @@ class SocialMediaPublisher extends PluginAbstract
 
         $pub = Publisher_user_preferences::getFromDb($publisher_user_preferences_id);
 
+
         if (empty($pub)) {
             $response->msg = "revalidateToken($publisher_user_preferences_id) json is empty";
             return $response;
@@ -235,12 +236,14 @@ class SocialMediaPublisher extends PluginAbstract
     public static function upload($publisher_user_preferences_id, $videos_id)
     {
         $video = new Video('', '', $videos_id);
-        $paths = Video::getFirstSource($video->getFilename());
-        if (empty($paths)) {
+        //$paths = Video::getFirstSource($video->getFilename());
+        $paths = getVideosURLMP4Only($video->getFilename());
+        //var_dump($paths['mp4']);exit;
+        if (empty($paths['mp4'])) {
             _error_log("SocialMediaPublisher::upload($publisher_user_preferences_id, $videos_id) video paths are empty");
             return false;
         }
-        if (!file_exists($paths['path'])) {
+        if (!file_exists($paths['mp4']['path'])) {
             _error_log("SocialMediaPublisher::upload($publisher_user_preferences_id, $videos_id) video path does not exist");
             return false;
         }
@@ -254,12 +257,12 @@ class SocialMediaPublisher extends PluginAbstract
         }
 
         $providerName = $o->getProviderName();
-
-        $fromFileLocation = $paths['url'];
-        if (!isDummyFile($paths['path'])) {
-            $videoPath = $paths['path'];
+        /*
+        $fromFileLocation = $paths['mp4']['url'];
+        if (!isDummyFile($paths['mp4']['path'])) {
+            $videoPath = $paths['mp4']['path'];
         } else {
-            $videoPathToYouTube = $videoPath = ($paths['path'] . '.toYouTube.mp4');
+            $videoPathToYouTube = $videoPath = ($paths['mp4']['path'] . '.toYouTube.mp4');
         }
         if (!file_exists($videoPath)) {
             _error_log("SocialMediaPublisher::upload($publisher_user_preferences_id, $videos_id) $providerName start conversion ");
@@ -267,7 +270,7 @@ class SocialMediaPublisher extends PluginAbstract
             _error_log("SocialMediaPublisher::upload($publisher_user_preferences_id, $videos_id) $providerName end conversion ");
         }
         _error_log("SocialMediaPublisher::upload($publisher_user_preferences_id, $videos_id) $providerName Upload start ");
-
+        */
         if (!empty($_REQUEST['title'])) {
             $title = $_REQUEST['title'];
         } else {
@@ -284,16 +287,13 @@ class SocialMediaPublisher extends PluginAbstract
             $visibility = 'public';
         }
 
-        $response = SocialUploader::upload($publisher_user_preferences_id, $videoPath, $title, $description, $visibility);
-        if (!empty($videoPathToYouTube)) {
-            //unlink($videoPathToYouTube);
-        }
+        $response = SocialUploader::upload($publisher_user_preferences_id, $paths['mp4'], $title, $description, $visibility);
         _error_log("SocialMediaPublisher::upload($publisher_user_preferences_id, $videos_id) $providerName complete " . json_encode($response));
         self::saveLog($publisher_social_medias_id, $videos_id, array('publisher_user_preferences_id' => $publisher_user_preferences_id, 'response' => $response));
         return $response;
     }
 
-    private static function saveLog($publisher_social_medias_id, $videos_id, $details, $users_id = 0, $status = '')
+    private static function saveLog($publisher_social_medias_id, $videos_id, $details, $users_id = 0, $status = Publisher_video_publisher_logs::STATUS_UNVERIFIED)
     {
         if (empty($users_id)) {
             $users_id = User::getId();
@@ -342,5 +342,56 @@ class SocialMediaPublisher extends PluginAbstract
             ' <i class="fa-regular fa-share-from-square"></i> ' . __("Share on Social Media") . '</button>';
 
         return $btn;
+    }
+
+    static function scanInstagam()
+    {
+        global $global;
+        $sql = "SELECT psm.*, pvpl.* FROM publisher_video_publisher_logs pvpl LEFT JOIN publisher_social_medias psm ON publisher_social_medias_id = psm.id  
+        WHERE pvpl.status='" . Publisher_video_publisher_logs::STATUS_UNVERIFIED . "' 
+        AND name = '" . SocialMediaPublisher::SOCIAL_TYPE_INSTAGRAM["name"] . "' ORDER BY pvpl.id DESC LIMIT 100 ";
+
+        $res = sqlDAL::readSql($sql);
+        $fullData = sqlDAL::fetchAllAssoc($res);
+        sqlDAL::close($res);
+        //var_dump($sql, $fullData);
+        if (!empty($fullData)) {
+            foreach ($fullData as $key => $row) {
+                $json = json_decode($row["details"]);
+
+                $accessToken = $json->response->accessToken;
+                $containerId = $json->response->containerId;
+                $instagramAccountId = $json->response->instagramAccountId;
+
+                $obj = InstagramUploader::publishMediaIfIsReady($accessToken, $containerId, $instagramAccountId);
+
+                if ((isset($obj['error']) && $obj['error'] === false) || $obj["waitForMediaProcessing"]["response"]["status_code"] === "PUBLISHED") {
+
+                    //var_dump($obj);
+                    if (!empty($obj['publishResponse'])) {
+                        $json->publishResponse = $obj['publishResponse'];
+                    }
+                    if (!empty($obj['mediaResponse'])) {
+                        $json->mediaResponse = $obj['mediaResponse'];
+                    }
+
+                    $smp = new Publisher_video_publisher_logs($row['id'], true);
+                    $smp->setDetails($json);
+                    $smp->setStatus(Publisher_video_publisher_logs::STATUS_VERIFIED);
+                    if ($smp->save()) {
+                        $poster = Video::getPoster($row["videos_id"],);
+                        $img = "<img src='{$poster}' class='img img-responsive'>";
+                        sendSocketMessageToUsers_id('Video published on instagram<br>' . $img, $row["users_id"], 'avideoToastSuccess');
+                    }
+                }
+                return $obj;
+            }
+        }
+        return false;
+    }
+
+    function executeEveryMinute()
+    {
+        self::scanInstagam();
     }
 }
