@@ -134,6 +134,7 @@ class CustomizeAdvanced extends PluginAbstract {
             'CategoryLabel',
             'ShowAllVideosOnCategory',
             'hideCategoryVideosCount',
+            'categoryLiveCount',
             'hideEditAdvancedFromVideosManager',
             'paidOnlyUsersTellWhatVideoIs',
             'paidOnlyShowLabels',
@@ -168,6 +169,7 @@ class CustomizeAdvanced extends PluginAbstract {
             'showChannelPhotoOnVideoItem',
             'showChannelNameOnVideoItem',
             'canonicalURLType',
+            'ffmpegParameters',
             );
     }
     
@@ -358,6 +360,7 @@ class CustomizeAdvanced extends PluginAbstract {
         $obj->ShowAllVideosOnCategory = false;
         $obj->hideCategoryVideosCount = false;
         $obj->hideEditAdvancedFromVideosManager = false;
+        $obj->categoryLiveCount = true;
 
         //ver 7.1
         $obj->paidOnlyUsersTellWhatVideoIs = false;
@@ -488,6 +491,8 @@ Disallow: *action=tagsearch*
         $obj->allowDownloadMP3 = true;
 
         $obj->disableFeeds = false;
+
+        $obj->ffmpegParameters = "-c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 128k";   
         
         return $obj;
     }
@@ -742,7 +747,7 @@ Disallow: *action=tagsearch*
         if (!Permissions::canAdminVideos()) {
             return false;
         }
-        $video = new Video('', '', $videos_id);
+        $video = new Video('', '', $videos_id, true);
         $users_id = $video->getUsers_id();
         $user = new User($users_id);
         return $user->addExternalOptions('doNotShowAdsOnThisChannel', $doNotShowAdsOnThisChannel);
@@ -816,6 +821,45 @@ Disallow: *action=tagsearch*
         include $global['systemRootPath'] . 'plugin/CustomizeAdvanced/actionButton.php';
     }
 
+    static function autoConvert()
+    {
+        global $global;
+        $sql = "SELECT * FROM  videos WHERE `type` = '" . Video::$videoTypeVideo . "' ORDER BY id DESC ";
+        $res = sqlDAL::readSql($sql, "", [], true);
+        $fullData = sqlDAL::fetchAllAssoc($res);
+        sqlDAL::close($res);
+        $transferStatus = [];
+        $transferStatus[] = Video::$statusActive;
+        $transferStatus[] = Video::$statusFansOnly;
+        $transferStatus[] = Video::$statusScheduledReleaseDate;
+        $transferStatus[] = Video::$statusUnlisted;
+        $transferStatus[] = Video::$statusUnlistedButSearchable;
+
+        if ($res != false) {
+            foreach ($fullData as $key => $row) {
+                if (in_array($row['status'], $transferStatus)) {
+                    $folderPath = "{$global['systemRootPath']}videos/{$row['filename']}/";
+                    $mp3 = findMP3File($folderPath);
+                    if (!empty($mp3)) {
+                        _error_log("CustomizeAdvanced::autoConvert {$row['id']} to MP4 $folderPath");
+                        $resp = self::createMP3($row['id']);
+                    } else {
+                        //_error_log('VideoHLS::autoConvert to MP4 (already converted) '.$row['id']." $mp4");
+                    }
+                } else {
+                    //_error_log("VideoHLS::autoConvert to MP4 (wrong status [{$row['status']}]) ".$row['id']);
+                }
+            }
+        }
+    }
+
+
+    function executeEveryHour() {
+        $obj = AVideoPlugin::getDataObject('CustomizeAdvanced');
+        if($obj->autoConvertVideosToMP3){
+            self::autoConvert();
+        }
+    }
 }
 
 class SocialMedias {

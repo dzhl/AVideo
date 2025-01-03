@@ -36,6 +36,30 @@ function file_upload_max_size()
     return $max_size;
 }
 
+function getServerLimits() {
+    // Get PHP limits
+    $limits = [
+        'upload_max_filesize' => ini_get('upload_max_filesize'),
+        'post_max_size' => ini_get('post_max_size'),
+        'max_execution_time' => ini_get('max_execution_time'),
+        'max_input_time' => ini_get('max_input_time')
+    ];
+
+    // Check for Apache-specific limits if running under Apache
+    if (function_exists('apache_get_version')) {
+        $limits['apache_version'] = apache_get_version();
+    }
+
+    // Check if mod_reqtimeout is enabled
+    if (file_exists('/etc/apache2/mods-enabled/reqtimeout.conf')) {
+        $reqtimeout = file_get_contents('/etc/apache2/mods-enabled/reqtimeout.conf');
+        preg_match_all('/RequestReadTimeout\s+(header=.*?,minrate=.*?|body=.*?,minrate=.*?)/', $reqtimeout, $matches);
+        $limits['apache_reqtimeout'] = isset($matches[0]) ? $matches[0] : 'Not set';
+    }
+
+    return $limits;
+}
+
 function parse_size($size)
 {
     $unit = preg_replace('/[^bkmgtpezy]/i', '', $size); // Remove the non-unit characters from the size.
@@ -690,6 +714,7 @@ function getTmpDir($subdir = "")
         if (empty($global['tmpDir'])) {
             // disabled it because command line and web were generating different caches
             //$tmpDir = sys_get_temp_dir();
+            $tmpDir = '/var/www/tmp/';
             if (empty($tmpDir) || !_isWritable($tmpDir)) {
                 $obj = AVideoPlugin::getDataObjectIfEnabled('Cache');
                 if(!empty($obj)){
@@ -783,10 +808,10 @@ function globVideosDir($filename, $filesOnly = false, $recreateCache = false)
         $cleanfilename = '';
     }
 
-    $pattern = "/{$cleanfilename}.*";
+    $pattern = "/({$cleanfilename}|index).*";
     if (!empty($filesOnly)) {
         $formats = getValidFormats();
-        $pattern .= ".(" . implode("|", $formats) . ")";
+        $pattern .= ".(" . implode("|", $formats) . ")$";
     }
     $pattern .= "/";
     //_error_log("_glob($dir, $pattern)");
@@ -1060,7 +1085,7 @@ function getVideosDirectoryUsageInfo() {
     // Get disk usage information using 'du' command
     $command = "du -s $realPath 2>&1"; // Removed 'h' to get the usage in bytes
     $usageOutput = shell_exec($command);
-    $usageBytes = intval(preg_split('/\s+/', $usageOutput)[0] * 1024); // Convert from KB to bytes
+    $usageBytes = intval(preg_split('/\s+/', $usageOutput)[0]) * 1024; // Convert from KB to bytes
 
     // Get the total space and free space on the partition
     $totalSpace = disk_total_space($realPath);
@@ -1102,6 +1127,28 @@ function findMP4File($folderPath)
         foreach ($files as $file) {
             // Check if the file has a .mp4 extension
             if (pathinfo($file, PATHINFO_EXTENSION) === 'mp4') {
+                // Return the absolute path to the first .mp4 file found
+                return $folderPath . $file;
+            }
+        }
+    }
+
+    // Return false if no .mp4 file is found
+    return false;
+}
+
+
+function findMP3File($folderPath)
+{
+    // Ensure the folder path ends with a slash
+    $folderPath = addLastSlash($folderPath);
+
+    // Open the folder and iterate over files
+    if (is_dir($folderPath)) {
+        $files = scandir($folderPath);
+        foreach ($files as $file) {
+            // Check if the file has a .mp4 extension
+            if (pathinfo($file, PATHINFO_EXTENSION) === 'mp3') {
                 // Return the absolute path to the first .mp4 file found
                 return $folderPath . $file;
             }

@@ -1463,9 +1463,9 @@ if (!class_exists('Video')) {
                     $sql .= " ORDER BY v.Created DESC ";
                 }
             }
-            if (strpos($sql, 'v.id IN') === false && strpos(mb_strtolower($sql), 'limit') === false) {
+            if (strpos($sql, 'v.id IN') === false && !preg_match('/LIMIT\s+\d+/i', preg_replace('/\([^\)]*\)/', '', $sql))) {
                 $sql .= " LIMIT {$firstClauseLimit}1";
-            }
+            }            
             $lastGetVideoSQL = $sql;
             //echo $sql, "<br>";//var_dump(debug_backtrace());exit;
             $res = sqlDAL::readSql($sql);
@@ -1924,6 +1924,7 @@ if (!class_exists('Video')) {
             if (!empty($videosArrayId) && is_array($videosArrayId) && (is_numeric($videosArrayId[0]))) {
                 $sql .= self::getSQLByStatus(Video::SORT_TYPE_VIEWABLE, true);
                 $sql .= " ORDER BY FIELD(v.id, '" . implode("', '", $videosArrayId) . "') ";
+                $sql .= self::getSqlLimit();
             } else {
                 $sortType = Video::SORT_TYPE_VIEWABLE;
                 if ($suggestedOnly) {
@@ -1957,7 +1958,6 @@ if (!class_exists('Video')) {
                     }
                 }
             }
-
             //var_dump($max_duration_in_seconds);echo $sql; //exit;
             //_error_log("getAllVideos($status, $showOnlyLoggedUserVideos , $ignoreGroup , ". json_encode($videosArrayId).")" . $sql);
             //if($status == Video::SORT_TYPE_VIEWABLE){ var_dump($sql);exit;}
@@ -4057,6 +4057,7 @@ if (!class_exists('Video')) {
             //if (!isValidFormats($type)) {
             //return array();
             //}
+            $filename = str_replace(getVideosDir(), '', $filename);
 
             $timeLog1Limit = 0.2;
             $timeLog1 = "getSourceFile($filename, $type, $includeS3)";
@@ -4121,11 +4122,19 @@ if (!class_exists('Video')) {
                 if ($type == ".m3u8") {
                     $source['path'] = self::getStoragePath() . "{$filename}/index{$type}";
                 }
+                $indexMP4Exits = false;
                 $indexMP3Exits = false;
                 if ($type == ".mp3") {
                     $exits = self::getStoragePath() . "{$filename}/index{$type}";
                     $indexMP3Exits = file_exists($exits);
                     if ($indexMP3Exits) {
+                        $source['path'] = $exits;
+                    }
+                }
+                if ($type == ".mp4") {
+                    $exits = self::getStoragePath() . "{$filename}/index{$type}";
+                    $indexMP4Exits = file_exists($exits);
+                    if ($indexMP4Exits) {
                         $source['path'] = $exits;
                     }
                 }
@@ -4154,6 +4163,8 @@ if (!class_exists('Video')) {
                         $f = "{$filename}/index{$type}";
                     } else if ($indexMP3Exits) {
                         $f = "{$filename}/index{$type}";
+                    }  else if ($indexMP4Exits) {
+                        $f = "{$filename}/index{$type}";
                     } else {
                         $f = "{$paths['relative']}{$filename}{$type}";
                     }
@@ -4170,6 +4181,9 @@ if (!class_exists('Video')) {
                     if ($type == ".m3u8" || $indexMP3Exits) {
                         $source['url'] = "{$siteURL}videos/{$filename}/index{$type}";
                         $source['url_noCDN'] = "{$global['webSiteRootURL']}videos/{$filename}/index{$type}";
+                    }else if ($indexMP4Exits) {
+                        $source['url'] = "{$siteURL}videos/{$filename}/index{$type}";
+                        $source['url_noCDN'] = "{$global['webSiteRootURL']}videos/{$filename}/index{$type}";
                     }
                 } elseif (!empty($advancedCustom->videosCDN) && $canUseCDN) {
                     $advancedCustom->videosCDN = addLastSlash($advancedCustom->videosCDN);
@@ -4178,11 +4192,17 @@ if (!class_exists('Video')) {
                     if ($type == ".m3u8" || $indexMP3Exits) {
                         $source['url'] = "{$advancedCustom->videosCDN}videos/{$filename}/index{$type}";
                         $source['url_noCDN'] = "{$global['webSiteRootURL']}videos/{$filename}/index{$type}";
+                    }else if ($indexMP4Exits) {
+                        $source['url'] = "{$advancedCustom->videosCDN}videos/{$filename}/index{$type}";
+                        $source['url_noCDN'] = "{$global['webSiteRootURL']}videos/{$filename}/index{$type}";
                     }
                 } else {
                     $source['url'] = getCDN() . "{$paths['relative']}{$filename}{$type}";
                     $source['url_noCDN'] = "{$global['webSiteRootURL']}{$paths['relative']}{$filename}{$type}";
                     if ($type == ".m3u8" || $indexMP3Exits) {
+                        $source['url'] = getCDN() . "videos/{$filename}/index{$type}";
+                        $source['url_noCDN'] = "{$global['webSiteRootURL']}videos/{$filename}/index{$type}";
+                    }else if ($indexMP4Exits) {
                         $source['url'] = getCDN() . "videos/{$filename}/index{$type}";
                         $source['url_noCDN'] = "{$global['webSiteRootURL']}videos/{$filename}/index{$type}";
                     }
@@ -4975,6 +4995,10 @@ if (!class_exists('Video')) {
             }
             $allowedExtensions = array('mp4');
             $dirHandle = opendir($dir);
+            if(empty($dirHandle)){
+                _error_log("Could not open dir $dir", AVideoLog::$ERROR);
+                return array();
+            }
             while ($file = readdir($dirHandle)) {
                 if ($file == '.' || $file == '..') {
                     continue;

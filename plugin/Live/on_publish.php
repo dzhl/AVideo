@@ -9,7 +9,7 @@ $obj->liveTransmitionHistory_id = 0;
 
 _error_log("NGINX ON Publish POST: " . json_encode($_POST));
 _error_log("NGINX ON Publish GET: " . json_encode($_GET));
-_error_log("NGINX ON Publish php://input" . file_get_contents("php://input"));
+_error_log("NGINX ON Publish php://input " . file_get_contents("php://input"));
 
 // get GET parameters
 $url = $_POST['tcurl'];
@@ -174,8 +174,12 @@ if (!empty($obj) && empty($obj->error)) {
     }
      *
      */
-
     _error_log("NGINX ON Publish success ({$obj->liveTransmitionHistory_id}, {$obj->row['users_id']}, {$_POST['name']}, {$live_servers_id})");
+    $dropURL = Live::getDropURL($_POST['name'], $live_servers_id);
+    /*
+    $dropResponse = url_get_contents($dropURL);*/
+    _error_log("NGINX ON Publish dropURL={$dropURL}");
+    
     $code = 200;
     http_response_code($code);
     header("HTTP/1.1 {$code} OK");
@@ -199,10 +203,12 @@ if (!empty($obj) && empty($obj->error)) {
             $command = get_php(). " {$global['systemRootPath']}plugin/Live/on_publish_socket_notification.php '$users_id' '$m3u8' '{$obj->liveTransmitionHistory_id}'";
             _error_log("NGINX Live::on_publish YPTSocket start  ($command)");
             $pid = execAsync($command);
-            _error_log("NGINX Live::on_publish YPTSocket end {$pid}");
+            _error_log("NGINX Live::on_publish YPTSocket end ".json_encode($pid));
         }
         $cacheHandler = new LiveCacheHandler();
         $cacheHandler->deleteCache();
+    }else{
+        _error_log("NGINX Live::on_publish YPTSocket not enabled");
     }
     //exit;
 } else {

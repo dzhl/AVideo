@@ -16,11 +16,11 @@ abstract class ObjectYPT implements ObjectInterface
     protected $id;
     protected $created;
 
-    public function __construct($id = "")
+    public function __construct($id = "", $refreshCache = false)
     {
         if (!empty($id)) {
             // get data from id
-            $this->load($id);
+            $this->load($id, $refreshCache);
         }
     }
 
@@ -29,9 +29,9 @@ abstract class ObjectYPT implements ObjectInterface
         return [];
     }
 
-    public function load($id)
+    public function load($id, $refreshCache = false)
     {
-        $row = self::getFromDb($id);
+        $row = self::getFromDb($id, $refreshCache);
         if (empty($row)) {
             return false;
         }
@@ -204,9 +204,12 @@ abstract class ObjectYPT implements ObjectInterface
         if (empty($_REQUEST['rowCount']) && !empty($_REQUEST['length'])) {
             $_REQUEST['rowCount'] = intval($_REQUEST['length']);
         }
-
         if (empty($_REQUEST['current']) && !empty($_GET['start'])) {
-            $_REQUEST['current'] = ($_GET['start'] / $_GET['length']) + 1;
+            if(empty($_GET['length'])){
+                $_REQUEST['current'] = 1;
+            }else{
+                $_REQUEST['current'] = ($_GET['start'] / $_GET['length']) + 1;
+            }
         } elseif (empty($_REQUEST['current']) && isset($_GET['start'])) {
             $_REQUEST['current'] = 1;
         }
@@ -329,6 +332,18 @@ abstract class ObjectYPT implements ObjectInterface
                     $fields[] = " {$value} = now() ";
                 } elseif (strtolower($value) == 'modified_php_time') {
                     $fields[] = " {$value} = " . time();
+                } elseif (strtolower($value) == 'created_php_time') {
+                    if(empty($this->created_php_time)){
+                        if(!empty($this->created)){
+                            $formats .= 'i';
+                            $values[] = strtotime($this->created);
+                            $fields[] = " `{$value}` = ? ";
+                        }else{
+                            $formats .= 'i';
+                            $values[] = time();
+                            $fields[] = " `{$value}` = ? ";
+                        }
+                    }
                 } elseif (strtolower($value) == 'timezone') {
                     if (empty($this->$value)) {
                         $this->$value = date_default_timezone_get();

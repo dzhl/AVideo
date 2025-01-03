@@ -277,7 +277,7 @@ if (typeof gtag !== \"function\") {
         return $eo[$id];
     }
 
-    public function load($id)
+    public function load($id, $refreshCache = false)
     {
         $id = intval($id);
         if (empty($id)) {
@@ -1371,11 +1371,12 @@ if (typeof gtag !== \"function\") {
 
     private static function recreateLoginFromCookie()
     {
+        //return false;
         //var_dump($_COOKIE['credentials']);exit;
         //var_dump($_COOKIE);exit;
         global $justLogoff, $justTryToRecreateLoginFromCookie;
-        _session_start();
         if (empty($justTryToRecreateLoginFromCookie) && empty($justLogoff) && empty($_SESSION['user']['id'])) {
+            _session_start();
             //var_dump($_COOKIE);exit;
             $justTryToRecreateLoginFromCookie = 1;
 
@@ -1391,7 +1392,8 @@ if (typeof gtag !== \"function\") {
             $userCookie = User::getUserCookieCredentials();
             if ((!empty($userCookie))) {
                 $_REQUEST['rememberme'] = 1;
-                _error_log("user::recreateLoginFromCookie: user cookie found: {$userCookie->user} result: ");
+                //_error_log("user::recreateLoginFromCookie: SCRIPT_NAME ".json_encode($_SERVER["SCRIPT_NAME"]));
+                _error_log("user::recreateLoginFromCookie: user cookie found: {$userCookie->user} result: " . json_encode(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS)));
                 $user = new User(0, $userCookie->user, false);
                 $user->setPassword($userCookie->pass, true);
                 $resp = $user->login(false, true);
@@ -1403,9 +1405,9 @@ if (typeof gtag !== \"function\") {
                     self::logoff();
                 } else {
                     if (User::USER_LOGGED == $resp) {
-                        _error_log("user::recreateLoginFromCookie: do cookie-login: {$userCookie->user} id: " . $_SESSION['user']['id']);
+                        _error_log("user::recreateLoginFromCookie: do cookie-login: {$userCookie->user} [{$userCookie->id}]  id: " . $_SESSION['user']['id']);
                     } else {
-                        _error_log("user::recreateLoginFromCookie: do cookie-login: user={$userCookie->user} pass={$userCookie->pass} login does not match resp=$resp");
+                        _error_log("user::recreateLoginFromCookie: do cookie-login: user={$userCookie->user} [{$userCookie->id}]  pass={$userCookie->pass} login does not match resp=$resp");
                         if ($resp != User::SYSTEM_ERROR) {
                             self::logoff();
                         }
@@ -1585,7 +1587,7 @@ if (typeof gtag !== \"function\") {
             $_thisUserCanStreamReasonMessage = 'User status is inactive';
             return false;
         }
-        $can = !empty($this->isAdmin) || !empty($this->canStream);
+        $can = !empty($this->isAdmin) || !empty($this->canStream) || AVideoPlugin::userCanLivestream($this->id);
         if (empty($can)) {
             $reasons = [];
             if (empty($this->isAdmin)) {
@@ -2176,6 +2178,7 @@ if (typeof gtag !== \"function\") {
     public static function getAllUsers($ignoreAdmin = false, $searchFields = ['name', 'email', 'user', 'channelName', 'about'], $status = "", $isAdmin = null, $isCompany = null, $canUpload = null)
     {
         if (!Permissions::canAdminUsers() && !$ignoreAdmin) {
+            _error_log('You are not admin and cannot list all users');
             //echo __LINE__;
             return false;
         }

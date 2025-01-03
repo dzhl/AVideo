@@ -158,7 +158,7 @@ function sanitizeFFmpegCommand($command)
     $command = str_replace('rtmp://vlu.me/', 'rtmp://live/', $command);
     //$command = str_replace('rtmp://live/', 'rtmp://vlu.me/', $command);
     //$command = str_replace('https://live:8443/', 'https://vlu.me:8443/', $command);
-    $command = preg_replace('/\s*>.*(?:2>&1)?/', '', $command);
+    $command = preg_replace('/\s*&?>.*(?:2>&1)?/', '', $command);
     $command = preg_replace('/[;|`<>]/', '', $command);
 
     // Ensure it starts with an allowed prefix
@@ -301,8 +301,10 @@ if (empty($ffmpegCommand)) {
 
 // Kill processes associated with the keyword
 if (!empty($keyword)) {
-    _error_log("Killing process with keyword: $keyword");
-    killProcessFromKeyword($keyword);
+    // if I kill it it will infinite loop the VideoPlaylistScheduler because the on_publish done
+    //_error_log("Killing process with keyword: $keyword");
+    //killProcessFromKeyword($keyword, 60);
+    //sleep(5);
 }
 
 $ffmpegCommand = addKeywordToFFmpegCommand($ffmpegCommand, $keyword);
@@ -310,7 +312,7 @@ $ffmpegCommand = addKeywordToFFmpegCommand($ffmpegCommand, $keyword);
 file_put_contents($logFile, $ffmpegCommand.PHP_EOL.PHP_EOL);
 
 $ffmpegCommand .= " > {$logFile} 2>&1";
-_error_log("Executing FFMPEG Command [$keyword]: $ffmpegCommand");
+_error_log("Executing FFMPEG Command [$keyword]: $ffmpegCommand ".json_encode(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS)));
 
 try {
     $pid = execAsync($ffmpegCommand, $keyword);
