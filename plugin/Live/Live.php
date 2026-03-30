@@ -561,6 +561,8 @@ class Live extends PluginAbstract
         self::addDataObjectHelper('cacheStatsTimout', 'Stats Cache Timeout', 'we will cache the result, this will save some resources');
         $obj->requestStatsInterval = 60; // how many seconds until requesting the stats again
         self::addDataObjectHelper('requestStatsInterval', 'Stats Request Interval', 'how many seconds until request the stats again');
+        $obj->callbackSecret = '';
+        self::addDataObjectHelper('callbackSecret', 'RTMP Callback Secret', 'Required only when your NGINX server is external (not localhost/Docker). Set any strong random string here and add it to your nginx.conf callbacks: on_publish_done http://your-avideo.com/plugin/Live/on_publish_done.php?secret=YOUR_SECRET; on_record_done http://your-avideo.com/plugin/Live/on_record_done.php?secret=YOUR_SECRET; — Leave empty if NGINX runs on localhost or Docker.');
         $obj->streamDeniedMsg = "You can not stream live videos";
         self::addDataObjectHelper('streamDeniedMsg', 'Denied Message', 'We will show this message when a user is not allowed so watch a livestream');
         $obj->allowMultipleLivesPerUser = true;
@@ -1259,6 +1261,42 @@ Click <a href=\"{link}\">here</a> to join our live.";
     {
         $live_servers_id = Live_servers::getServerIdFromRTMPHost($rtmpHostURI);
         return self::getRemoteFileFromLiveServersID($live_servers_id);
+    }
+
+    /**
+     * Gate for NGINX-RTMP callback endpoints (on_publish_done, on_record_done, etc.).
+     * Allows the request if it comes from a private/loopback IP (Docker/local NGINX)
+     * OR if it presents the correct callbackSecret configured in the Live plugin settings.
+     * On rejection, logs IP/method/agent for identification and explains how to fix the config.
+     * Call this at the very top of each callback file, before any parse_str() overwrites $_GET.
+     */
+    public static function assertRtmpCallbackAllowed()
+    {
+        $trace      = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2);
+        $callerFile = basename($trace[1]['file'] ?? $trace[0]['file'] ?? 'unknown');
+        $secretParam      = $_GET['secret'] ?? '';
+        $liveOpts         = AVideoPlugin::getDataObject('Live');
+        $secretConfigured = $liveOpts->callbackSecret ?? '';
+        $fromPrivateIP    = isPrivateOrLoopbackIP($_SERVER['REMOTE_ADDR'] ?? '');
+        $secretMatches    = !empty($secretConfigured) && hash_equals($secretConfigured, $secretParam);
+
+        if ($fromPrivateIP || $secretMatches) {
+            return; // allowed
+        }
+
+        $remoteIP  = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $userAgent = preg_replace('/[\r\n]+/', ' ', $_SERVER['HTTP_USER_AGENT'] ?? 'unknown');
+        $method    = $_SERVER['REQUEST_METHOD'] ?? 'unknown';
+        _error_log("{$callerFile}: rejected external request — ip={$remoteIP} method={$method} agent={$userAgent}", AVideoLog::$SECURITY);
+
+        if (empty($secretConfigured)) {
+            _error_log("{$callerFile}: callbackSecret is not set. If your NGINX is external, go to Admin > Plugins > Live > Settings, set a strong \"RTMP Callback Secret\", then add ?secret=YOUR_SECRET to {$callerFile} in nginx.conf", AVideoLog::$SECURITY);
+        } else {
+            _error_log("{$callerFile}: callbackSecret is configured but the request did not present the correct secret. Check that ?secret=YOUR_SECRET is appended to {$callerFile} in nginx.conf", AVideoLog::$SECURITY);
+        }
+
+        http_response_code(403);
+        die();
     }
 
     public static function getLiveServersIdRequest()

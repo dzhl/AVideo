@@ -4,6 +4,11 @@ require_once '../../videos/configuration.php';
 require_once './Objects/LiveTransmition.php';
 require_once './Objects/LiveTransmitionHistory.php';
 
+// Security: accept only private/loopback IPs (Docker/local NGINX) or requests with the correct callbackSecret.
+// Must be called before parse_str() overwrites $_GET.
+Live::assertRtmpCallbackAllowed();
+
+
 _error_log("NGINX ON Publish Done  POST: " . json_encode($_POST));
 _error_log("NGINX ON Publish Done  GET: " . json_encode($_GET));
 _error_log("NGINX ON Publish Done  php://input" . file_get_contents("php://input"));
@@ -77,7 +82,7 @@ if(!empty($row)){
     _error_log("NGINX ON Publish Done success ({$row['id']}, {$row['users_id']}, {$row['key']}, {$row['live_servers_id']})");
     AVideoPlugin::on_publish_done($row['id'], $row['users_id'], $row['key'], $row['live_servers_id']);
 }else{
-    _error_log("NGINX ON Publish Done error, nothing found LiveTransmitionHistory::getLatest({$_POST['name']}, $live_servers_id, true); ");    
+    _error_log("NGINX ON Publish Done error, nothing found LiveTransmitionHistory::getLatest({$_POST['name']}, $live_servers_id, true); ");
 }
 $cacheHandler = new LiveCacheHandler();
 $cacheHandler->deleteCache();

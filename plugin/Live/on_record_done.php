@@ -1,5 +1,8 @@
 <?php
 require_once '../../videos/configuration.php';
+// Security: accept only private/loopback IPs (Docker/local NGINX) or requests with the correct callbackSecret.
+Live::assertRtmpCallbackAllowed();
+
 set_time_limit(300);// 5 minutes
 _error_log("on_record_done SendRecordedToEncoder {$global['webSiteRootURL']} line=" . __LINE__);
 require_once '../AVideoPlugin.php';
