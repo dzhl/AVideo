@@ -355,6 +355,10 @@ class EpgParser {
             throw new \RuntimeException('Url invalid: ' . $this->url);
         }
 
+        if (!isSSRFSafeURL($this->url)) {
+            throw new \RuntimeException('URL blocked by SSRF protection: ' . $this->url);
+        }
+
         $this->content = @\file_get_contents($this->url);
 
         if (!strpos($http_response_header[0], "200")) {
