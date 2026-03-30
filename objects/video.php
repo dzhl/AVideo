@@ -1052,7 +1052,7 @@ if (!class_exists('Video')) {
                 } else if ($this->isScheduledForRelease()) {
                     return $this->setStatus(Video::STATUS_SCHEDULED_RELEASE_DATE);
                 } else
-                if (!empty($_REQUEST['overrideStatus'])) {
+                if (!empty($_REQUEST['overrideStatus']) && (User::isAdmin() || Permissions::canAdminVideos())) {
                     return $this->setStatus($_REQUEST['overrideStatus']);
                 } else if (!empty($_REQUEST['releaseDate']) && $_REQUEST['releaseDate'] !== 'now') {
                     return $this->setStatus(Video::STATUS_SCHEDULED_RELEASE_DATE);
