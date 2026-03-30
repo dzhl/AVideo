@@ -1,8 +1,8 @@
 <?php
 require_once '../../videos/configuration.php';
 
-if (!User::isLogged()) {
-    gotToLoginAndComeBackHere('Please login first');
+if (!User::isAdmin()) {
+    forbiddenPage('Admins only');
 }
 
 $SubscriptionIsEnabled = AVideoPlugin::isEnabledByName("Subscription");

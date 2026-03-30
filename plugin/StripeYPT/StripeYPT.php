@@ -943,8 +943,7 @@ class StripeYPT extends PluginAbstract
         try {
             self::_start();
             $sub = \Stripe\Subscription::retrieve($id);
-            $response = $sub->cancel();
-            return $response;
+            return $sub;
         } catch (Exception $exc) {
             _error_log("retrieveSubscription: Error: " . $exc->getMessage());
             return false;
