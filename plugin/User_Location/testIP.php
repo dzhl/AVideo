@@ -31,7 +31,7 @@ $_page = new Page(array("Test IP"));
             </div>
             <div class="panel-body">
                 <label for="ip"><?php echo __("IP Address"); ?>:</label>
-                <input type="text" name="ip" id="ip" class="form-control" value="<?php echo $ip; ?>">
+                <input type="text" name="ip" id="ip" class="form-control" value="<?php echo htmlspecialchars($ip, ENT_QUOTES, 'UTF-8'); ?>">
                 <?php
                 if (!empty($location)) {
                     echo '<div class="alert alert-success">';
