@@ -1,5 +1,5 @@
 <?php
-if (!php_sapi_name() === 'cli') {
+if (php_sapi_name() !== 'cli') {
     die('Command Line only');
 }
 
