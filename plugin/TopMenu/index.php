@@ -10,7 +10,7 @@ $url = $menuItem->getUrl();
 <html lang="<?php echo getLanguage(); ?>">
 
 <head>
-    <title><?php echo $menuItem->getTitle() . $config->getPageTitleSeparator() . $config->getWebSiteTitle(); ?></title>
+    <title><?php echo htmlspecialchars($menuItem->getTitle(), ENT_QUOTES, 'UTF-8') . $config->getPageTitleSeparator() . $config->getWebSiteTitle(); ?></title>
     <?php
     include $global['systemRootPath'] . 'view/include/head.php';
     ?>
@@ -29,7 +29,7 @@ if (!empty($url) && strpos($url, 'iframe:') !== false) {
         <?php
         include $global['systemRootPath'] . 'view/include/navbar.php';
         ?>
-        <iframe src="<?php echo $url; ?>" frameborder="0" style="height:100%;width:100%" height="100%" width="100%"></iframe>
+        <iframe src="<?php echo htmlspecialchars($url, ENT_QUOTES, 'UTF-8'); ?>" frameborder="0" style="height:100%;width:100%" height="100%" width="100%"></iframe>
 
         <?php
         include $global['systemRootPath'] . 'view/include/footer.php';

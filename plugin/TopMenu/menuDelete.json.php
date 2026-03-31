@@ -9,6 +9,10 @@ if (!User::isAdmin()) {
 require_once $global['systemRootPath'] . 'plugin/TopMenu/Objects/Menu.php';
 header('Content-Type: application/json');
 
+if (!isGlobalTokenValid()) {
+    die(json_encode(['error' => true, 'msg' => __('Invalid Token')]));
+}
+
 $obj = new stdClass();
 $obj->error = true;
 $obj->message = "";

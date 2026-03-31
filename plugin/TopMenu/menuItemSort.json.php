@@ -8,11 +8,15 @@ if (!User::isAdmin()) {
 require_once $global['systemRootPath'] . 'plugin/TopMenu/Objects/MenuItem.php';
 header('Content-Type: application/json');
 
+if (!isGlobalTokenValid()) {
+    die(json_encode(['error' => true, 'msg' => __('Invalid Token')]));
+}
+
 $obj = new stdClass();
 $obj->error = true;
 $obj->message = "";
 
-foreach ($_POST['itens'] as $key => $value) {    
+foreach ($_POST['itens'] as $key => $value) {
     $menu = new MenuItem($value);
     $menu->setItem_order($key+10);
     $obj->error = $menu->save();

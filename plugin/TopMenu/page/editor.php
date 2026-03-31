@@ -264,6 +264,7 @@ $_page->loadBasicCSSAndJS();
 </li>
 <script>
     var typeName = <?php echo json_encode(Menu::$typeName); ?>;
+    var topMenuToken = '<?php echo getToken(); ?>';
     var currentItem = [];
 
     function checkIfHasId() {
@@ -323,7 +324,8 @@ $_page->loadBasicCSSAndJS();
                     url: webSiteRootURL + 'plugin/TopMenu/menuItemSort.json.php',
                     data: {
                         "id": menu.id,
-                        "itens": menu.itens
+                        "itens": menu.itens,
+                        "globalToken": topMenuToken
                     },
                     type: 'post',
                     success: function(response) {
@@ -374,7 +376,8 @@ $_page->loadBasicCSSAndJS();
         $.ajax({
             url: webSiteRootURL + 'plugin/TopMenu/menuItemDelete.json.php',
             data: {
-                "menuItemId": id
+                "menuItemId": id,
+                "globalToken": topMenuToken
             },
             type: 'post',
             success: function(response) {
@@ -518,7 +521,8 @@ $_page->loadBasicCSSAndJS();
                     "status": $('#status').val(),
                     "type": $('#type').val(),
                     "users_groups_id": $('#users_groups_id').val(),
-                    "icon": $("#menuIcon").val()
+                    "icon": $("#menuIcon").val(),
+                    "globalToken": topMenuToken
                 },
                 type: 'post',
                 success: function(response) {
@@ -546,7 +550,8 @@ $_page->loadBasicCSSAndJS();
                     "item_status": $('#item_status').val(),
                     "text": $('#pageType').val() == 'page' ? $(tinymce.get('pageText').getBody()).html() : '',
                     "icon": $("#menuItemIcon").val(),
-                    "mobileicon": $("#menuItemIconMobile").val()
+                    "mobileicon": $("#menuItemIconMobile").val(),
+                    "globalToken": topMenuToken
                 },
                 type: 'post',
                 success: function(response) {
@@ -561,7 +566,8 @@ $_page->loadBasicCSSAndJS();
             $.ajax({
                 url: webSiteRootURL + 'plugin/TopMenu/menuDelete.json.php',
                 data: {
-                    "menuId": $('#menuId').val()
+                    "menuId": $('#menuId').val(),
+                    "globalToken": topMenuToken
                 },
                 type: 'post',
                 success: function(response) {

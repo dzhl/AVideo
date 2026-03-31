@@ -16,18 +16,18 @@ if (count($menu) < $objTopMenu->compactMenuIfIsGreaterThen->value) {
     foreach ($menu as $key => $value) {
 ?>
         <li class="dropdown visible-lg">
-            <a href="#" class=" btn  btn-default btn-light navbar-btn" data-toggle="dropdown" data-toggle="tooltip" title="<?php echo $value['menuName']; ?>" data-placement="bottom">
+            <a href="#" class=" btn  btn-default btn-light navbar-btn" data-toggle="dropdown" data-toggle="tooltip" title="<?php echo htmlspecialchars($value['menuName'], ENT_QUOTES, 'UTF-8'); ?>" data-placement="bottom">
                 <?php
                 $hiddenClass = "hidden-md hidden-sm";
                 if (!empty($value['icon'])) {
                 ?>
-                    <i class="<?php echo $value['icon'] ?>"></i>
+                    <i class="<?php echo htmlspecialchars($value['icon'], ENT_QUOTES, 'UTF-8') ?>"></i>
                 <?php
                     $hiddenClass = "hidden-md hidden-sm  hidden-mdx";
                 }
                 ?>
                 <span class="<?php echo $hiddenClass; ?>">
-                    <?php echo __($value['menuName']); ?>
+                    <?php echo htmlspecialchars(__($value['menuName']), ENT_QUOTES, 'UTF-8'); ?>
                 </span>
                 <b class="caret"></b>
             </a>
@@ -37,15 +37,15 @@ if (count($menu) < $objTopMenu->compactMenuIfIsGreaterThen->value) {
                 foreach ($menuItems as $key2 => $value2) {
                 ?>
                     <li style="margin-right: 0;">
-                        <a href="<?php echo $value2['finalURL']; ?>" <?php echo $value2['target']; ?>>
+                        <a href="<?php echo htmlspecialchars($value2['finalURL'], ENT_QUOTES, 'UTF-8'); ?>" <?php echo $value2['target']; ?>>
                             <?php
                             if (!empty($value2['icon'])) {
                             ?>
-                                <i class="<?php echo $value2['icon'] ?>"></i>
+                                <i class="<?php echo htmlspecialchars($value2['icon'], ENT_QUOTES, 'UTF-8') ?>"></i>
                             <?php
                             }
                             ?>
-                            <?php echo __($value2['title']); ?>
+                            <?php echo htmlspecialchars(__($value2['title']), ENT_QUOTES, 'UTF-8'); ?>
                         </a>
                     </li>
                 <?php
@@ -65,21 +65,21 @@ if (count($menu) < $objTopMenu->compactMenuIfIsGreaterThen->value) {
         </a>
         <ul class="dropdown-menu dropdown-menu-right">
             <?php foreach ($menu as $key => $value) : ?>
-                <li class="dropdown-header"><?php echo __($value['menuName']); ?></li>
+                <li class="dropdown-header"><?php echo htmlspecialchars(__($value['menuName']), ENT_QUOTES, 'UTF-8'); ?></li>
                 <?php
                 $menuItems = MenuItem::getAllFromMenu($value['id'], true);
                 foreach ($menuItems as $key2 => $value2) :
                 ?>
                     <li style="margin-right: 0;">
-                        <a href="<?php echo $value2['finalURL']; ?>" <?php echo $value2['target']; ?>>
+                        <a href="<?php echo htmlspecialchars($value2['finalURL'], ENT_QUOTES, 'UTF-8'); ?>" <?php echo $value2['target']; ?>>
                             <?php
                             if (!empty($value2['icon'])) {
                             ?>
-                                <i class="<?php echo $value2['icon'] ?>"></i>
+                                <i class="<?php echo htmlspecialchars($value2['icon'], ENT_QUOTES, 'UTF-8') ?>"></i>
                             <?php
                             }
                             ?>
-                            <?php echo __($value2['title']); ?>
+                            <?php echo htmlspecialchars(__($value2['title']), ENT_QUOTES, 'UTF-8'); ?>
                         </a>
                     </li>
                 <?php endforeach; ?>

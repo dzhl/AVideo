@@ -24,18 +24,18 @@ if (empty($menuItems)) {
 <div id="topMenuFloatMenu" class="floatingRightBottom">
 
     <button class="btn btn-primary btn-lg btn-circle circle-menu" data-toggle="tooltip" title="<?php echo __('Open'); ?>" data-placement="left">
-        <i class="<?php echo $icon ?> fa-2x"></i>
+        <i class="<?php echo htmlspecialchars($icon, ENT_QUOTES, 'UTF-8') ?> fa-2x"></i>
     </button>
 
     <div class="submenu hidden">
         <?php
         foreach ($menuItems as $key2 => $value2) {
         ?>
-            <a href="<?php echo $value2['finalURL']; ?>" <?php echo $value2['target']; ?> class="btn btn-default btn-lg btn-circle submenu-item <?php echo getCSSAnimationClassAndStyle('animate__bounceIn', 'topFloatMenu'); ?> " data-toggle="tooltip" title="<?php echo __($value2['title']); ?>" data-placement="left">
+            <a href="<?php echo htmlspecialchars($value2['finalURL'], ENT_QUOTES, 'UTF-8'); ?>" <?php echo $value2['target']; ?> class="btn btn-default btn-lg btn-circle submenu-item <?php echo getCSSAnimationClassAndStyle('animate__bounceIn', 'topFloatMenu'); ?> " data-toggle="tooltip" title="<?php echo htmlspecialchars(__($value2['title']), ENT_QUOTES, 'UTF-8'); ?>" data-placement="left">
                 <?php
                 if (!empty($value2['icon'])) {
                 ?>
-                    <i class="<?php echo $value2['icon'] ?> fa-2x"></i>
+                    <i class="<?php echo htmlspecialchars($value2['icon'], ENT_QUOTES, 'UTF-8') ?> fa-2x"></i>
                 <?php
                 } else {
                     echo '<i class="fas fa-folder fa-2x"></i>';

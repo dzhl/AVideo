@@ -8,10 +8,14 @@ if (!User::isAdmin()) {
 require_once $global['systemRootPath'] . 'plugin/TopMenu/Objects/MenuItem.php';
 header('Content-Type: application/json');
 
+if (!isGlobalTokenValid()) {
+    die(json_encode(['error' => true, 'msg' => __('Invalid Token')]));
+}
+
 $obj = new stdClass();
 $obj->error = true;
 $obj->message = "";
-                                   
+
 $menu = new MenuItem(@$_POST['menuItemId']);
 $menu->setTopMenu_id($_POST['menuId']);
 //$menu->setClass($_POST['class']);
