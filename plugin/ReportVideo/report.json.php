@@ -47,6 +47,7 @@ if (!empty($_REQUEST['videos_id'])) {
     // fake report
     $resp = new stdClass();
     $resp->error = false;
+    // comments_id is safe: objects/security.php casts all *_id params to int before this point
     $resp->msg = "Comment {$_REQUEST['comments_id']} was reported as inappropriate";
 
     $siteOwnerSent = sendEmailToSiteOwner($resp->msg, $resp->msg);
