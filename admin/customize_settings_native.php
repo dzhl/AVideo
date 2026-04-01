@@ -62,6 +62,7 @@
     }
 
     var logoImgBase64;
+    var customizeNativeToken = '<?php echo getToken(); ?>';
 
     $(document).ready(function() {
         // start croppie logo
@@ -114,6 +115,7 @@
                         data: {
                             "logoImgBase64": logoImgBase64,
                             "webSiteTitle": $('#inputWebSiteTitle').val(),
+                            "globalToken": customizeNativeToken,
                         },
                         type: 'post',
                         success: function(response) {

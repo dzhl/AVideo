@@ -9,6 +9,10 @@ if (!User::isAdmin()) {
     die('{"error":"' . __("Permission denied") . '"}');
 }
 
+if (!isGlobalTokenValid()) {
+    die('{"error":"' . __("Invalid Token") . '"}');
+}
+
 require_once $global['systemRootPath'] . 'videos/configuration.php';
 require_once $global['systemRootPath'] . 'objects/configuration.php';
 require_once $global['systemRootPath'] . 'objects/functions.php';
