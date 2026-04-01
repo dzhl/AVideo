@@ -9,6 +9,10 @@ $obj->msg = '';
 
 $plugin = AVideoPlugin::loadPluginIfEnabled('SocialMediaPublisher');
 
+if (!User::canUpload()) {
+    forbiddenPage(__("You cannot do this"));
+}
+
 //$obj = SocialMediaPublisher::scanInstagam();
 
 $obj = InstagramUploader::publishMediaIfIsReady($_REQUEST['accessToken'], $_REQUEST['containerId'], $_REQUEST['instagramAccountId']);
