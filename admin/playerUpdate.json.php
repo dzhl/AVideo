@@ -9,6 +9,10 @@ if (!User::isAdmin()) {
     die('{"error":"' . __("Permission denied") . '"}');
 }
 
+if (!isGlobalTokenValid()) {
+    die('{"error":"' . __("Invalid Token") . '"}');
+}
+
 $pluginName = 'PlayerSkins';
 
 $pluginDO = AVideoPlugin::getObjectData($pluginName);

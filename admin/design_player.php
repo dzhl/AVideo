@@ -47,6 +47,7 @@ $delay = 0.2;
     ?>
 </div>
 <script>
+    var playerUpdateToken = '<?php echo getToken(); ?>';
     $(document).ready(function () {
         $('.playerSwitch').change(function (e) {
             modal.showPleaseWait();
@@ -59,7 +60,7 @@ $delay = 0.2;
                 success: function (response) {
                     $.ajax({
                         url: webSiteRootURL+'admin/playerUpdate.json.php',
-                        data: {"skin": skin},
+                        data: {"skin": skin, "globalToken": playerUpdateToken},
                         type: 'post',
                         success: function (response) {
                             modal.hidePleaseWait();
