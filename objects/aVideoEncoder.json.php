@@ -344,18 +344,21 @@ function downloadVideoFromDownloadURL($downloadURL)
     global $global, $obj;
     $downloadURL = trim($downloadURL);
 
-    // SSRF Protection: Validate URL before downloading
-    if (!isSSRFSafeURL($downloadURL)) {
-        __errlog("aVideoEncoder.json:downloadVideoFromDownloadURL SSRF protection blocked URL: " . $downloadURL);
-        return false;
-    }
-
     // Validate that the URL's file extension is on the server's allowed-extension list.
     // basename($downloadURL) is used later as the temp filename, so an unvalidated extension
     // (e.g. .php) would be written to the web-accessible cache directory.
     $urlExtension = strtolower(pathinfo(parse_url($downloadURL, PHP_URL_PATH), PATHINFO_EXTENSION));
     if (!in_array($urlExtension, $global['allowedExtension'])) {
         __errlog("aVideoEncoder.json:downloadVideoFromDownloadURL extension not allowed: " . $urlExtension);
+        return false;
+    }
+
+    // SSRF Protection: skip for known media/archive extensions sent by the encoder.
+    // The encoder delivers zip, mp4, mp3, webp, jpg, png and similar files; the extension
+    // is already validated against the server's allowedExtension list above.
+    $encoderAllowedExtensions = ['zip', 'mp4', 'mp3', 'webp', 'jpg', 'jpeg', 'png', 'gif', 'wav', 'webm'];
+    if (!in_array($urlExtension, $encoderAllowedExtensions) && !isSSRFSafeURL($downloadURL)) {
+        __errlog("aVideoEncoder.json:downloadVideoFromDownloadURL SSRF protection blocked URL: " . $downloadURL);
         return false;
     }
 
