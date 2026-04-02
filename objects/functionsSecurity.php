@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../vendor/erusev/parsedown/Parsedown.php';
 /*
 secure salt in PHP using standard characters and numbers.
 This code will generate a 10 to 32-character string
