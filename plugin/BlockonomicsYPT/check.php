@@ -13,6 +13,11 @@ if (empty($global['systemRootPath'])) {
     $global['systemRootPath'] = '../../';
 }
 require_once $global['systemRootPath'] . 'videos/configuration.php';
+require_once $global['systemRootPath'] . 'objects/user.php';
+
+if (!User::isLogged()) {
+    die('{"error":"' . __("Permission denied") . '"}');
+}
 
 $plugin = AVideoPlugin::loadPluginIfEnabled("BlockonomicsYPT");
 $obj = $plugin->getDataObject();
