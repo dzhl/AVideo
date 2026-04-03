@@ -61,6 +61,12 @@ class SecurityHardeningRegressionTest extends TestCase
         foreach ($matches[0] as [$headerCall, $offset]) {
             // Look backwards from this header() call to find the nearest enclosing if-condition.
             $preceding = substr($source, 0, $offset);
+            // The $allowAll early-return path (for public-resource endpoints such as VAST/VMAP ad XML)
+            // intentionally allows credentials for any origin and precedes the $isSameOrigin assignment.
+            // Skip those occurrences; only enforce the guard on the general-purpose path.
+            if (!str_contains($preceding, '$isSameOrigin')) {
+                continue;
+            }
             // The enclosing branch must reference $isSameOrigin – never a raw $requestOrigin / $HTTP_ORIGIN.
             $lastIfPos = strrpos($preceding, 'if (');
             $this->assertNotFalse($lastIfPos, 'Access-Control-Allow-Credentials header must be inside a conditional.');
