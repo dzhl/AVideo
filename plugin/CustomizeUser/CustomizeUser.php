@@ -442,6 +442,9 @@ class CustomizeUser extends PluginAbstract
         $obj->enableResolutionsByUserGroup = false;
         self::addDataObjectHelper('enableResolutionsByUserGroup', 'Enable Resolutions by User Group', 'Allow admins to restrict available video resolutions per user group');
 
+        $obj->hideVideoGroupTags = false;
+        self::addDataObjectHelper('hideVideoGroupTags', 'Hide Video Group Tags', 'When enabled, the user group tags (group icons) will not appear on videos in the frontend');
+
         return $obj;
     }
 

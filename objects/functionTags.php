@@ -124,7 +124,11 @@ function getVideoTagVideoStatus($video, $type)
 
 function getVideoTagsGroups($video, $type)
 {
+    global $advancedCustomUser;
     $tags = [];
+    if (!empty($advancedCustomUser->hideVideoGroupTags)) {
+        return $tags;
+    }
     if (empty($type) || $type === VideoTags::$TagTypeUserGroups) {
         $groups = UserGroups::getVideosAndCategoriesUserGroups($video->getId());
         $objTag = new stdClass();
