@@ -2763,10 +2763,21 @@ function allowOrigin($allowAll = false)
     cleanUpAccessControlHeader();
 
     // Public resources (e.g. VAST/VMAP ad XML) should be readable by any
-    // origin.  Pass $allowAll = true to emit Access-Control-Allow-Origin: *
-    // and skip credential-related headers (browsers reject credentials + *).
+    // origin.  Pass $allowAll = true for permissive CORS.
+    // When the browser sends a credentialed request (credentials:'include', e.g.
+    // the IMA SDK), it rejects the wildcard '*' – the spec requires echoing the
+    // exact origin in that case.  We reflect whatever origin is in the request
+    // and add Allow-Credentials:true so credentialed fetches also succeed.
+    // These endpoints return public ad XML and carry no session-sensitive data,
+    // so reflecting any origin is safe here.
     if ($allowAll) {
-        header('Access-Control-Allow-Origin: *');
+        $requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
+        if (!empty($requestOrigin)) {
+            header('Access-Control-Allow-Origin: ' . $requestOrigin);
+            header('Access-Control-Allow-Credentials: true');
+        } else {
+            header('Access-Control-Allow-Origin: *');
+        }
         header('Access-Control-Allow-Private-Network: true');
         header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, HEAD');
         header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, ua-resolution, APISecret, Origin, Accept, Access-Control-Request-Method, Access-Control-Request-Headers');
