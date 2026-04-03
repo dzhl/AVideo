@@ -2757,10 +2757,28 @@ function object_to_array($obj, $level = 0)
     }
 }
 
-function allowOrigin()
+function allowOrigin($allowAll = false)
 {
     global $global;
     cleanUpAccessControlHeader();
+
+    // Public resources (e.g. VAST/VMAP ad XML) should be readable by any
+    // origin.  Pass $allowAll = true to emit Access-Control-Allow-Origin: *
+    // and skip credential-related headers (browsers reject credentials + *).
+    if ($allowAll) {
+        header('Access-Control-Allow-Origin: *');
+        header('Access-Control-Allow-Private-Network: true');
+        header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, HEAD');
+        header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, ua-resolution, APISecret, Origin, Accept, Access-Control-Request-Method, Access-Control-Request-Headers');
+        if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+            header('Access-Control-Max-Age: 86400');
+            header('Access-Control-Allow-Private-Network: true');
+            http_response_code(204);
+            exit;
+        }
+        return;
+    }
+
 
     // Derive the site's own origin from configuration so we can validate
     // inbound Origin headers instead of blindly reflecting them.

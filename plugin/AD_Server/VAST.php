@@ -2,8 +2,7 @@
 header('Content-type: application/xml');
 
 require_once '../../videos/configuration.php';
-allowOrigin();
-header('Access-Control-Allow-Credentials: true');
+allowOrigin(true);
 require_once $global['systemRootPath'] . 'objects/video.php';
 $ad_server = AVideoPlugin::loadPlugin('AD_Server');
 $obj = AVideoPlugin::getObjectData('AD_Server');
@@ -62,7 +61,7 @@ echo '<?xml version="1.0" encoding="UTF-8"?>';
                         <Creative id="Linear_<?php echo $_GET['campaign_has_videos_id']; ?>" sequence="1">
                             <Linear skipoffset="<?php echo $obj->skipoffset->value; ?>">
                                 <Duration><?php echo $video->getDuration(); ?></Duration>
-                                
+
                                 <TrackingEvents>
                                     <Tracking event="start">
                                         <![CDATA[<?php echo $global['webSiteRootURL']; ?>plugin/AD_Server/log.php?videos_id=<?php echo $videos_id; ?>&label=<?php echo AD_Server::AD_STARTED; ?>&ad_mt=[AD_MT]&campaign_has_videos_id=<?php echo $_GET['campaign_has_videos_id']; ?>]]>
