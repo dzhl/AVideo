@@ -231,6 +231,8 @@ $wwbnIndexPlugin = AVideoPlugin::isEnabledByName('WWBNIndex');
 </div>
 <script src="<?php echo getURL('view/js/form2JSON.js'); ?>" type="text/javascript"></script>
 <script>
+    var globalToken = '<?php echo getToken(300); ?>';
+
     function showActivesOnly() {
         var id = "#PluginTagsUninstalled";
         $(id).removeClass('checked');
@@ -487,7 +489,8 @@ $wwbnIndexPlugin = AVideoPlugin::isEnabledByName('WWBNIndex');
                                     "uuid": row.uuid,
                                     "name": row.name,
                                     "dir": row.dir,
-                                    "enable": true
+                                    "enable": true,
+                                    "globalToken": globalToken
                                 },
                                 type: 'post',
                                 success: function(response) {}
@@ -605,7 +608,8 @@ $wwbnIndexPlugin = AVideoPlugin::isEnabledByName('WWBNIndex');
                         "uuid": row.uuid,
                         "name": row.name,
                         "dir": row.dir,
-                        "enable": $('#enable' + row.uuid).is(":checked")
+                        "enable": $('#enable' + row.uuid).is(":checked"),
+                        "globalToken": globalToken
                     },
                     type: 'post',
                     success: function(response) {

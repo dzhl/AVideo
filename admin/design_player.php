@@ -47,7 +47,7 @@ $delay = 0.2;
     ?>
 </div>
 <script>
-    var playerUpdateToken = '<?php echo getToken(); ?>';
+    var globalToken = '<?php echo getToken(); ?>';
     $(document).ready(function () {
         $('.playerSwitch').change(function (e) {
             modal.showPleaseWait();
@@ -55,12 +55,12 @@ $delay = 0.2;
             var skin = $(this).val();
             $.ajax({
                 url: webSiteRootURL+'objects/pluginSwitch.json.php',
-                data: {"uuid": "e9a568e6-ef61-4dcc-aad0-0109e9be8e36", "name": "PlayerSkins", "dir": "PlayerSkins", "enable": true},
+                data: {"uuid": "e9a568e6-ef61-4dcc-aad0-0109e9be8e36", "name": "PlayerSkins", "dir": "PlayerSkins", "enable": true, "globalToken": globalToken},
                 type: 'post',
                 success: function (response) {
                     $.ajax({
                         url: webSiteRootURL+'admin/playerUpdate.json.php',
-                        data: {"skin": skin, "globalToken": playerUpdateToken},
+                        data: {"skin": skin, "globalToken": globalToken},
                         type: 'post',
                         success: function (response) {
                             modal.hidePleaseWait();

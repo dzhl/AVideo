@@ -1510,11 +1510,12 @@ class AVideoPlugin
                     <label for="subsSwitch' . $uid . '" class="label-primary"></label>
                 </div><script>
                 $(document).ready(function () {
+                var globalToken = "' . getToken() . '";
                 $("#subsSwitch' . $uid . '").change(function (e) {
                     modal.showPleaseWait();
                     $.ajax({
                         url: "' . $global['webSiteRootURL'] . 'objects/pluginSwitch.json.php",
-                        data: {"uuid": "' . $p->getUUID() . '", "name": "' . $name . '", "dir": "' . $name . '", "enable": $(this).is(":checked")},
+                        data: {"uuid": "' . $p->getUUID() . '", "name": "' . $name . '", "dir": "' . $name . '", "enable": $(this).is(":checked"), "globalToken": globalToken},
                         type: "post",
                         success: function (response) {
                             modal.hidePleaseWait();

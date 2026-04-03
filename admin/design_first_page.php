@@ -69,6 +69,17 @@ $delay = 0.5;
     </div>
 </div>
 <script>
+    var globalToken = '<?php echo getToken(); ?>';
+
+    $.ajaxPrefilter(function (options, originalOptions) {
+        if (options.url !== webSiteRootURL + 'objects/pluginSwitch.json.php') {
+            return;
+        }
+        options.data = $.extend({}, originalOptions.data || {}, {
+            "globalToken": globalToken
+        });
+    });
+
     function checkSwitch() {
         var defaultSwitch = $('#defaultSwitch').is(":checked");
         var netflixSwitch = $('#netflixSwitch').is(":checked");
