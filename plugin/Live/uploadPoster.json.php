@@ -55,8 +55,20 @@ if (isset($_REQUEST['liveImgCloseTimeInSeconds']) && isset($_REQUEST['liveImgTim
     $o->liveImgCloseTimeInSeconds = intval($_REQUEST['liveImgCloseTimeInSeconds']);
     $o->liveImgTimeInSeconds = intval($_REQUEST['liveImgTimeInSeconds']);
 
-    $obj->jsonFile = str_replace('.jpg', '.json', $obj->path);
-    $obj->jsonFileBytes = _file_put_contents($obj->jsonFile, $o);
+    $jsonTargetImagePath = '';
+    if (!empty($obj->path)) {
+        $jsonTargetImagePath = $obj->path;
+    } else {
+        $jsonTargetImagePath = $global['systemRootPath'] . Live::_getPosterImage(User::getId(), $live_servers_id, $ppv_schedule_id, $live_schedule_id, $posterType);
+    }
+
+    if (!empty($jsonTargetImagePath)) {
+        $obj->jsonFile = str_replace('.jpg', '.json', $jsonTargetImagePath);
+        $obj->jsonFileBytes = _file_put_contents($obj->jsonFile, $o);
+    } else {
+        $obj->jsonFile = '';
+        $obj->jsonFileBytes = false;
+    }
 }
 
 if (empty($obj->error)) {
