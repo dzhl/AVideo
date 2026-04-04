@@ -357,13 +357,13 @@ class ParsedownSafeWithLinks extends Parsedown
         $href = '';
         $target = '';
         if (preg_match('/\bhref\s*=\s*"([^"]*)"|\bhref\s*=\s*\'([^\']*)\'/i', $rawAttrs, $m)) {
-            $url = $m[2] !== '' ? $m[2] : $m[1];
+            $url = !empty($m[2]) ? $m[2] : $m[1];
             if (preg_match('/^(https?:\/\/|mailto:|\/|#)/i', $url)) {
                 $href = ' href="' . htmlspecialchars($url, ENT_QUOTES) . '"';
             }
         }
         if (preg_match('/\btarget\s*=\s*"([^"]*)"|\btarget\s*=\s*\'([^\']*)\'/i', $rawAttrs, $m)) {
-            $val = $m[2] !== '' ? $m[2] : $m[1];
+            $val = !empty($m[2]) ? $m[2] : $m[1];
             if (in_array($val, ['_blank', '_self', '_parent', '_top'], true)) {
                 $target = ' target="' . $val . '"';
             }
@@ -377,7 +377,7 @@ class ParsedownSafeWithLinks extends Parsedown
         $class = 'img img-responsive';
         $style = '';
         if (preg_match('/\bsrc\s*=\s*"([^"]*)"|\bsrc\s*=\s*\'([^\']*)\'/i', $rawAttrs, $m)) {
-            $url = $m[2] !== '' ? $m[2] : $m[1];
+            $url = !empty($m[2]) ? $m[2] : $m[1];
             if (!preg_match('/^(javascript:|vbscript:|data:)/i', $url)) {
                 $src = htmlspecialchars($url, ENT_QUOTES);
             }
@@ -386,11 +386,11 @@ class ParsedownSafeWithLinks extends Parsedown
             return null;
         }
         if (preg_match('/\bclass\s*=\s*"([^"]*)"|\bclass\s*=\s*\'([^\']*)\'/i', $rawAttrs, $m)) {
-            $cv = $m[2] !== '' ? $m[2] : $m[1];
-            $class = htmlspecialchars($cv, ENT_QUOTES) . ' img img-responsive';
+            $cv = preg_replace('/\s+/', ' ', trim(!empty($m[2]) ? $m[2] : $m[1]));
+            $class = htmlspecialchars($cv, ENT_QUOTES);
         }
         if (preg_match('/\bstyle\s*=\s*"([^"]*)"|\bstyle\s*=\s*\'([^\']*)\'/i', $rawAttrs, $m)) {
-            $sv = $m[2] !== '' ? $m[2] : $m[1];
+            $sv = preg_replace('/\s+/', ' ', trim(!empty($m[2]) ? $m[2] : $m[1]));
             $sv = preg_replace('/expression\s*\(|javascript:/i', '', $sv);
             $style = ' style="' . htmlspecialchars($sv, ENT_QUOTES) . '"';
         }
@@ -437,12 +437,12 @@ class ParsedownSafeWithLinks extends Parsedown
 
         // Closing </a>
         if (preg_match('/^<\/a[ ]*>/i', $Excerpt['text'], $m)) {
-            return ['markup' => '</a>', 'extent' => strlen($m[0])];
+            return ['element' => ['rawHtml' => '</a>'], 'extent' => strlen($m[0])];
         }
 
         // <a ...>
         if (preg_match('/^<a(\s[^>]*)>/i', $Excerpt['text'], $m)) {
-            return ['markup' => self::sanitizeATag($m[1]), 'extent' => strlen($m[0])];
+            return ['element' => ['rawHtml' => self::sanitizeATag($m[1])], 'extent' => strlen($m[0])];
         }
 
         // <img ...>
@@ -451,7 +451,7 @@ class ParsedownSafeWithLinks extends Parsedown
             if ($tag === null) {
                 return null;
             }
-            return ['markup' => $tag, 'extent' => strlen($m[0])];
+            return ['element' => ['rawHtml' => $tag], 'extent' => strlen($m[0])];
         }
 
         // All other inline HTML: escape it
@@ -479,8 +479,9 @@ function markDownToHTML($text) {
     );
 
     // Add classes to images produced by markdown image syntax ![alt](url)
+    // Only add class to <img> tags that do not already have a class attribute
     $html = preg_replace(
-        '/<img([^>]+)>/i',
+        '/<img(?![^>]*\bclass\s*=)([^>]+)>/i',
         '<img$1 class="img img-responsive">',
         $html
     );
