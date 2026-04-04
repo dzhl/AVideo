@@ -1521,7 +1521,7 @@ Click <a href=\"{link}\">here</a> to join our live.";
         if (!isLive() || $obj->disableDVR) {
             return "";
         }
-        return "liveui: true";
+        return "liveui: true, liveTracker: {trackingThreshold: 0}";
     }
 
     public static function stopLive($users_id)
