@@ -810,6 +810,10 @@ function getTmpFile()
 
 function _file_put_contents($filename, $data, $flags = 0, $context = null)
 {
+    if (!is_string($filename) || trim($filename) === '') {
+        _error_log("_file_put_contents: empty filename");
+        return false;
+    }
     make_path($filename);
     if (!is_string($data)) {
         $data = _json_encode($data);

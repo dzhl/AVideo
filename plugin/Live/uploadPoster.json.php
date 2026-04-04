@@ -44,8 +44,8 @@ if (!empty($live_schedule_id) || !empty($ppv_schedule_id)) {
         // SECURITY: Use internal path for file operations but don't expose to API
         $internalPathThumbs = $global['systemRootPath'] . Live::_getPosterThumbsImage(User::getId(), $live_servers_id, $posterType);
 
-        _error_log("removePoster.php ({$obj->pathThumbs}) unlink line=" . __LINE__);
-        @unlink($obj->pathThumbs);
+        _error_log("removePoster.php ({$internalPathThumbs}) unlink line=" . __LINE__);
+        @unlink($internalPathThumbs);
         $obj->error = false;
     }
 }
@@ -63,10 +63,9 @@ if (isset($_REQUEST['liveImgCloseTimeInSeconds']) && isset($_REQUEST['liveImgTim
     }
 
     if (!empty($jsonTargetImagePath)) {
-        $obj->jsonFile = str_replace('.jpg', '.json', $jsonTargetImagePath);
-        $obj->jsonFileBytes = _file_put_contents($obj->jsonFile, $o);
+        $jsonFilePath = str_replace('.jpg', '.json', $jsonTargetImagePath);
+        $obj->jsonFileBytes = _file_put_contents($jsonFilePath, $o);
     } else {
-        $obj->jsonFile = '';
         $obj->jsonFileBytes = false;
     }
 }
