@@ -110,6 +110,9 @@ COPY deploy/apache/avideo.conf /etc/apache2/sites-available/avideo.conf
 COPY deploy/apache/localhost.conf /etc/apache2/sites-available/localhost.conf
 COPY deploy/apache/docker-entrypoint /usr/local/bin/docker-entrypoint
 COPY deploy/apache/crontab /etc/cron.d/crontab
+COPY deploy/apache/sync-certificates.sh /usr/local/bin/apache-sync-certificates.sh
+COPY deploy/apache/certbot-renew.sh /usr/local/bin/certbot-renew.sh
+COPY deploy/apache/certbot-deploy-hook.sh /usr/local/bin/certbot-deploy-hook.sh
 
 RUN if [ "$SERVER_NAME" != "localhost" ] || [[ "$SERVER_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] ; \
     then \
@@ -127,6 +130,10 @@ RUN dos2unix /etc/cron.d/crontab && \
 RUN dos2unix /usr/local/bin/docker-entrypoint && \
     chmod 755 /usr/local/bin/docker-entrypoint && \
     chmod +x /usr/local/bin/docker-entrypoint
+
+RUN dos2unix /usr/local/bin/apache-sync-certificates.sh /usr/local/bin/certbot-renew.sh /usr/local/bin/certbot-deploy-hook.sh && \
+    chmod 755 /usr/local/bin/apache-sync-certificates.sh /usr/local/bin/certbot-renew.sh /usr/local/bin/certbot-deploy-hook.sh && \
+    chmod +x /usr/local/bin/apache-sync-certificates.sh /usr/local/bin/certbot-renew.sh /usr/local/bin/certbot-deploy-hook.sh
 
 # 🛠️  Improved RUN block — creates a single script and tunes PHP-Memcached sessions
 RUN cat >/usr/local/bin/configure-php.sh <<'EOS'
@@ -152,9 +159,9 @@ session.save_path              = "memcached:11211?persistent=1&timeout=2&retry_i
 
 ; Lightweight locking to avoid race conditions without freezing the site
 memcached.sess_locking         = 1
-memcached.sess_lock_expire     = 15       ; release lock after 15 s
+memcached.sess_lock_expire     = 5        ; release lock after 5 s (default)
 memcached.sess_lock_wait_min   = 1000     ; 1 ms between attempts
-memcached.sess_lock_wait_max   = 50000    ; up to 50 ms back-off
+memcached.sess_lock_wait_max   = 5000     ; up to 5 ms back-off (was 50 ms — caused ~1 s session_start delays)
 memcached.sess_consistent_hash = On
 memcached.sess_remove_failed_servers = 1
 EOF
@@ -164,7 +171,7 @@ RUN chmod +x /usr/local/bin/configure-php.sh
 
 
 # Run the PHP configuration script
-RUN /usr/local/bin/configure-php.sh
+RUN sed -i 's/\r$//' /usr/local/bin/configure-php.sh && /usr/local/bin/configure-php.sh
 
 # Add Apache configuration
 RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf

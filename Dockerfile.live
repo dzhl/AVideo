@@ -74,6 +74,8 @@ RUN cd /usr/local/nginx/html && \
 COPY deploy/nginx/docker-entrypoint-live /usr/local/bin/docker-entrypoint-live
 COPY deploy/nginx/nginx.conf /usr/local/nginx/conf/nginx.conf
 COPY deploy/nginx/crontab /etc/cron.d/crontab
+COPY deploy/nginx/sync-certificates.sh /usr/local/bin/nginx-sync-certificates.sh
+COPY deploy/nginx/reload-if-cert-changed.sh /usr/local/bin/reload-if-cert-changed.sh
 
 # Set permissions for crontab
 RUN dos2unix /etc/cron.d/crontab && \
@@ -86,6 +88,10 @@ RUN dos2unix /etc/cron.d/crontab && \
 RUN dos2unix /usr/local/bin/docker-entrypoint-live && \
     chmod 755 /usr/local/bin/docker-entrypoint-live && \
     chmod +x /usr/local/bin/docker-entrypoint-live
+
+RUN dos2unix /usr/local/bin/nginx-sync-certificates.sh /usr/local/bin/reload-if-cert-changed.sh && \
+    chmod 755 /usr/local/bin/nginx-sync-certificates.sh /usr/local/bin/reload-if-cert-changed.sh && \
+    chmod +x /usr/local/bin/nginx-sync-certificates.sh /usr/local/bin/reload-if-cert-changed.sh
 
 # Create directory and set permissions
 VOLUME /var/www/tmp

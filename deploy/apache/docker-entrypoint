@@ -2,8 +2,43 @@
 
 echo "entrypoint -- Starting AVideo Platform..."
 CONFIG_FILE=/etc/apache2/sites-enabled/000-default.conf
+RUN_CERTBOT="${RUN_CERTBOT:-auto}"
+APACHE_SYNC_CERTIFICATES=/usr/local/bin/apache-sync-certificates.sh
 
-if [ "_${CREATE_TLS_CERTIFICATE}_" == "_yes_" ]; then
+should_run_certbot() {
+  if [ "_${RUN_CERTBOT}_" = "_yes_" ]; then
+    return 0
+  fi
+
+  if [ "_${RUN_CERTBOT}_" = "_no_" ]; then
+    return 1
+  fi
+
+  if [[ "${SERVER_NAME}" = "localhost" ]] || [[ "${SERVER_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    return 1
+  fi
+
+  return 0
+}
+
+is_certificate_valid() {
+  local cert_file="$1"
+  [ -f "${cert_file}" ] && openssl x509 -checkend 0 -noout -in "${cert_file}" >/dev/null 2>&1
+}
+
+LETSENCRYPT_CERTIFICATE_FILE="/etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem"
+LETSENCRYPT_CERTIFICATE_KEY="/etc/letsencrypt/live/${SERVER_NAME}/privkey.pem"
+HAS_LETSENCRYPT_CERTIFICATE=false
+
+if ! [[ "${SERVER_NAME}" = "localhost" ]] \
+  && ! [[ "${SERVER_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+  && [ -f "${LETSENCRYPT_CERTIFICATE_FILE}" ] \
+  && [ -f "${LETSENCRYPT_CERTIFICATE_KEY}" ] \
+  && is_certificate_valid "${LETSENCRYPT_CERTIFICATE_FILE}"; then
+  HAS_LETSENCRYPT_CERTIFICATE=true
+fi
+
+if [ "_${CREATE_TLS_CERTIFICATE}_" == "_yes_" ] && [ "${HAS_LETSENCRYPT_CERTIFICATE}" != "true" ]; then
   echo "entrypoint -- Generate Certificate..."
   echo "entrypoint -- Certificate file: ${TLS_CERTIFICATE_FILE}"
   echo "entrypoint -- Certificate key: ${TLS_CERTIFICATE_KEY}"
@@ -49,7 +84,6 @@ EOF
   # Verify certificate
   echo "entrypoint -- New Certificate config..."
   openssl x509 -in ${TLS_CERTIFICATE_FILE} -noout -text || true
-
 fi
 
 sed -i 's#SERVER_NAME#'${SERVER_NAME}'#' ${CONFIG_FILE}
@@ -58,11 +92,7 @@ sed -i 's#CONTACT_EMAIL#'${CONTACT_EMAIL}'#' ${CONFIG_FILE}
 echo "entrypoint -- Configure Apache..."
 sed -i 's#TLS_CERTIFICATE_FILE#'${TLS_CERTIFICATE_FILE}'#' ${CONFIG_FILE}
 sed -i 's#TLS_CERTIFICATE_KEY#'${TLS_CERTIFICATE_KEY}'#' ${CONFIG_FILE}
-
-mkdir -p /etc/letsencrypt/live/localhost/
-
-cp ${TLS_CERTIFICATE_FILE} /etc/letsencrypt/live/localhost/fullchain.pem
-cp ${TLS_CERTIFICATE_KEY} /etc/letsencrypt/live/localhost/privkey.pem
+"${APACHE_SYNC_CERTIFICATES}"
 
 #echo "entrypoint -- Waiting for database ${DB_MYSQL_HOST} to be up and running"
 #php /usr/local/bin/wait-for-db.php
@@ -109,11 +139,12 @@ php ./cli.php
 cd /var/www/html/AVideo/
 
 
-if [[ "${SERVER_NAME}" = "localhost" ]] || [[ "${SERVER_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "Not executing certbot for ${SERVER_NAME}"
-elif [ "_${CREATE_TLS_CERTIFICATE}_" == "_yes_" ]; then
+if [ "_${CREATE_TLS_CERTIFICATE}_" == "_yes_" ] && should_run_certbot && [ "${HAS_LETSENCRYPT_CERTIFICATE}" != "true" ]; then
   echo "entrypoint -- Running certbot for ${SERVER_NAME}"
   certbot --apache --non-interactive --agree-tos --register-unsafely-without-email --redirect --keep-until-expiring -d ${SERVER_NAME}
+  "${APACHE_SYNC_CERTIFICATES}"
+else
+  echo "entrypoint -- Skipping certbot for ${SERVER_NAME} (CREATE_TLS_CERTIFICATE=${CREATE_TLS_CERTIFICATE}, RUN_CERTBOT=${RUN_CERTBOT}, HAS_LETSENCRYPT_CERTIFICATE=${HAS_LETSENCRYPT_CERTIFICATE})"
 fi
 
 /etc/init.d/apache2 stop

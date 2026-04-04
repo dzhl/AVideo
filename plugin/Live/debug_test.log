@@ -1,0 +1,1 @@
+[2026-04-04 19:30:42] FATAL: Cannot redeclare url_get_contents() (previously declared in /var/www/html/AVideo/plugin/Live/test.php:55) in /var/www/html/AVideo/objects/functions.php on line 1938
