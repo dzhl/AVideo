@@ -14,6 +14,14 @@ if (!filter_var($_GET['livelink'], FILTER_VALIDATE_URL) || !preg_match("/^http.*
     exit;
 }
 
+// Block same-origin URLs: proxying own content would let the token injected by
+// addGlobalTokenIfSameDomain() bypass video access-control in view/hls.php.
+// This proxy is only intended for external live streams (HTTP→HTTPS conversion).
+if (isSameDomainAsMyAVideo($_GET['livelink'])) {
+    echo "Access denied: Same-origin proxying not allowed";
+    exit;
+}
+
 // SSRF Protection: Block requests to internal/private networks
 if (!isSSRFSafeURL($_GET['livelink'])) {
     _error_log("LiveLinks proxy: SSRF protection blocked URL: " . $_GET['livelink']);
