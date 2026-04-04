@@ -11,11 +11,11 @@ $timeStarted = microtime(true);
 
 $statsURL = $_REQUEST['statsURL'];
 if (empty($statsURL) || $statsURL == "php://input" || !preg_match("/^http/", $statsURL)) {
-    _log('this is not a URL ');
+    liveStatsTestLog('this is not a URL ');
     exit;
 }
-if (!isAllowedStatsTestURL($statsURL)) {
-    _log('this URL is not allowed ' . htmlentities($statsURL));
+if (!liveIsAllowedStatsTestURL($statsURL)) {
+    liveStatsTestLog('this URL is not allowed ' . htmlentities($statsURL));
     exit;
 }
 
@@ -23,26 +23,26 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL & ~E_DEPRECATED);
 
-_log('Starting try to get URL ' . $statsURL);
+liveStatsTestLog('Starting try to get URL ' . $statsURL);
 
 $result = liveStatsTestUrlGetContents($statsURL, 2);
 
 if ($result) {
-    _log('<span style="background-color: green; padding: 1px 4px; color: #FFF;">SUCCESS</span>');
+    liveStatsTestLog('<span style="background-color: green; padding: 1px 4px; color: #FFF;">SUCCESS</span>');
 } else {
-    _log('<span style="background-color: red; padding: 1px 4px; color: #FFF;">FAIL</span>');
+    liveStatsTestLog('<span style="background-color: red; padding: 1px 4px; color: #FFF;">FAIL</span>');
 }
 
-_log('Finish try to get URL ');
+liveStatsTestLog('Finish try to get URL ');
 
 $timeElapsed = number_format(microtime(true) - $timeStarted, 5);
 if ($timeElapsed>=2) {
-    _log('IMPORTANT: your stats took longer than 2 seconds to respond, the Streamer has a 2 seconds timeout rule ');
+    liveStatsTestLog('IMPORTANT: your stats took longer than 2 seconds to respond, the Streamer has a 2 seconds timeout rule ');
 }
 
 function liveStatsTestUrlGetContents($url, $timeout = 0)
 {
-    _log('liveStatsTestUrlGetContents start timeout=' . $timeout);
+    liveStatsTestLog('liveStatsTestUrlGetContents start timeout=' . $timeout);
     $agent = "AVideoStreamer";
 
     $opts = [
@@ -63,20 +63,20 @@ function liveStatsTestUrlGetContents($url, $timeout = 0)
     if (ini_get('allow_url_fopen')) {
         try {
             $tmp = file_get_contents($url, false, $context);
-            _log('file_get_contents:: '.htmlentities($tmp));
+            liveStatsTestLog('file_get_contents:: '.htmlentities($tmp));
             if (empty($tmp)) {
-                _log('file_get_contents fail return an empty content');
+                liveStatsTestLog('file_get_contents fail return an empty content');
                 return false;
             } else {
-                _log('file_get_contents works');
+                liveStatsTestLog('file_get_contents works');
                 return true;
             }
         } catch (ErrorException $e) {
-            _log('file_get_contents fail catch error: ' . $e->getMessage());
+            liveStatsTestLog('file_get_contents fail catch error: ' . $e->getMessage());
             return false;
         }
     } elseif (function_exists('curl_init')) {
-        _log('allow_url_fopen is NOT enabled but curl_init is, we will try CURL');
+        liveStatsTestLog('allow_url_fopen is NOT enabled but curl_init is, we will try CURL');
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_USERAGENT, $agent);
         curl_setopt($ch, CURLOPT_URL, $url);
@@ -89,42 +89,42 @@ function liveStatsTestUrlGetContents($url, $timeout = 0)
         }
         $output = curl_exec($ch);
         curl_close($ch);
-        _log('curl_init:: '.htmlentities($output));
+        liveStatsTestLog('curl_init:: '.htmlentities($output));
         if (empty($output)) {
-            _log('curl_init fail to download');
+            liveStatsTestLog('curl_init fail to download');
             return false;
         } else {
-            _log('curl_init success to download');
+            liveStatsTestLog('curl_init success to download');
             return true;
         }
     } else {
-        _log('IMPORTANT: allow_url_fopen is NOT enabled also curl_init is NOT enable, please investigate it and make sure it is enabled');
+        liveStatsTestLog('IMPORTANT: allow_url_fopen is NOT enabled also curl_init is NOT enable, please investigate it and make sure it is enabled');
     }
 
 
-    _log('Try wget');
+    liveStatsTestLog('Try wget');
     // try wget
     $tmpDir = sys_get_temp_dir();
     if (empty($tmpDir)) {
-        _log('IMPORTANT: your sys_get_temp_dir is empty');
+        liveStatsTestLog('IMPORTANT: your sys_get_temp_dir is empty');
         return false;
     }
     if (!is_writable($tmpDir)) {
-        _log('IMPORTANT: we cannot write in your temp directory ' . $tmpDir);
+        liveStatsTestLog('IMPORTANT: we cannot write in your temp directory ' . $tmpDir);
         return false;
     }
     $tmpDir = rtrim($tmpDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
 
     $filename = $tmpDir . md5($url);
-    if (wget($url, $filename)) {
+    if (liveStatsTestWget($url, $filename)) {
         $result = file_get_contents($filename);
-        _log('wget:: '.htmlentities($result));
+        liveStatsTestLog('wget:: '.htmlentities($result));
         unlink($filename);
         if (!empty($result)) {
-            _log('wget works ');
+            liveStatsTestLog('wget works ');
             return true;
         } else {
-            _log('wget fail ');
+            liveStatsTestLog('wget fail ');
         }
     }
     unlink($filename);
@@ -132,9 +132,9 @@ function liveStatsTestUrlGetContents($url, $timeout = 0)
     return false;
 }
 
-function isAllowedStatsTestURL($url)
+function liveIsAllowedStatsTestURL($url)
 {
-    $url = normalizeStatsTestURL($url);
+    $url = liveNormalizeStatsTestURL($url);
     if (empty($url)) {
         return false;
     }
@@ -159,7 +159,7 @@ function isAllowedStatsTestURL($url)
     }
 
     foreach ($allowedUrls as $allowedUrl) {
-        if ($url === normalizeStatsTestURL($allowedUrl)) {
+        if ($url === liveNormalizeStatsTestURL($allowedUrl)) {
             return true;
         }
     }
@@ -167,7 +167,7 @@ function isAllowedStatsTestURL($url)
     return false;
 }
 
-function normalizeStatsTestURL($url)
+function liveNormalizeStatsTestURL($url)
 {
     if (!is_string($url)) {
         return '';
@@ -175,32 +175,32 @@ function normalizeStatsTestURL($url)
     return rtrim(trim($url), '/');
 }
 
-function wget($url, $filename)
+function liveStatsTestWget($url, $filename)
 {
     if (empty($url) || $url == "php://input" || !preg_match("/^http/", $url)) {
-        _log('this is not a URL ');
+        liveStatsTestLog('this is not a URL ');
         return false;
     }
     if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-        _log('this is a windows OS ');
+        liveStatsTestLog('this is a windows OS ');
         return false;
     }
     $cmd = "wget --tries=1 " . escapeshellarg($url) . " -O " . escapeshellarg($filename) . " --no-check-certificate";
     exec($cmd);
     if (!file_exists($filename)) {
-        _log('wget download fail, we cannot read the file: ' . $filename);
+        liveStatsTestLog('wget download fail, we cannot read the file: ' . $filename);
         return false;
     }
     if (empty(filesize($filename))) {
-        _log('wget download fail, the file is empty: ' . $filename);
+        liveStatsTestLog('wget download fail, the file is empty: ' . $filename);
         return false;
     } else {
-        _log('wget download success, the file is NOT empty: ' . $filename);
+        liveStatsTestLog('wget download success, the file is NOT empty: ' . $filename);
         return true;
     }
 }
 
-function _log($msg)
+function liveStatsTestLog($msg)
 {
     global $timeStarted;
     $timeElapsed = number_format(microtime(true) - $timeStarted, 5);
