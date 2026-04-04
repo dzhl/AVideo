@@ -25,7 +25,7 @@ error_reporting(E_ALL & ~E_DEPRECATED);
 
 _log('Starting try to get URL ' . $statsURL);
 
-$result = url_get_contents($statsURL, 2);
+$result = liveStatsTestUrlGetContents($statsURL, 2);
 
 if ($result) {
     _log('<span style="background-color: green; padding: 1px 4px; color: #FFF;">SUCCESS</span>');
@@ -40,9 +40,9 @@ if ($timeElapsed>=2) {
     _log('IMPORTANT: your stats took longer than 2 seconds to respond, the Streamer has a 2 seconds timeout rule ');
 }
 
-function url_get_contents($url, $timeout = 0)
+function liveStatsTestUrlGetContents($url, $timeout = 0)
 {
-    _log('url_get_contents start timeout=' . $timeout);
+    _log('liveStatsTestUrlGetContents start timeout=' . $timeout);
     $agent = "AVideoStreamer";
 
     $opts = [
