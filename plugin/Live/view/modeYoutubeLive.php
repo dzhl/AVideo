@@ -83,16 +83,11 @@ if (!empty($_REQUEST['live_schedule'])) {
     $img = addQueryStringParameter($img, 'live_schedule', intval($_REQUEST['live_schedule']));
     $img = addQueryStringParameter($img, 'cache', uniqid());
     global $getLiveKey;
-    // live_schedule.key is the schedule's own key and may differ from live_transmitions.key.
-    // The socket server tracks viewers by live_transmitions.key, so we must use that key.
-    $usersIdForSchedule = !empty($ls->getUsers_id_company()) ? $ls->getUsers_id_company() : $ls->getUsers_id();
-    $ltForSchedule = LiveTransmition::getFromDbByUser($usersIdForSchedule);
-    $scheduleKey = !empty($ltForSchedule['key_with_index']) ? $ltForSchedule['key_with_index'] : (!empty($ltForSchedule['key']) ? $ltForSchedule['key'] : $ls->getKey());
-    $scheduleLiveServerId = !empty($ltForSchedule['live_servers_id']) ? intval($ltForSchedule['live_servers_id']) : intval($ls->getLive_servers_id());
+    $scheduleLiveServerId = intval($ls->getLive_servers_id());
     if (empty($scheduleLiveServerId)) {
         $scheduleLiveServerId = Live::getLiveServersIdRequest();
     }
-    $getLiveKey = ['key' => $scheduleKey, 'live_servers_id' => $scheduleLiveServerId, 'live_index' => '', 'cleanKey' => ''];
+    $getLiveKey = ['key' => $ls->getKey(), 'live_servers_id' => $scheduleLiveServerId, 'live_index' => '', 'cleanKey' => ''];
 
     if (!empty($ls->getUsers_id_company())) {
         $user_id = $ls->getUsers_id_company();

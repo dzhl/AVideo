@@ -3680,7 +3680,9 @@ function setLiveKey($key, $live_servers_id, $live_index = '')
     $users_id = 0;
     if (!empty($lt['live_schedule_id'])) {
         $live_schedule = $lt['live_schedule_id'];
-        $live_servers_id = $lt['live_servers_id'];
+        if (!empty($lt['live_servers_id'])) {
+            $live_servers_id = $lt['live_servers_id'];
+        }
         $users_id = $lt['users_id'];
     }
     $getLiveKey = ['key' => $key, 'live_servers_id' => intval($live_servers_id), 'live_index' => $live_index, 'cleanKey' => $cleanKey, 'live_schedule' => $live_schedule, 'users_id' => $users_id];
