@@ -137,6 +137,44 @@ class Live_restreams_logs extends ObjectYPT
             return false;
         }
 
+        // Re-validate host:port against admin-configured restreamer endpoints before
+        // building the fetch URL. This is defense-in-depth: add.json.php already enforces
+        // the allowlist at storage time, but a second check here ensures that any entry
+        // that bypassed storage-time validation (e.g. pre-existing rows) cannot be fetched.
+        // We do NOT use isSSRFSafeURL() because legitimate single-server deployments may
+        // use http://localhost/ as the restreamer address, which that function blocks.
+        $fetchHost   = strtolower(parse_url($url, PHP_URL_HOST));
+        $fetchScheme = strtolower(parse_url($url, PHP_URL_SCHEME));
+        $fetchPort   = parse_url($url, PHP_URL_PORT) ?: ($fetchScheme === 'https' ? 443 : 80);
+        $fetchKey    = "{$fetchHost}:{$fetchPort}";
+
+        $allowedKeys = [];
+        $primaryURL = Live::getRestreamer();
+        if (!empty($primaryURL)) {
+            $h = strtolower(parse_url($primaryURL, PHP_URL_HOST));
+            $p = parse_url($primaryURL, PHP_URL_PORT) ?: (strtolower(parse_url($primaryURL, PHP_URL_SCHEME)) === 'https' ? 443 : 80);
+            $allowedKeys[] = "{$h}:{$p}";
+        }
+        $liveObj = AVideoPlugin::getObjectData('Live');
+        if (!empty($liveObj->useLiveServers)) {
+            require_once dirname(__FILE__) . '/Live_servers.php';
+            $servers = Live_servers::getAllActive();
+            if (!empty($servers)) {
+                foreach ($servers as $row) {
+                    if (empty($row['restreamerURL'])) {
+                        continue;
+                    }
+                    $h = strtolower(parse_url($row['restreamerURL'], PHP_URL_HOST));
+                    $p = parse_url($row['restreamerURL'], PHP_URL_PORT) ?: (strtolower(parse_url($row['restreamerURL'], PHP_URL_SCHEME)) === 'https' ? 443 : 80);
+                    $allowedKeys[] = "{$h}:{$p}";
+                }
+            }
+        }
+        if (empty($allowedKeys) || !in_array($fetchKey, $allowedKeys, true)) {
+            _error_log("getURL: restreamer URL host not in allowlist. fetch={$fetchKey} allowed=" . implode(',', $allowedKeys));
+            return false;
+        }
+
         $url = addQueryStringParameter($url, 'tokenForAction', self::getToken($action, $live_transmitions_history_id, $live_restreams_id, $live_restreams_logs_id));
 
         return $url;
