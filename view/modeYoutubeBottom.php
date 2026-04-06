@@ -298,13 +298,13 @@ $description = getSEODescription(emptyHTML($video['description']) ? $video['titl
                             }
                             if (preg_match('/\.json/i', $theLink['url'])) {
                         ?>
-                                <button type="button" onclick="downloadURLOrAlertError('<?php echo $theLink['url']; ?>', {}, '<?php echo $video['clean_title']; ?>.<?php echo strtolower($theLink['name']); ?>', '<?php echo $theLink['progress']; ?>');" class="btn btn-default" target="_blank">
+                                <button type="button" onclick="downloadURLOrAlertError('<?php echo $theLink['url']; ?>', {}, '<?php echo $video['clean_title']; ?>.<?php echo strtolower($theLink['name']); ?>', '<?php echo $theLink['progress']; ?>');" class="btn btn-default downloadBtn<?php echo $theLink['name']; ?>" target="_blank">
                                     <i class="fas fa-download"></i> <?php echo $theLink['name']; ?>
                                 </button>
                             <?php
                             } else {
                             ?>
-                                <a href="<?php echo $theLink['url']; ?>" class="list-group-item list-group-item-action" target="_blank">
+                                <a href="<?php echo $theLink['url']; ?>" class="list-group-item list-group-item-action downloadLink<?php echo $theLink['name']; ?>" target="_blank">
                                     <i class="fas fa-download"></i> <?php echo $theLink['name']; ?>
                                 </a>
                         <?php
