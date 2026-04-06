@@ -336,19 +336,20 @@ function createEPG($channel) {
                      */
                     $left = ($minuteSize * $minutesSinceZeroTime) + $timeLineElementSize;
                     $width = ($minuteSize * $minutes);
+                    $safeTitle = htmlspecialchars($program['title'], ENT_QUOTES, 'UTF-8');
                     $pclass = '';
                     if ($width <= $minimumWidthHide) {
                         $text = '';
                     } else if ($width <= $minimumWidth1Dot) {
-                        $text = "<abbr title=\"{$program['title']}\">.</abbr>";
+                        $text = "<abbr title=\"{$safeTitle}\">.</abbr>";
                     } else if ($width <= $minimumWidth) {
-                        $text = "<abbr title=\"{$program['title']}\"><small class=\"duration\">{$minutes} Min</small></abbr>";
+                        $text = "<abbr title=\"{$safeTitle}\"><small class=\"duration\">{$minutes} Min</small></abbr>";
                     } else if ($width <= $minimumSmallFont) {
-                        $text = "<small class=\"small-font\">{$program['title']}<div><small class=\"duration\">{$minutes} Min</small></div></small>";
+                        $text = "<small class=\"small-font\">{$safeTitle}<div><small class=\"duration\">{$minutes} Min</small></div></small>";
                     } else {
                         $startTime = date('m-d H:i', strtotime($program['start']));
                         $stopTime = date('m-d H:i', $_stopTime);
-                        $text = "{$program['title']}<div><small class=\"duration\">{$minutes} Min</small></div>";
+                        $text = "{$safeTitle}<div><small class=\"duration\">{$minutes} Min</small></div>";
                     }
                     if ($_stopTime < $nowTime) {
                         $pclass = 'finished';
