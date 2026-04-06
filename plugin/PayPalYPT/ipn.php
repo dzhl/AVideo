@@ -39,6 +39,17 @@ if (empty($_POST["recurring_payment_id"])) {
     }
 } else {
     _error_log("PayPalIPN: recurring_payment_id = {$_POST["recurring_payment_id"]} ");
+
+    // Deduplication: use txn_id when present (most specific), fall back to verify_sign.
+    // verify_sign is a per-notification cryptographic signature — unique per authentic IPN —
+    // so replaying the same captured POST body always carries the same verify_sign.
+    // This mirrors the approach used in ipnV2.php (IPN branch).
+    $dedup_key = !empty($_POST['txn_id']) ? $_POST['txn_id'] : $_POST['verify_sign'];
+    if (PayPalYPT::isRecurringPaymentIdUsed($dedup_key)) {
+        _error_log("PayPalIPN: already processed (dedup_key={$dedup_key}), skipping");
+        die(json_encode($obj));
+    }
+
     // check for the recurrement payment
     $subscription = AVideoPlugin::loadPluginIfEnabled("Subscription");
     if (!empty($subscription)) {
@@ -48,9 +59,16 @@ if (empty($_POST["recurring_payment_id"])) {
         $payment_amount = empty($_POST['mc_gross']) ? $_POST['amount'] : $_POST['mc_gross'];
         $payment_currency = empty($_POST['mc_currency']) ? $_POST['currency_code'] : $_POST['mc_currency'];
         if ($walletObject->currency===$payment_currency) {
-            $plugin->addBalance($users_id, $payment_amount, "Paypal recurrent", json_encode($_POST));
-            Subscription::renew($users_id, $row['subscriptions_plans_id']);
-            $obj->error = false;
+            $pp = new PayPalYPT_log(0);
+            $pp->setUsers_id($users_id);
+            $pp->setRecurring_payment_id($dedup_key);
+            $pp->setValue($payment_amount);
+            $pp->setJson(['post' => $_POST]);
+            if ($pp->save()) {
+                $plugin->addBalance($users_id, $payment_amount, "Paypal recurrent", json_encode($_POST));
+                Subscription::renew($users_id, $row['subscriptions_plans_id']);
+                $obj->error = false;
+            }
         } else {
             _error_log("PayPalIPN: FAIL currency check $walletObject->currency===$payment_currency ");
         }
