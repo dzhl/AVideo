@@ -353,11 +353,19 @@ function downloadVideoFromDownloadURL($downloadURL)
         return false;
     }
 
-    // SSRF Protection: skip for known media/archive extensions sent by the encoder.
-    // The encoder delivers zip, mp4, mp3, webp, jpg, png and similar files; the extension
-    // is already validated against the server's allowedExtension list above.
-    $encoderAllowedExtensions = ['zip', 'mp4', 'mp3', 'webp', 'jpg', 'jpeg', 'png', 'gif', 'wav', 'webm'];
-    if (!in_array($urlExtension, $encoderAllowedExtensions) && !isSSRFSafeURL($downloadURL)) {
+    // SSRF check is unconditional — no extension-based bypass.
+    //
+    // Historical note: a previous version skipped isSSRFSafeURL() for common media/archive
+    // extensions (mp4, mp3, jpg, gif, zip …) to accommodate the local encoder sending files
+    // via loopback. That bypass was NOT necessary: Encoder.php always builds downloadURL as
+    //   "{$global['webSiteRootURL']}{$dfile}"
+    // so its host always equals the site's own domain, and isSSRFSafeURL() returns true via
+    // the same-domain short-circuit regardless of extension.
+    //
+    // Keeping an extension bypass would allow any authenticated uploader to reach loopback
+    // or internal services (e.g. http://127.0.0.1:9998/probe.mp4) and exfiltrate the
+    // response body as publicly retrievable media — a confirmed SSRF exfiltration primitive.
+    if (!isSSRFSafeURL($downloadURL)) {
         __errlog("aVideoEncoder.json:downloadVideoFromDownloadURL SSRF protection blocked URL: " . $downloadURL);
         return false;
     }
