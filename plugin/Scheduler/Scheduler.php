@@ -69,6 +69,12 @@ class Scheduler extends PluginAbstract
         $obj->originalFilesDaysToKeep = 7;
         self::addDataObjectHelper('originalFilesDaysToKeep', 'Days to keep original_v_* files (default: 7)');
 
+        $obj->objectCacheFilesDaysToKeep = 3;
+        self::addDataObjectHelper('objectCacheFilesDaysToKeep', 'Days to keep YPTObjectCache files (default: 3)');
+
+        $obj->objectCacheFilesMaxExecutionSeconds = 60;
+        self::addDataObjectHelper('objectCacheFilesMaxExecutionSeconds', 'Max seconds for hourly YPTObjectCache cleanup (default: 60)');
+
         /*
           $obj->textSample = "text";
           $obj->checkboxSample = true;
@@ -592,6 +598,19 @@ class Scheduler extends PluginAbstract
         }
     }
 
+    function executeEveryHour()
+    {
+        $obj = AVideoPlugin::getDataObject('Scheduler');
+        $objectCacheFilesDaysToKeep = !empty($obj->objectCacheFilesDaysToKeep) ? intval($obj->objectCacheFilesDaysToKeep) : 3;
+        $objectCacheFilesMaxExecutionSeconds = !empty($obj->objectCacheFilesMaxExecutionSeconds) ? intval($obj->objectCacheFilesMaxExecutionSeconds) : 60;
+
+        $this->deleteOldObjectCacheFiles(
+            $objectCacheFilesDaysToKeep,
+            '',
+            $objectCacheFilesMaxExecutionSeconds
+        );
+    }
+
     function executeEveryDay()
     {
         global $global;
@@ -654,6 +673,64 @@ class Scheduler extends PluginAbstract
 
         // Directory is already writable
         return true;
+    }
+
+    function deleteOldObjectCacheFiles($days = 3, $directory = '', $maxExecutionSeconds = 60)
+    {
+        if (empty($directory)) {
+            $directory = ObjectYPT::getTmpCacheDir();
+        }
+
+        $days = max(1, intval($days));
+        $maxExecutionSeconds = max(1, intval($maxExecutionSeconds));
+
+        if (empty($directory) || !preg_match('/YPTObjectCache/', $directory)) {
+            _error_log("deleteOldObjectCacheFiles: invalid directory {$directory}");
+            return false;
+        }
+
+        if (!is_dir($directory)) {
+            _error_log("deleteOldObjectCacheFiles: directory does not exist {$directory}");
+            return false;
+        }
+
+        $timeLimit = time() - ($days * 86400);
+        $deletedCount = 0;
+        $startTime = microtime(true);
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            if (!$item->isFile()) {
+                continue;
+            }
+
+            if (strtolower($item->getExtension()) !== 'cache') {
+                continue;
+            }
+
+            if ($item->getMTime() > $timeLimit) {
+                continue;
+            }
+
+            $filePath = $item->getPathname();
+            if (@unlink($filePath)) {
+                $deletedCount++;
+            } else {
+                _error_log("deleteOldObjectCacheFiles: failed to delete {$filePath}");
+            }
+
+            if ((microtime(true) - $startTime) >= $maxExecutionSeconds) {
+                _error_log("deleteOldObjectCacheFiles: stopped after {$maxExecutionSeconds} seconds and {$deletedCount} deleted files");
+                break;
+            }
+        }
+
+        _error_log("deleteOldObjectCacheFiles: deleted {$deletedCount} old cache files from {$directory}");
+        return $deletedCount;
     }
 
     function deleteOldFiles($directory = '/var/www/tmp', $days = 7)
