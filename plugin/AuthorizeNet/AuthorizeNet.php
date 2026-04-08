@@ -1836,9 +1836,9 @@ class AuthorizeNet extends PluginAbstract
             // It might return an array or an object that implements Traversable – cast to array for safety
             $subscriptionIds = [];
             if (method_exists($profile, 'getSubscriptionIds')) {
-                $subscriptionIds = (array) $profile->getSubscriptionIds();
-            } elseif (method_exists($response, 'getSubscriptionIds')) { // older binding
-                $subscriptionIds = (array) $response->getSubscriptionIds();
+                $subscriptionIds = (array) call_user_func([$profile, 'getSubscriptionIds']);
+            } elseif (is_object($response) && method_exists($response, 'getSubscriptionIds')) { // older binding
+                $subscriptionIds = (array) call_user_func([$response, 'getSubscriptionIds']);
             }
 
 
