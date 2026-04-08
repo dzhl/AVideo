@@ -3,6 +3,8 @@
 use Google\Service\ServiceControl\Auth;
 
 require_once __DIR__ . '/../../videos/configuration.php';
+require_once $global['systemRootPath'] . 'plugin/AuthorizeNet/AuthorizeNet.php';
+require_once $global['systemRootPath'] . 'plugin/AuthorizeNet/Objects/Anet_pending_payment.php';
 header('Content-Type: application/json');
 
 if(!User::isLogged()){
@@ -54,11 +56,13 @@ try {
 
     // ========== Process payment via SDK using Accept opaque token + metadata ==========
     $result = AuthorizeNet::generateHostedPaymentPage($amount, $metadata);
-    if (!empty($result['success'])) {
+    if (empty($result['error']) && !empty($result['token']) && !empty($result['url'])) {
         echo json_encode([
             'error' => false,
             'msg'   => 'Payment created successfully',
-            'transactionId' => $result['transactionId'],
+            'transactionId' => $result['transactionId'] ?? null,
+            'token' => $result['token'],
+            'url' => $result['url'],
             'refId' => $pending['refId'],
             'line'  => __LINE__
         ]);
