@@ -6,17 +6,25 @@ $global['bypassSameDomainCheck'] = 1;
 $rawBody = file_get_contents('php://input');
 $headers = getallheaders();
 
+// Log every incoming request immediately so we have a trace even if something crashes below.
+_error_log('[Authorize.Net webhook] RECEIVED'
+    . ' | body_len=' . strlen($rawBody)
+    . ' | sig=' . ($headers['X-ANET-Signature'] ?? ($headers['x-anet-signature'] ?? 'missing'))
+    . ' | body_preview=' . substr($rawBody, 0, 600)
+);
+
 // 1) Parse + signature — reject immediately if signature is invalid
 $parsed = AuthorizeNet::parseWebhookRequest($rawBody, $headers);
 if (!empty($parsed['error'])) {
-    _error_log('[Authorize.Net webhook] ' . $parsed['msg']);
+    _error_log('[Authorize.Net webhook] IGNORED: ' . ($parsed['msg'] ?? 'unknown')
+        . ' | eventType=' . ($parsed['eventType'] ?? 'n/a'));
     http_response_code(200);
     echo $parsed['msg'] ?? 'ignored';
     exit;
 }
 if (!$parsed['signatureValid']) {
     $sigHeader = $headers['X-ANET-Signature'] ?? ($headers['x-anet-signature'] ?? '');
-    _error_log('[Authorize.Net webhook] Bad signature'
+    _error_log('[Authorize.Net webhook] FAIL: Bad signature'
         . ' | event=' . $parsed['eventType']
         . ' | txn=' . ($parsed['transactionId'] ?? 'n/a')
         . ' | body_len=' . strlen($rawBody)
@@ -27,128 +35,60 @@ if (!$parsed['signatureValid']) {
     exit;
 }
 
-// 2) Dedup
-if (Anet_webhook_log::alreadyProcessed($parsed['uniq_key'])) {
-    _error_log('[Authorize.Net webhook] Duplicate ignored');
+_error_log('[Authorize.Net webhook] Signature OK'
+    . ' | eventType=' . $parsed['eventType']
+    . ' | transactionId=' . ($parsed['transactionId'] ?? 'null')
+    . ' | amount=' . ($parsed['amount'] ?? 'null')
+    . ' | uniq_key=' . $parsed['uniq_key']
+);
+
+// 2) Guard: transactionId must be present.
+// Authorize.Net test pings and some sandbox events may omit it — acknowledge with 200 so the
+// webhook is not retried/deactivated, but do not process any balance change.
+if (empty($parsed['transactionId'])) {
+    _error_log('[Authorize.Net webhook] IGNORED: transactionId is null/empty'
+        . ' | eventType=' . $parsed['eventType']
+        . ' | payload=' . json_encode($parsed['payload'])
+        . ' | Likely a test ping — returning 200 so Authorize.Net does not retry'
+    );
+    $reconcile = AuthorizeNet::reconcilePendingPayments(20, 7200);
+    _error_log('[Authorize.Net webhook] Reconcile after ping'
+        . ' | total=' . ($reconcile['total'] ?? 0)
+    );
+    http_response_code(200);
+    echo 'no transactionId - ignored';
+    exit;
+}
+
+// 3) Process the transaction using Authorize.Net transaction details as source of truth.
+$result = AuthorizeNet::processApprovedTransaction(
+    $parsed['transactionId'],
+    $parsed['uniq_key'],
+    $parsed['eventType'],
+    $parsed['payload']
+);
+
+if (!empty($result['duplicate'])) {
+    _error_log('[Authorize.Net webhook] DUPLICATE: already processed uniq_key=' . $parsed['uniq_key']);
     http_response_code(200);
     echo 'duplicate';
     exit;
 }
 
-// 3) Fetch txn details for enrichment
-$txnInfo = AuthorizeNet::getTransactionDetails($parsed['transactionId']);
-
-// 4) Analyze payload + raw txn
-$analysis = AuthorizeNet::analyzeTransactionFromWebhook($parsed['payload'], $txnInfo['raw'] ?? null);
-
-// Always prefer the Authorize.Net transaction details over webhook payload values.
-if (!empty($txnInfo['users_id'])) {
-    $analysis['users_id'] = (int)$txnInfo['users_id'];
-}
-if (isset($txnInfo['amount'])) {
-    $analysis['amount'] = (float)$txnInfo['amount'];
-}
-if (!empty($txnInfo['currency'])) {
-    $analysis['currency'] = $txnInfo['currency'];
-}
-if (array_key_exists('isApproved', $txnInfo)) {
-    $analysis['isApproved'] = (bool)$txnInfo['isApproved'];
-}
-if (!empty($txnInfo['plans_id'])) {
-    $analysis['plans_id'] = (int)$txnInfo['plans_id'];
-}
-if (empty($analysis['users_id']) || empty($analysis['amount'])) {
-    _error_log('[Authorize.Net webhook] Missing user ID or amount'
-        . ' | txn=' . ($parsed['transactionId'] ?? 'n/a')
-        . ' | users_id=' . ($analysis['users_id'] ?? 'null')
-        . ' | amount=' . ($analysis['amount'] ?? 'null')
-        . ' | txn_lookup=' . (!empty($txnInfo['error']) ? 'error:' . $txnInfo['msg'] : 'ok')
-        . ' | txn_email=' . ($txnInfo['email'] ?? 'n/a')
-    );
-    http_response_code(400);
-    echo 'missing user ID or amount';
-    exit;
-}
-
-if (empty($analysis['isApproved'])) {
-    _error_log('[Authorize.Net webhook] Transaction not approved'
-        . ' | txn=' . ($parsed['transactionId'] ?? 'n/a')
-        . ' | status=' . ($txnInfo['status'] ?? 'n/a')
-        . ' | responseCode=' . ($txnInfo['responseCode'] ?? 'n/a')
-    );
-    http_response_code(400);
-    echo 'transaction not approved';
-    exit;
-}
-
-$result = AuthorizeNet::processSinglePayment(
-            $analysis['users_id'],
-            (float)$analysis['amount'],
-            $parsed['uniq_key'],
-            $parsed['eventType'],
-            $parsed['payload'],
-            !empty($analysis['plans_id'])? "Authorize.Net subscription charge plan [{$analysis['plans_id']}]" : 'Authorize.Net one-time payment'
-        );
-
 if (!empty($result['error'])) {
-    _error_log('[Authorize.Net webhook] Processing error: ' . $result['msg']);
+    _error_log('[Authorize.Net webhook] FAIL: processApprovedTransaction error: ' . ($result['msg'] ?? ''));
     http_response_code(500);
     echo json_encode($result);
     exit;
 }
 
-// 8) Create subscription if needed
-$subscriptionResult = null;
-if (!empty($analysis['plans_id'])) {
-    _error_log('[Authorize.Net webhook] Creating subscription for plans_id: ' . $analysis['plans_id']);
-    // Check if user already has an active subscription for this plan
-    $existingCheck = AuthorizeNet::checkUserActiveSubscriptions(
-        $analysis['users_id'],
-        $analysis['plans_id']
-    );
-
-    if (!$existingCheck['error'] && $existingCheck['hasActivePlanSubscription']) {
-        _error_log('[Authorize.Net webhook] User already has active subscription for plan: ' . $analysis['plans_id']);
-        $subscriptionResult = [
-            'error' => false,
-            'subscriptionId' => 'existing',
-            'msg' => 'User already has active subscription for this plan',
-            'existingSubscriptions' => $existingCheck['activeSubscriptions']
-        ];
-    } else {
-
-        $sp = new SubscriptionPlansTable($analysis['plans_id']);
-        $subscription_name = $sp->getName() ?? 'Subscription';
-
-        // Proceed with creating new subscription
-        $subscriptionMetadata = [
-            'users_id' => (int)$analysis['users_id'],
-            'plans_id' => (int)$analysis['plans_id'],
-            'subscription_name' => $subscription_name,
-            'initial_payment_id' => $parsed['transactionId']
-        ];
-
-        $interval = (int)($sp->getHow_many_days() ?? 30);
-        $intervalUnit = 'days';
-
-        $subscriptionResult = AuthorizeNet::createSubscription(
-            $analysis['users_id'],
-            $analysis['amount'],
-            $subscriptionMetadata,
-            $interval,
-            $intervalUnit
-        );
-
-        Subscription::renew($analysis['users_id'], $analysis['plans_id'], SubscriptionTable::$gatway_authorize, $subscriptionResult['subscriptionId'], $subscriptionResult);
-
-        if (!empty($subscriptionResult['error'])) {
-            _error_log('[Authorize.Net webhook] Subscription creation failed: ' . $subscriptionResult['msg']);
-            // Don't fail the entire webhook - the payment was processed successfully
-        } else {
-            _error_log('[Authorize.Net webhook] Subscription created: ' . $subscriptionResult['subscriptionId']);
-        }
-    }
-}
+$_analysis = $result['analysis'] ?? [];
+_error_log('[Authorize.Net webhook] SUCCESS: wallet credited'
+    . ' | txn=' . $parsed['transactionId']
+    . ' | users_id=' . ($_analysis['users_id'] ?? 'null')
+    . ' | amount=' . ($_analysis['amount'] ?? 'null')
+    . ' | logId=' . ($result['logId'] ?? 'n/a')
+);
 
 http_response_code(200);
-echo json_encode(['success' => true]);
+echo json_encode(['success' => true, 'logId' => $result['logId'] ?? null]);

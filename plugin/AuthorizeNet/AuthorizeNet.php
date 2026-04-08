@@ -9,6 +9,7 @@
 global $global;
 require_once $global['systemRootPath'] . 'plugin/Plugin.abstract.php';
 require_once $global['systemRootPath'] . 'plugin/AuthorizeNet/Objects/Anet_webhook_log.php';
+require_once $global['systemRootPath'] . 'plugin/AuthorizeNet/Objects/Anet_pending_payment.php';
 
 use net\authorize\api\contract\v1\GetCustomerProfileResponse;
 use net\authorize\api\constants\ANetEnvironment;
@@ -271,7 +272,9 @@ class AuthorizeNet extends PluginAbstract
                 return ['error' => true, 'msg' => 'YPTWallet plugin not enabled'];
             }
 
+            _error_log("[Authorize.Net] Calling addBalance users_id=$users_id amount=$amount description=$description");
             $walletPlugin->addBalance($users_id, (float)$amount, $description);
+            _error_log("[Authorize.Net] addBalance call completed for users_id=$users_id amount=$amount");
 
             if (!empty($logId)) {
                 $log = new Anet_webhook_log($logId);
@@ -401,6 +404,400 @@ class AuthorizeNet extends PluginAbstract
             _error_log('[AuthorizeNet] Exception in processSubscriptionChargeWithPlan: ' . $e->getMessage());
             return ['error' => true, 'msg' => $e->getMessage()];
         }
+    }
+
+    private static function buildWebhookUniqKey(string $eventType, string $transactionId): string
+    {
+        return sha1($eventType . $transactionId);
+    }
+
+    public static function generatePendingReference(): string
+    {
+        return substr('p' . base_convert(time(), 10, 36) . substr(md5(uniqid('', true)), 0, 10), 0, 20);
+    }
+
+    public static function createPendingPayment(int $users_id, float $amount, array $metadata = [], string $currency = 'USD'): array
+    {
+        if ($users_id <= 0) {
+            return ['error' => true, 'msg' => 'Missing users_id'];
+        }
+        if ($amount <= 0) {
+            return ['error' => true, 'msg' => 'Invalid amount'];
+        }
+
+        $refId = self::generatePendingReference();
+        $metadata['pending_ref'] = $refId;
+        $id = Anet_pending_payment::createPending($refId, $users_id, $amount, $metadata, $currency);
+        if (empty($id)) {
+            return ['error' => true, 'msg' => 'Could not create pending payment'];
+        }
+
+        return [
+            'error'   => false,
+            'id'      => $id,
+            'refId'   => $refId,
+            'amount'  => $amount,
+            'users_id'=> $users_id,
+            'metadata'=> $metadata,
+        ];
+    }
+
+    private static function getPendingRecordFromTxnInfo(array $txnInfo): ?array
+    {
+        $refCandidates = [];
+        if (!empty($txnInfo['transRefId'])) {
+            $refCandidates[] = (string)$txnInfo['transRefId'];
+        }
+        if (!empty($txnInfo['metadata']['pending_ref'])) {
+            $refCandidates[] = (string)$txnInfo['metadata']['pending_ref'];
+        }
+        if (!empty($txnInfo['orderDescription'])) {
+            $tmp = json_decode((string)$txnInfo['orderDescription'], true);
+            if (!empty($tmp['pending_ref'])) {
+                $refCandidates[] = (string)$tmp['pending_ref'];
+            }
+        }
+
+        foreach (array_unique(array_filter($refCandidates)) as $refId) {
+            $row = Anet_pending_payment::getFromRefId($refId);
+            if (!empty($row)) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
+    private static function markPendingPaymentFromTxnInfo(array $txnInfo, string $transactionId): void
+    {
+        $pending = self::getPendingRecordFromTxnInfo($txnInfo);
+        if (!empty($pending['id'])) {
+            Anet_pending_payment::markProcessedById((int)$pending['id'], $transactionId);
+        }
+    }
+
+    private static function createOrRenewPlanSubscription(array $analysis, string $transactionId): ?array
+    {
+        if (empty($analysis['plans_id'])) {
+            return null;
+        }
+
+        _error_log('[Authorize.Net] Creating subscription | plans_id=' . $analysis['plans_id'] . ' | users_id=' . $analysis['users_id']);
+        $existingCheck = self::checkUserActiveSubscriptions(
+            (int)$analysis['users_id'],
+            (string)$analysis['plans_id']
+        );
+
+        if (empty($existingCheck['error']) && !empty($existingCheck['hasActivePlanSubscription'])) {
+            _error_log('[Authorize.Net] User already has active subscription for plans_id=' . $analysis['plans_id']);
+            return [
+                'error'                 => false,
+                'subscriptionId'        => 'existing',
+                'msg'                   => 'User already has active subscription for this plan',
+                'existingSubscriptions' => $existingCheck['activeSubscriptions'] ?? [],
+            ];
+        }
+
+        $sp = new SubscriptionPlansTable((int)$analysis['plans_id']);
+        $subscription_name = $sp->getName() ?? 'Subscription';
+
+        $subscriptionMetadata = [
+            'users_id'           => (int)$analysis['users_id'],
+            'plans_id'           => (int)$analysis['plans_id'],
+            'subscription_name'  => $subscription_name,
+            'initial_payment_id' => $transactionId,
+        ];
+
+        $interval = (int)($sp->getHow_many_days() ?? 30);
+        $subscriptionResult = self::createSubscription(
+            (int)$analysis['users_id'],
+            (float)$analysis['amount'],
+            $subscriptionMetadata,
+            $interval,
+            'days'
+        );
+
+        Subscription::renew(
+            (int)$analysis['users_id'],
+            (int)$analysis['plans_id'],
+            SubscriptionTable::$gatway_authorize,
+            $subscriptionResult['subscriptionId'] ?? '',
+            $subscriptionResult
+        );
+
+        if (!empty($subscriptionResult['error'])) {
+            _error_log('[Authorize.Net] Subscription creation FAILED: ' . ($subscriptionResult['msg'] ?? ''));
+        } else {
+            _error_log('[Authorize.Net] Subscription created | subscriptionId=' . ($subscriptionResult['subscriptionId'] ?? 'n/a'));
+        }
+
+        return $subscriptionResult;
+    }
+
+    public static function processApprovedTransaction(
+        string $transactionId,
+        ?string $uniq_key = null,
+        string $eventType = 'net.authorize.payment.authcapture.created',
+        array $payload = []
+    ): array {
+        if (trim($transactionId) === '') {
+            return ['error' => true, 'msg' => 'Missing transactionId'];
+        }
+
+        $uniq_key = $uniq_key ?: self::buildWebhookUniqKey($eventType, $transactionId);
+        $txnInfo = self::getTransactionDetails($transactionId);
+        if (!empty($txnInfo['error'])) {
+            return ['error' => true, 'msg' => $txnInfo['msg'] ?? 'Could not fetch transaction details', 'txnInfo' => $txnInfo];
+        }
+        $pending = self::getPendingRecordFromTxnInfo($txnInfo);
+
+        if (Anet_webhook_log::alreadyProcessed($uniq_key)) {
+            if (!empty($pending['id'])) {
+                Anet_pending_payment::markProcessedById((int)$pending['id'], $transactionId);
+            }
+            return ['error' => false, 'msg' => 'Already processed', 'duplicate' => true, 'uniq_key' => $uniq_key, 'txnInfo' => $txnInfo];
+        }
+
+        $analysis = self::analyzeTransactionFromWebhook($payload, $txnInfo['raw'] ?? null);
+        if (!empty($pending['users_id']) && empty($analysis['users_id'])) {
+            $analysis['users_id'] = (int)$pending['users_id'];
+        }
+        if (!empty($pending['plans_id']) && empty($analysis['plans_id'])) {
+            $analysis['plans_id'] = (int)$pending['plans_id'];
+        }
+        if (isset($txnInfo['users_id']) && (int)$txnInfo['users_id'] > 0) {
+            $analysis['users_id'] = (int)$txnInfo['users_id'];
+        }
+        if (isset($txnInfo['amount'])) {
+            $analysis['amount'] = (float)$txnInfo['amount'];
+        }
+        if (!empty($txnInfo['currency'])) {
+            $analysis['currency'] = $txnInfo['currency'];
+        }
+        if (array_key_exists('isApproved', $txnInfo)) {
+            $analysis['isApproved'] = (bool)$txnInfo['isApproved'];
+        }
+        if (isset($txnInfo['plans_id']) && (int)$txnInfo['plans_id'] > 0) {
+            $analysis['plans_id'] = (int)$txnInfo['plans_id'];
+        }
+
+        if (empty($analysis['users_id']) || (int)$analysis['users_id'] <= 0) {
+            return ['error' => true, 'msg' => 'Missing users_id', 'analysis' => $analysis, 'txnInfo' => $txnInfo];
+        }
+        if (empty($analysis['amount']) || (float)$analysis['amount'] <= 0) {
+            return ['error' => true, 'msg' => 'Missing amount', 'analysis' => $analysis, 'txnInfo' => $txnInfo];
+        }
+        if (empty($analysis['isApproved'])) {
+            return ['error' => true, 'msg' => 'Transaction not approved', 'analysis' => $analysis, 'txnInfo' => $txnInfo];
+        }
+
+        $currency   = strtoupper($analysis['currency'] ?? $txnInfo['currency'] ?? 'USD');
+        $amountFmt  = number_format((float)$analysis['amount'], 2);
+        $txnIdShort = $transactionId;
+
+        $description = !empty($analysis['plans_id'])
+            ? "Authorize.Net subscription — plan #{$analysis['plans_id']} | txn {$txnIdShort} | {$currency} {$amountFmt}"
+            : "Authorize.Net payment | txn {$txnIdShort} | {$currency} {$amountFmt}";
+
+        $paymentResult = self::processSinglePayment(
+            (int)$analysis['users_id'],
+            (float)$analysis['amount'],
+            $uniq_key,
+            $eventType,
+            $payload,
+            $description
+        );
+        if (!empty($paymentResult['error'])) {
+            return $paymentResult;
+        }
+        self::markPendingPaymentFromTxnInfo($txnInfo, $transactionId);
+
+        $subscriptionResult = self::createOrRenewPlanSubscription($analysis, $transactionId);
+
+        return [
+            'error'              => false,
+            'uniq_key'           => $uniq_key,
+            'analysis'           => $analysis,
+            'txnInfo'            => $txnInfo,
+            'logId'              => $paymentResult['logId'] ?? null,
+            'subscriptionResult' => $subscriptionResult,
+        ];
+    }
+
+    public static function getRecentCustomerTransactions(string $customerProfileId, int $limit = 10): array
+    {
+        try {
+            if (trim($customerProfileId) === '') {
+                return ['error' => true, 'msg' => 'Missing customerProfileId'];
+            }
+
+            $merchantAuthentication = self::getMerchantAuthentication();
+            $environment            = self::getEnvironment();
+
+            $sorting = new AnetAPI\TransactionListSortingType();
+            $sorting->setOrderBy('id');
+            $sorting->setOrderDescending(true);
+
+            $paging = new AnetAPI\PagingType();
+            $paging->setLimit($limit);
+            $paging->setOffset(1);
+
+            $request = new AnetAPI\GetTransactionListForCustomerRequest();
+            $request->setMerchantAuthentication($merchantAuthentication);
+            $request->setCustomerProfileId($customerProfileId);
+            $request->setSorting($sorting);
+            $request->setPaging($paging);
+
+            $controller = new AnetController\GetTransactionListForCustomerController($request);
+            $response   = $controller->executeWithApiResponse($environment);
+
+            if (
+                $response instanceof AnetAPI\GetTransactionListResponse &&
+                $response->getMessages() &&
+                $response->getMessages()->getResultCode() === 'Ok'
+            ) {
+                return [
+                    'error'        => false,
+                    'transactions' => (array)$response->getTransactions(),
+                    'total'        => (int)$response->getTotalNumInResultSet(),
+                ];
+            }
+
+            return ['error' => true, 'msg' => self::extractSdkError($response), 'transactions' => []];
+        } catch (Throwable $e) {
+            _error_log('[Authorize.Net] Exception in getRecentCustomerTransactions: ' . $e->getMessage());
+            return ['error' => true, 'msg' => $e->getMessage(), 'transactions' => []];
+        }
+    }
+
+    public static function findRecentApprovedTransactionForUser(int $users_id, ?float $expectedAmount = null, int $lookbackSeconds = 1800): array
+    {
+        try {
+            if ($users_id <= 0) {
+                return ['error' => true, 'msg' => 'Missing users_id'];
+            }
+
+            $customerProfileId = self::getOrCreateCustomerProfile($users_id);
+            if (empty($customerProfileId)) {
+                return ['error' => true, 'msg' => 'Customer profile not found'];
+            }
+
+            $transactions = self::getRecentCustomerTransactions($customerProfileId, 10);
+            if (!empty($transactions['error'])) {
+                return $transactions;
+            }
+
+            $minTimestamp = time() - max(60, $lookbackSeconds);
+            foreach ((array)$transactions['transactions'] as $summary) {
+                if (!$summary || !method_exists($summary, 'getTransId')) {
+                    continue;
+                }
+
+                $transactionId = (string)$summary->getTransId();
+                if ($transactionId === '') {
+                    continue;
+                }
+
+                $submitTime = method_exists($summary, 'getSubmitTimeUTC') ? $summary->getSubmitTimeUTC() : null;
+                if ($submitTime instanceof DateTimeInterface && $submitTime->getTimestamp() < $minTimestamp) {
+                    continue;
+                }
+
+                $txnInfo = self::getTransactionDetails($transactionId);
+                if (!empty($txnInfo['error']) || empty($txnInfo['isApproved'])) {
+                    continue;
+                }
+                if ((int)($txnInfo['users_id'] ?? 0) !== $users_id) {
+                    continue;
+                }
+                if ($expectedAmount !== null && abs(((float)$txnInfo['amount']) - $expectedAmount) > 0.01) {
+                    continue;
+                }
+
+                return [
+                    'error'         => false,
+                    'transactionId' => $transactionId,
+                    'txnInfo'       => $txnInfo,
+                ];
+            }
+
+            return ['error' => true, 'msg' => 'No recent approved transaction found'];
+        } catch (Throwable $e) {
+            _error_log('[Authorize.Net] Exception in findRecentApprovedTransactionForUser: ' . $e->getMessage());
+            return ['error' => true, 'msg' => $e->getMessage()];
+        }
+    }
+
+    public static function reconcilePendingPayment(array $pending): array
+    {
+        $pendingId = (int)($pending['id'] ?? 0);
+        $users_id = (int)($pending['users_id'] ?? 0);
+        $refId = (string)($pending['ref_id'] ?? '');
+        $amount = (float)($pending['amount'] ?? 0);
+
+        if ($pendingId <= 0 || $users_id <= 0 || $refId === '') {
+            return ['error' => true, 'msg' => 'Invalid pending payment payload'];
+        }
+
+        if (($pending['status'] ?? '') === 'processed') {
+            return ['error' => false, 'msg' => 'Already processed', 'pendingId' => $pendingId];
+        }
+
+        Anet_pending_payment::markChecked($pendingId, 'reconciling');
+
+        $customerProfileId = self::getOrCreateCustomerProfile($users_id);
+        if (empty($customerProfileId)) {
+            Anet_pending_payment::markChecked($pendingId, 'pending', 'Customer profile not found');
+            return ['error' => true, 'msg' => 'Customer profile not found', 'pendingId' => $pendingId];
+        }
+
+        $transactions = self::getRecentCustomerTransactions($customerProfileId, 15);
+        if (!empty($transactions['error'])) {
+            Anet_pending_payment::markChecked($pendingId, 'pending', $transactions['msg'] ?? 'Could not list transactions');
+            return $transactions + ['pendingId' => $pendingId];
+        }
+
+        foreach ((array)$transactions['transactions'] as $summary) {
+            if (!$summary || !method_exists($summary, 'getTransId')) {
+                continue;
+            }
+            $transactionId = (string)$summary->getTransId();
+            if ($transactionId === '') {
+                continue;
+            }
+
+            $txnInfo = self::getTransactionDetails($transactionId);
+            if (!empty($txnInfo['error']) || empty($txnInfo['isApproved'])) {
+                continue;
+            }
+            if (((string)($txnInfo['transRefId'] ?? '')) !== $refId && ((string)($txnInfo['metadata']['pending_ref'] ?? '')) !== $refId) {
+                continue;
+            }
+            if ($amount > 0 && abs(((float)$txnInfo['amount']) - $amount) > 0.01) {
+                continue;
+            }
+
+            $result = self::processApprovedTransaction($transactionId);
+            if (empty($result['error']) || !empty($result['duplicate'])) {
+                Anet_pending_payment::markProcessedById($pendingId, $transactionId);
+            } else {
+                Anet_pending_payment::markChecked($pendingId, 'pending', $result['msg'] ?? 'Could not process approved transaction');
+            }
+            return $result + ['pendingId' => $pendingId, 'transactionId' => $transactionId];
+        }
+
+        Anet_pending_payment::markChecked($pendingId, 'pending', 'No matching approved transaction found yet');
+        return ['error' => true, 'msg' => 'No matching approved transaction found yet', 'pendingId' => $pendingId];
+    }
+
+    public static function reconcilePendingPayments(int $limit = 20, int $maxAgeSeconds = 3600): array
+    {
+        $rows = Anet_pending_payment::getRecentOpen($limit, $maxAgeSeconds);
+        $results = [];
+        foreach ($rows as $row) {
+            $results[] = self::reconcilePendingPayment($row);
+        }
+        return ['error' => false, 'total' => count($results), 'results' => $results];
     }
 
     public static function getDefaultPaymentProfileId(string $customerProfileId): ?string
@@ -600,13 +997,6 @@ class AuthorizeNet extends PluginAbstract
         if ($amount <= 0) {
             return ['error' => true, 'msg' => 'Invalid amount'];
         }
-        self::ensureWebhookOrDie(); // make sure webhook exists or stop execution
-        // Optional: ensure webhook exists
-        $webhookCheck = self::createWebhookIfNotExists();
-        _error_log('[AuthorizeNet] Webhook check: ' . json_encode($webhookCheck));
-        if (!empty($webhookCheck['error']) && !empty($webhookCheck['msg'])) {
-            return ['error' => true, 'msg' => 'Webhook error: ' . $webhookCheck['msg']];
-        }
 
         $merchantAuthentication = self::getMerchantAuthentication();
         $environment            = self::getEnvironment();
@@ -635,6 +1025,13 @@ class AuthorizeNet extends PluginAbstract
             $txn->addToUserFields($uf);
         }
 
+        // Embed users_id in customer.id so getTransactionDetails can retrieve it.
+        // This is the most reliable recovery path: getTransactionDetails returns
+        // transaction.customer.id but does NOT return userFields.
+        $customerType = new AnetAPI\CustomerDataType();
+        $customerType->setId((string)$users_id);
+        $txn->setCustomer($customerType);
+
         if (!empty($customerProfileId)) {
             $profilePaymentType = new AnetAPI\CustomerProfilePaymentType();
             $profilePaymentType->setCustomerProfileId($customerProfileId);
@@ -648,6 +1045,9 @@ class AuthorizeNet extends PluginAbstract
         $request = new AnetAPI\GetHostedPaymentPageRequest();
         $request->setMerchantAuthentication($merchantAuthentication);
         $request->setTransactionRequest($txn);
+        if (!empty($metadata['pending_ref'])) {
+            $request->setRefId(substr((string)$metadata['pending_ref'], 0, 20));
+        }
 
         // Settings
         $settings = [];
@@ -696,7 +1096,8 @@ class AuthorizeNet extends PluginAbstract
             return [
                 'error' => false,
                 'token' => $token,
-                'url'   => self::getHostedBaseUrl('/payment/payment')
+                'url'   => self::getHostedBaseUrl('/payment/payment'),
+                'refId' => $metadata['pending_ref'] ?? null,
             ];
         }
 
@@ -899,6 +1300,73 @@ class AuthorizeNet extends PluginAbstract
         ]);
     }
 
+    /**
+     * Fetch notification delivery history from Authorize.Net.
+     * Useful for diagnosing whether webhooks were attempted and if they succeeded.
+     *
+     * @param string $query  e.g. 'limit=20' or 'limit=10&deliveryStatus=Failed'
+     */
+    public static function checkNotificationHistory(string $query = 'limit=20', bool $fetchAllDetails = false): array
+    {
+        $res = self::restWebhook('GET', 'notifications?' . $query);
+        if ($res['error']) {
+            return $res;
+        }
+
+        $body          = $res['body'] ?? [];
+        $notifications = $body['notifications'] ?? [];
+
+        // Enrich each entry with the payload
+        $enriched = [];
+        foreach ($notifications as $n) {
+            $entry = [
+                'notificationId'  => $n['notificationId'] ?? null,
+                'deliveryStatus'  => $n['deliveryStatus'] ?? null,
+                'eventType'       => $n['eventType'] ?? null,
+                'eventDate'       => $n['eventDate'] ?? null,
+                'webhookId'       => $n['webhookId'] ?? null,
+            ];
+
+            $status = $n['deliveryStatus'] ?? '';
+            $needsDetail = $fetchAllDetails || in_array($status, ['RetryPending', 'Failed'], true);
+
+            if ($needsDetail && !empty($n['notificationId'])) {
+                $detail = self::getNotificationDetail($n['notificationId']);
+                if (!empty($detail['payload'])) {
+                    $payload                 = $detail['payload'];
+                    $entry['payload']        = $payload;
+                    $entry['transactionId']  = $payload['id'] ?? null;
+                    $entry['isTestPing']     = (($payload['responseCode'] ?? -1) === 0
+                                                && ($payload['authAmount'] ?? -1) == 0
+                                                && ($payload['invoiceNumber'] ?? '') === '0'
+                                                && empty($payload['id']));
+                    $entry['retryLog']       = $detail['retryLog'] ?? null;
+                }
+            }
+
+            $enriched[] = $entry;
+        }
+
+        return [
+            'error'         => false,
+            'total'         => count($enriched),
+            'notifications' => $enriched,
+            'webhookUrl'    => self::getWebhookURL(),
+        ];
+    }
+
+    /**
+     * Fetch full detail of a single Authorize.Net notification (including payload + retry log).
+     */
+    public static function getNotificationDetail(string $notificationId): array
+    {
+        $res = self::restWebhook('GET', 'notifications/' . $notificationId);
+        if ($res['error']) {
+            return $res;
+        }
+        return $res['body'] ?? [];
+    }
+
     public static function webhookExists(string $webhookUrl)
     {
         $res = self::restWebhook('GET', 'webhooks');
@@ -920,7 +1388,19 @@ class AuthorizeNet extends PluginAbstract
 
     public static function updateWebhookEventTypes(string $webhookId, array $eventTypes)
     {
-        return self::restWebhook('PATCH', 'webhooks/' . $webhookId, ['eventTypes' => $eventTypes]);
+        return self::restWebhook('PUT', 'webhooks/' . $webhookId, ['eventTypes' => $eventTypes]);
+    }
+
+    public static function reactivateWebhook(string $webhookId): array
+    {
+        $res = self::restWebhook('PUT', 'webhooks/' . $webhookId, ['status' => 'active']);
+        _error_log('[AuthorizeNet] reactivateWebhook PUT result'
+            . ' webhookId=' . $webhookId
+            . ' httpStatus=' . ($res['status'] ?? '?')
+            . ' error=' . (!empty($res['error']) ? 'true' : 'false')
+            . ' body=' . ($res['raw'] ?? '')
+        );
+        return $res;
     }
 
     public static function createWebhookIfNotExists(array $eventTypes = ['net.authorize.payment.authcapture.created'])
@@ -936,17 +1416,35 @@ class AuthorizeNet extends PluginAbstract
             return self::createWebhook($webhookUrl, $eventTypes);
         }
 
-        // Already exists: check if update is needed
+        $webhookId = $exists['webhookId'] ?? null;
+        _error_log('[AuthorizeNet] createWebhookIfNotExists found webhookId=' . $webhookId . ' status=' . ($exists['status'] ?? 'n/a'));
+
+        $wasInactive = ($exists['status'] ?? '') !== 'active';
+
+        // Reactivate if Authorize.Net deactivated it (e.g. due to repeated endpoint errors)
+        if ($wasInactive && !empty($webhookId)) {
+            _error_log('[AuthorizeNet] Webhook is inactive — reactivating: ' . $webhookId);
+            $reactivate = self::reactivateWebhook($webhookId);
+            if (!empty($reactivate['error'])) {
+                return $reactivate;
+            }
+        }
+
+        // Check if event types need updating
         $existingEvents = $exists['eventTypes'] ?? [];
         sort($existingEvents);
         sort($eventTypes);
 
         if ($existingEvents === $eventTypes) {
-            return $exists; // already up to date
+            // Re-fetch current state so caller sees the post-reactivation status
+            return self::webhookExists($webhookUrl) ?: $exists;
         }
 
-        if (!empty($exists['webhookId'])) {
-            return self::updateWebhookEventTypes($exists['webhookId'], $eventTypes);
+        if (!empty($webhookId)) {
+            return self::restWebhook('PUT', 'webhooks/' . $webhookId, [
+                'eventTypes' => $eventTypes,
+                'status'     => 'active',
+            ]);
         }
 
         return ['error' => true, 'msg' => 'Webhook exists but missing ID', 'status' => 0];
@@ -1027,6 +1525,38 @@ class AuthorizeNet extends PluginAbstract
                     }
                 }
 
+                // Extract users_id — three fallbacks in priority order:
+                // 1. Order description JSON (most explicit)
+                // 2. userFields on the transaction object (set at token time, may not survive Accept Hosted)
+                // 3. customer.id (set via CustomerType::setId in generateHostedPaymentPage — most reliable
+                //    because getTransactionDetails always returns transaction.customer.id)
+                if (isset($decodedMeta['users_id']) && (int)$decodedMeta['users_id'] > 0) {
+                    $users_id_from_txn = (int)$decodedMeta['users_id'];
+                    _error_log('[AuthorizeNet] users_id source: order description JSON');
+                } elseif (($uid = self::extractUsersIdFromTxnRaw($txn)) !== null && $uid > 0) {
+                    $users_id_from_txn = $uid;
+                    _error_log('[AuthorizeNet] users_id source: userFields');
+                } elseif ($customer && method_exists($customer, 'getId') && (int)$customer->getId() > 0) {
+                    $users_id_from_txn = (int)$customer->getId();
+                    _error_log('[AuthorizeNet] users_id source: customer.id');
+                } else {
+                    $users_id_from_txn = 0;
+                    _error_log('[AuthorizeNet] users_id source: NOT FOUND — orderDesc=' . ($orderDescription ?? 'null'));
+                }
+
+                $plans_id_from_txn = isset($decodedMeta['plans_id']) ? (int)$decodedMeta['plans_id'] : 0;
+
+                _error_log('[AuthorizeNet] getTransactionDetails'
+                    . ' | txn=' . $transactionId
+                    . ' | status=' . $status
+                    . ' | responseCode=' . $responseCode
+                    . ' | amount=' . $txn->getAuthAmount()
+                    . ' | isApproved=' . ($isApproved ? 'true' : 'false')
+                    . ' | users_id=' . $users_id_from_txn
+                    . ' | plans_id=' . $plans_id_from_txn
+                    . ' | orderDescription=' . ($orderDescription ?? 'null')
+                );
+
                 return [
                     'error'            => false,
                     'id'               => $transactionId,
@@ -1039,11 +1569,12 @@ class AuthorizeNet extends PluginAbstract
                     'email'            => $customer ? $customer->getEmail() : null,
                     'invoiceNumber'    => $order ? $order->getInvoiceNumber() : null,
                     'orderDescription' => $orderDescription,
-                    'metadata'         => $decodedMeta,                 // <- decoded JSON (if any)
+                    'metadata'         => $decodedMeta,
+                    'transRefId'       => method_exists($response, 'getTransrefId') ? $response->getTransrefId() : null,
                     'submitTimeUTC'    => $submitTime ? $submitTime->format('Y-m-d H:i:s') : null,
                     'customer'         => $txn->getCustomer(),
-                    'users_id'         => $decodedMeta['users_id'] ?? 0,
-                    'plans_id'         => $decodedMeta['plans_id'] ?? 0,
+                    'users_id'         => $users_id_from_txn,
+                    'plans_id'         => $plans_id_from_txn,
                     'raw'              => $txn,
                     'isApproved'       => $isApproved,
                 ];
@@ -1077,8 +1608,8 @@ class AuthorizeNet extends PluginAbstract
     {
         $obj  = self::getConfig();
         $auth = new AnetAPI\MerchantAuthenticationType();
-        $auth->setName($obj->apiLoginId);
-        $auth->setTransactionKey($obj->transactionKey);
+        $auth->setName(trim((string)$obj->apiLoginId));
+        $auth->setTransactionKey(trim((string)$obj->transactionKey));
         return $auth;
     }
 
@@ -1125,10 +1656,12 @@ class AuthorizeNet extends PluginAbstract
     {
         $url  = self::getRestBaseUrl() . ltrim($path, '/');
         $obj  = self::getConfig();
+        $apiLoginId = trim((string)$obj->apiLoginId);
+        $transactionKey = trim((string)$obj->transactionKey);
 
         $headers = [
             'Content-Type: application/json',
-            'Authorization: Basic ' . base64_encode($obj->apiLoginId . ':' . $obj->transactionKey),
+            'Authorization: Basic ' . base64_encode($apiLoginId . ':' . $transactionKey),
         ];
 
         $optsHttp = [
@@ -1231,7 +1764,12 @@ class AuthorizeNet extends PluginAbstract
 
     public function getPluginVersion()
     {
-        return "1.0";
+        return "1.1";
+    }
+
+    public function executeEveryMinute()
+    {
+        self::reconcilePendingPayments(20, 7200);
     }
 
     public function getPluginMenu()

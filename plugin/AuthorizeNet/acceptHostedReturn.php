@@ -1,8 +1,34 @@
 <?php
 require_once __DIR__ . '/../../videos/configuration.php';
+require_once $global['systemRootPath'] . 'plugin/AuthorizeNet/AuthorizeNet.php';
+
+_error_log('[AuthorizeNet acceptHostedReturn] GET=' . json_encode($_GET) . ' POST=' . json_encode($_POST) . ' RAW=' . file_get_contents('php://input'));
 
 $isCanceled = !empty($_GET['cancel']);
 $type = $isCanceled ? 'cancel' : 'success';
+$autoProcessMessage = '';
+
+if (!$isCanceled && User::isLogged()) {
+    $pending = $_SESSION['AuthorizeNetAcceptHostedPending'] ?? [];
+    if (!empty($pending['pending_id']) && !empty($pending['ref_id'])) {
+        $result = AuthorizeNet::reconcilePendingPayment([
+            'id'       => (int)$pending['pending_id'],
+            'ref_id'   => (string)$pending['ref_id'],
+            'users_id' => (int)User::getId(),
+            'amount'   => (float)($pending['amount'] ?? 0),
+            'status'   => 'pending',
+        ]);
+        if (empty($result['error']) || !empty($result['duplicate'])) {
+            $autoProcessMessage = !empty($result['duplicate']) ? 'Payment confirmed.' : 'Payment confirmed and credited successfully.';
+            unset($_SESSION['AuthorizeNetAcceptHostedPending']);
+            _error_log('[AuthorizeNet acceptHostedReturn] Fallback reconciliation success ref=' . $pending['ref_id'] . ' txn=' . ($result['transactionId'] ?? 'n/a'));
+        } else {
+            _error_log('[AuthorizeNet acceptHostedReturn] Fallback reconciliation pending: ' . ($result['msg'] ?? 'unknown'));
+        }
+    } else {
+        _error_log('[AuthorizeNet acceptHostedReturn] No pending payment context available for fallback reconciliation');
+    }
+}
 
 $messages = [
     'success' => [
@@ -53,6 +79,9 @@ $_page->setIncludeFooter(false);
         </h3>
 
         <p><?php echo $messages[$type]['text']; ?></p>
+        <?php if (!empty($autoProcessMessage)) { ?>
+            <p><strong><?php echo $autoProcessMessage; ?></strong></p>
+        <?php } ?>
 
         <p class="countdown">
             <i class="fa fa-clock-o"></i> Closing in <span id="countdown">10</span> seconds...
@@ -78,6 +107,11 @@ $_page->setIncludeFooter(false);
         document.getElementById('progressBar').style.width = percent + '%';
 
         if (seconds <= 0) {
+            if (window.opener && !window.opener.closed) {
+                try {
+                    window.opener.location.reload();
+                } catch (e) {}
+            }
             window.close();
         }
         seconds--;

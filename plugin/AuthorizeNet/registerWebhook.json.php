@@ -24,14 +24,22 @@ if (empty($cfg->apiLoginId) || empty($cfg->transactionKey) || empty($cfg->signat
     exit;
 }
 
-$result = AuthorizeNet::createWebhookIfNotExists(['net.authorize.payment.authcapture.created']);
+$result    = AuthorizeNet::createWebhookIfNotExists(['net.authorize.payment.authcapture.created']);
+$webhookId = $result['webhookId'] ?? null;
+
+// After ensure, fetch full current state so we always show real status
+$currentState = AuthorizeNet::webhookExists(AuthorizeNet::getWebhookURL());
+
+_error_log('[AuthorizeNet] registerWebhook createWebhookIfNotExists result: ' . json_encode(array_diff_key((array)$result, ['raw' => 1, 'headers' => 1])));
+_error_log('[AuthorizeNet] registerWebhook currentState after: ' . json_encode(array_diff_key((array)$currentState, ['raw' => 1, 'headers' => 1])));
 
 $response = [
-    'error'      => !empty($result['error']),
-    'msg'        => $result['msg'] ?? null,
-    'webhookId'  => $result['webhookId'] ?? null,
-    'status'     => $result['status'] ?? null,
-    'webhookUrl' => AuthorizeNet::getWebhookURL(),
+    'error'         => !empty($result['error']),
+    'msg'           => $result['msg'] ?? null,
+    'webhookId'     => $currentState['webhookId'] ?? $webhookId,
+    'webhookStatus' => $currentState['status'] ?? 'unknown',
+    'eventTypes'    => $currentState['eventTypes'] ?? [],
+    'webhookUrl'    => AuthorizeNet::getWebhookURL(),
 ];
 
 _error_log('[AuthorizeNet] Manual webhook registration: ' . json_encode($response));

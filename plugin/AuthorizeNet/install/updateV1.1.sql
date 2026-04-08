@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS `anet_pending_payment` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `ref_id` VARCHAR(40) NOT NULL,
+  `users_id` INT(11) NOT NULL,
+  `plans_id` INT(11) NOT NULL DEFAULT 0,
+  `amount` DECIMAL(12,2) NOT NULL,
+  `currency` VARCHAR(10) NOT NULL DEFAULT 'USD',
+  `status` VARCHAR(20) NOT NULL DEFAULT 'pending',
+  `transaction_id` VARCHAR(45) NULL,
+  `metadata_json` LONGTEXT NULL,
+  `attempts` INT(11) NOT NULL DEFAULT 0,
+  `last_checked_php_time` BIGINT NULL,
+  `created_php_time` BIGINT NOT NULL,
+  `modified_php_time` BIGINT NOT NULL,
+  `error_text` TEXT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `anet_pending_payment_ref_id_uq` (`ref_id` ASC),
+  INDEX `anet_pending_payment_users_id_idx` (`users_id` ASC),
+  INDEX `anet_pending_payment_status_idx` (`status` ASC),
+  INDEX `anet_pending_payment_transaction_id_idx` (`transaction_id` ASC)
+) ENGINE=InnoDB;
