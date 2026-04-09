@@ -477,7 +477,7 @@ class YPTWallet extends PluginAbstract
 
         if (!User::isAdmin()) {
             if ($fromUserId != User::getId() && !$forceTransfer) {
-                _error_log("transferBalance: not admin, $fromUserId, $toUserId, $amount " . json_encode(debug_backtrace()));
+                _error_log("transferBalance: permission denied. currentUserId=" . intval(User::getId()) . ", fromUserId={$fromUserId}, toUserId={$toUserId}, amount={$amount}, forceTransfer=" . intval(!empty($forceTransfer)) . ". Automatic/system transfers must call this method with forceTransfer=true. " . json_encode(debug_backtrace()));
                 return false;
             }
         }
@@ -510,7 +510,7 @@ class YPTWallet extends PluginAbstract
 
         if ($senderNewBalance < 0) {
             mysqlRollback();
-            _error_log("transferBalance: insufficient balance, $fromUserId, $toUserId, $amount (Balance: {$senderBalance}) (New Balance: {$senderNewBalance}) " . json_encode(debug_backtrace()));
+            _error_log("transferBalance: insufficient balance. fromUserId={$fromUserId}, toUserId={$toUserId}, amount={$amount}, currentBalance={$senderBalance}, resultingBalance={$senderNewBalance}. Transfer canceled to avoid negative balance. " . json_encode(debug_backtrace()));
             return false;
         }
 
