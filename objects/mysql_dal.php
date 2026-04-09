@@ -187,6 +187,18 @@ class sqlDAL
                 } catch (Exception $exc) {
                     log_error($exc->getTraceAsString());
                 }
+            }else if (preg_match('/Incorrect string value/i', $stmt->error)) {
+                try {
+                    // Connection may still be on a non-Unicode charset (ex: latin1),
+                    // retry once with utf8mb4 for the current statement.
+                    $global['mysqli']->query("SET NAMES 'utf8mb4'");
+                    $global['mysqli']->query("SET CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+                    $stmt = $global['mysqli']->prepare($preparedStatement);
+                    sqlDAL::eval_mysql_bind($stmt, $formats, $values);
+                    $stmt->execute();
+                } catch (Exception $exc) {
+                    log_error($exc->getTraceAsString());
+                }
             }else if(preg_match('/Conversion from collation/i', $global['mysqli']->error)){
                 $values2 = $values;
                 foreach ($values2 as $key => $value) {

@@ -175,8 +175,15 @@ function _mysql_connect($persistent = false, $try = 0)
                 $global['mysqli']->query($createSQL);
             }
             $global['mysqli']->select_db($mysqlDatabase);
-            if (!empty($global['mysqli_charset'])) {
-                $global['mysqli']->set_charset($global['mysqli_charset']);
+            // Default to utf8mb4 unless the instance explicitly overrides it.
+            // This prevents "Incorrect string value" errors when descriptions contain
+            // Unicode symbols/emoji and the server default charset is latin1.
+            $mysqliCharset = !empty($global['mysqli_charset']) ? $global['mysqli_charset'] : 'utf8mb4';
+            if (!$global['mysqli']->set_charset($mysqliCharset)) {
+                // Best-effort fallback for very old MySQL/MariaDB setups.
+                if (strtolower($mysqliCharset) === 'utf8mb4') {
+                    $global['mysqli']->set_charset('utf8');
+                }
             }
             if (isCommandLineInterface()) {
                 //_error_log("_mysql_connect HOST=$mysqlHost,DB=$mysqlDatabase");
