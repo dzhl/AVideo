@@ -4427,6 +4427,46 @@ function doNOTOrganizeHTMLIfIsPagination()
     }
 }
 
+function isPaginatedPrettyURLRequest()
+{
+    if (empty($_SERVER['REQUEST_URI'])) {
+        return false;
+    }
+    $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+    if (empty($path)) {
+        return false;
+    }
+    return preg_match('/\/page\/\d+\/?$/i', $path) === 1;
+}
+
+function getBotPaginationMaxPage()
+{
+    return 2;
+}
+
+function getBotPaginationMaxRowCount()
+{
+    return 6;
+}
+
+function shouldBlockBotPaginatedRequest($currentPage)
+{
+    return isBot() && isPaginatedPrettyURLRequest() && intval($currentPage) > getBotPaginationMaxPage();
+}
+
+function blockBotPaginatedRequest($currentPage)
+{
+    if (!shouldBlockBotPaginatedRequest($currentPage)) {
+        return false;
+    }
+    $currentPage = intval($currentPage);
+    $message = "Bot pagination limit reached [{$currentPage}] " . getSelfURI() . ' ' . @$_SERVER['HTTP_USER_AGENT'];
+    _error_log("getCurrentPage {$message}");
+    http_response_code(403);
+    header('HTTP/1.0 403 Forbidden');
+    die('Forbidden');
+}
+
 function getCurrentPage($forceURL = false)
 {
     if ($forceURL) {
@@ -4452,6 +4492,7 @@ function getCurrentPage($forceURL = false)
             $current = floor($start / $length) + 1;
         }
     }
+    blockBotPaginatedRequest($current);
     if ($current > 1000 && !User::isLogged()) {
         _error_log("getCurrentPage current>1000 ERROR [{$current}] " . json_encode(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS)));
         _error_log("getCurrentPage current>1000 ERROR NOT LOGGED die [{$current}] " . getSelfURI() . ' ' . json_encode($_SERVER));
@@ -4533,6 +4574,16 @@ function getRowCount($default = 1000)
         $defaultN = intval($_GET['length']);
     } elseif (!empty($global['rowCount'])) {
         $defaultN = intval($global['rowCount']);
+    }
+    if (isBot() && isPaginatedPrettyURLRequest()) {
+        $maxRowCount = getBotPaginationMaxRowCount();
+        if (empty($defaultN) || $defaultN > $maxRowCount) {
+            $defaultN = $maxRowCount;
+            $_REQUEST['rowCount'] = $defaultN;
+            $_POST['rowCount'] = $defaultN;
+            $_GET['rowCount'] = $defaultN;
+            $global['rowCount'] = $defaultN;
+        }
     }
     return (!empty($defaultN) && $defaultN > 0) ? $defaultN : $default;
 }
