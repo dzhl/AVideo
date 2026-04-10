@@ -1454,14 +1454,21 @@ Click <a href=\"{link}\">here</a> to join our live.";
             _error_log("Live::getStatsObject $url ");
         }
 
-        $data = $this->get_data($url,  $requestStatsTimout);
+        $statsResponse = $this->get_data($url,  $requestStatsTimout);
+        $data = $statsResponse['body'];
         if (empty($data)) {
             _error_log("Live::getStatsObject RTMP Server ($url) is OFFLINE requestStatsTimout={$requestStatsTimout} we could not connect on it => live_servers_id = ($live_servers_id) ", AVideoLog::$ERROR);
             $data = '<?xml version="1.0" encoding="utf-8" ?><?xml-stylesheet type="text/xsl" href="stat.xsl" ?><rtmp><server><application><name>The RTMP Server is Unavailable</name><live><nclients>0</nclients></live></application></server></rtmp>';
         } else if (!empty($_REQUEST['debug'])) {
             _error_log("Live::getStatsObject $data ");
         }
+        $previousLibxmlState = libxml_use_internal_errors(true);
         $xml = simplexml_load_string($data);
+        if ($xml === false) {
+            $this->logStatsXMLFailure($url, $live_servers_id, $requestStatsTimout, $data, $statsResponse);
+        }
+        libxml_clear_errors();
+        libxml_use_internal_errors($previousLibxmlState);
         $xml = json_encode($xml);
         $xml = _json_decode($xml);
         $getStatsObject[$live_servers_id] = $xml;
@@ -1485,13 +1492,83 @@ Click <a href=\"{link}\">here</a> to join our live.";
     public function get_data($url, $timeout)
     {
         global $global;
+        $response = [
+            'body' => false,
+            'http_code' => null,
+            'content_type' => null,
+            'effective_url' => $url,
+            'error' => null,
+            'headers' => [],
+        ];
         if (!IsValidURL($url)) {
             _error_log("Live::getStatsObject get_data($url, $timeout) invalid URL");
-            return false;
+            $response['error'] = 'invalid URL';
+            return $response;
         }
 
         //_error_log_debug("Live::getStatsObject get_data($url, $timeout) ");
-        return url_get_contents($url, '', $timeout);
+        if (function_exists('curl_init')) {
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+            curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+            curl_setopt($ch, CURLOPT_HEADER, true);
+            if (!empty($timeout)) {
+                curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout + 10);
+            }
+            $rawResponse = curl_exec($ch);
+            if ($rawResponse === false) {
+                $response['error'] = curl_error($ch);
+            } else {
+                $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+                $response['body'] = remove_utf8_bom(substr($rawResponse, $headerSize));
+                $response['http_code'] = intval(curl_getinfo($ch, CURLINFO_HTTP_CODE));
+                $response['content_type'] = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+                $response['effective_url'] = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL) ?: $url;
+                $response['headers'] = preg_split("/\r\n|\n|\r/", trim(substr($rawResponse, 0, $headerSize)));
+            }
+            curl_close($ch);
+            return $response;
+        }
+
+        $body = url_get_contents($url, '', $timeout);
+        $response['body'] = $body;
+        return $response;
+    }
+
+    private function logStatsXMLFailure($url, $live_servers_id, $timeout, $data, $statsResponse)
+    {
+        $libxmlErrors = libxml_get_errors();
+        $libxmlMessages = [];
+        foreach ($libxmlErrors as $error) {
+            $message = trim($error->message);
+            $libxmlMessages[] = "line {$error->line}, column {$error->column}: {$message}";
+        }
+
+        $summary = [
+            'requested_url' => $url,
+            'effective_url' => empty($statsResponse['effective_url']) ? $url : $statsResponse['effective_url'],
+            'http_code' => isset($statsResponse['http_code']) ? $statsResponse['http_code'] : null,
+            'content_type' => empty($statsResponse['content_type']) ? null : $statsResponse['content_type'],
+            'timeout' => $timeout,
+            'live_servers_id' => $live_servers_id,
+            'error' => empty($statsResponse['error']) ? null : $statsResponse['error'],
+            'headers' => empty($statsResponse['headers']) ? [] : $statsResponse['headers'],
+            'body_preview' => $this->sanitizeStatsLogPreview($data),
+            'libxml_errors' => $libxmlMessages,
+        ];
+
+        _error_log("Live::getStatsObject invalid XML response " . json_encode($summary), AVideoLog::$ERROR);
+    }
+
+    private function sanitizeStatsLogPreview($data)
+    {
+        $data = preg_replace('/\s+/', ' ', trim($data));
+        return substr($data, 0, 1000);
     }
 
     public function getChartTabs()
