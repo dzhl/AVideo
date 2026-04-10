@@ -4449,9 +4449,15 @@ function getBotPaginationMaxRowCount()
     return 6;
 }
 
+function getBotMaxPageForRequest()
+{
+    // Stricter limit for pretty-URL pagination (/page/N), looser for query-string pagination
+    return isPaginatedPrettyURLRequest() ? getBotPaginationMaxPage() : 10;
+}
+
 function shouldBlockBotPaginatedRequest($currentPage)
 {
-    return isBot() && isPaginatedPrettyURLRequest() && intval($currentPage) > getBotPaginationMaxPage();
+    return isBot() && intval($currentPage) > getBotMaxPageForRequest();
 }
 
 function blockBotPaginatedRequest($currentPage)
@@ -4460,8 +4466,8 @@ function blockBotPaginatedRequest($currentPage)
         return false;
     }
     $currentPage = intval($currentPage);
-    $message = "Bot pagination limit reached [{$currentPage}] " . getSelfURI() . ' ' . @$_SERVER['HTTP_USER_AGENT'];
-    _error_log("getCurrentPage {$message}");
+    $ua = $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
+    _error_log("Bot pagination blocked page={$currentPage} " . getSelfURI() . ' ' . $ua);
     http_response_code(403);
     header('HTTP/1.0 403 Forbidden');
     die('Forbidden');
@@ -4492,21 +4498,15 @@ function getCurrentPage($forceURL = false)
             $current = floor($start / $length) + 1;
         }
     }
-    blockBotPaginatedRequest($current);
-    if ($current > 1000 && !User::isLogged()) {
-        _error_log("getCurrentPage current>1000 ERROR [{$current}] " . json_encode(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS)));
-        _error_log("getCurrentPage current>1000 ERROR NOT LOGGED die [{$current}] " . getSelfURI() . ' ' . json_encode($_SERVER));
-        exit;
-    } else if ($current > 100 && isBot()) {
-        //_error_log("getCurrentPage current>100 ERROR [{$current}] " . json_encode(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS)));
-        //_error_log("getCurrentPage current>100 ERROR bot die [{$current}] " . getSelfURI() . ' ' . json_encode($_SERVER));
-        _error_log("getCurrentPage current>100 ERROR bot die [{$current}] " . getSelfURI() . ' ' . $_SERVER['HTTP_USER_AGENT']);
-        exit;
-    }
     if (isset($_GET['isInfiniteScroll'])) {
         if ($current < $_GET['isInfiniteScroll']) {
             $current = intval($_GET['isInfiniteScroll']);
         }
+    }
+    blockBotPaginatedRequest($current);
+    if ($current > 100 && !User::isLogged()) {
+        _error_log("getCurrentPage not-logged blocked page={$current} " . getSelfURI());
+        forbiddenPage('Page number too high, please login to access more pages');
     }
     $lastCurrent = $current;
     return $current;
