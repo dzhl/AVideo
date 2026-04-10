@@ -2812,19 +2812,19 @@ function allowOrigin($allowAll = false)
     $requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
     $isSameOrigin  = !empty($siteOrigin) && $requestOrigin === $siteOrigin;
 
-    // Check whether the request comes from a first-party subdomain
-    // (e.g. vizio.flixhouse.com calling flixhouse.com).  We reflect the
-    // subdomain origin without credentials – only the exact site origin gets
+    // Check whether the request comes from a first-party host/subdomain
+    // family (e.g. vizio.flixhouse.com calling flixhouse.com).  We reflect the
+    // origin without credentials – only the exact site origin gets
     // Access-Control-Allow-Credentials: true.
     $isTrustedSubdomain = false;
-    if (!$isSameOrigin && !empty($siteDomain) && !empty($requestOrigin)) {
-        $parsedReq = parse_url($requestOrigin);
-        if (!empty($parsedReq['host'])) {
-            $reqHost = strtolower($parsedReq['host']);
-            if ($reqHost === $siteDomain || str_ends_with($reqHost, '.' . $siteDomain)) {
-                $isTrustedSubdomain = true;
-            }
+    if (!$isSameOrigin && !empty($requestOrigin)) {
+        $currentHost = '';
+        if (!empty($_SERVER['HTTP_HOST'])) {
+            $currentHost = $_SERVER['HTTP_HOST'];
+        } elseif (!empty($_SERVER['SERVER_NAME'])) {
+            $currentHost = $_SERVER['SERVER_NAME'];
         }
+        $isTrustedSubdomain = isTrustedOriginFamilyForCORS($requestOrigin, [$siteDomain, $currentHost]);
     }
 
     // Handle CORS preflight requests (OPTIONS) first - must exit early
@@ -2868,6 +2868,75 @@ function allowOrigin($allowAll = false)
     header('Access-Control-Allow-Private-Network: true');
     header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, HEAD");
     header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, ua-resolution, APISecret, Origin, Accept, Access-Control-Request-Method, Access-Control-Request-Headers");
+}
+
+function normalizeCorsHost($host)
+{
+    if (empty($host)) {
+        return '';
+    }
+    $host = trim(strtolower((string) $host));
+    $host = preg_replace('/:[0-9]+$/', '', $host);
+    $host = preg_replace('/^\.+/', '', $host);
+    return preg_replace('/^www\./', '', $host);
+}
+
+function getBaseDomainForCORS($host)
+{
+    $host = normalizeCorsHost($host);
+    if (empty($host) || filter_var($host, FILTER_VALIDATE_IP)) {
+        return $host;
+    }
+
+    $parts = array_values(array_filter(explode('.', $host)));
+    $count = count($parts);
+    if ($count <= 2) {
+        return $host;
+    }
+
+    $last = $parts[$count - 1];
+    $penultimate = $parts[$count - 2];
+    if (strlen($last) === 2 && strlen($penultimate) <= 3 && $count >= 3) {
+        return implode('.', array_slice($parts, -3));
+    }
+
+    return implode('.', array_slice($parts, -2));
+}
+
+function isTrustedOriginFamilyForCORS($requestOrigin, $trustedHosts = [])
+{
+    if (empty($requestOrigin)) {
+        return false;
+    }
+
+    $parsedReq = parse_url($requestOrigin);
+    if (empty($parsedReq['host'])) {
+        return false;
+    }
+
+    $requestHost = normalizeCorsHost($parsedReq['host']);
+    $requestBaseDomain = getBaseDomainForCORS($requestHost);
+    if (empty($requestHost)) {
+        return false;
+    }
+
+    foreach ($trustedHosts as $trustedHost) {
+        $trustedHost = normalizeCorsHost($trustedHost);
+        if (empty($trustedHost)) {
+            continue;
+        }
+
+        if ($requestHost === $trustedHost || str_ends_with($requestHost, '.' . $trustedHost)) {
+            return true;
+        }
+
+        $trustedBaseDomain = getBaseDomainForCORS($trustedHost);
+        if (!empty($requestBaseDomain) && $requestBaseDomain === $trustedBaseDomain) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 function cleanUpAccessControlHeader()

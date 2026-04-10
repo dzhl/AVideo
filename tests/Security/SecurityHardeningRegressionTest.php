@@ -91,6 +91,23 @@ class SecurityHardeningRegressionTest extends TestCase
 
     /**
      * @test
+     * Regression: same-site subdomains/aliases (for example vizio.example.com
+     * requesting assets from example.com) should still be allowed for
+     * non-credentialed CORS even when the configured site host and the actual
+     * request host differ because of redirects/CDN aliases.
+     */
+    public function testAllowOriginChecksCurrentHostFamilyForTrustedSubdomains()
+    {
+        $source = file_get_contents(dirname(__DIR__, 2) . '/objects/functions.php');
+
+        $this->assertStringContainsString('isTrustedOriginFamilyForCORS', $source);
+        $this->assertStringContainsString("['HTTP_HOST']", $source);
+        $this->assertStringContainsString('$currentHost', $source);
+        $this->assertStringContainsString('getBaseDomainForCORS', $source);
+    }
+
+    /**
+     * @test
      * CVE-class: Unauthenticated CORS-exposed session ID endpoint
      * Ensures phpsessionid.json.php does not call allowOrigin(), which would
      * permit any cross-origin page to fetch the victim's session cookie via a
