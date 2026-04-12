@@ -2810,12 +2810,33 @@ function allowOrigin($allowAll = false)
     }
 
     $requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
+
+    // Browsers send the literal string "null" as the Origin header when following
+    // a cross-origin redirect (Fetch spec §4.4 – e.g. CDN on cdn.ypt.me redirects
+    // to the origin server).  The browser will accept Access-Control-Allow-Origin: *
+    // for such requests (non-credentialed), which is safe because the key endpoint
+    // has its own token-based auth layer.
+    if ($requestOrigin === 'null') {
+        header('Access-Control-Allow-Origin: *');
+        header('Access-Control-Allow-Private-Network: true');
+        header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, HEAD');
+        header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, ua-resolution, APISecret, Origin, Accept, Access-Control-Request-Method, Access-Control-Request-Headers');
+        if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+            header('Access-Control-Max-Age: 86400');
+            http_response_code(204);
+            exit;
+        }
+        return;
+    }
+
     $isSameOrigin  = !empty($siteOrigin) && $requestOrigin === $siteOrigin;
 
     // Check whether the request comes from a first-party host/subdomain
     // family (e.g. vizio.flixhouse.com calling flixhouse.com).  We reflect the
     // origin without credentials – only the exact site origin gets
     // Access-Control-Allow-Credentials: true.
+    // cdn.ypt.me is always trusted – it is the AVideo CDN layer that may send
+    // cross-origin requests on behalf of embedded players.
     $isTrustedSubdomain = false;
     if (!$isSameOrigin && !empty($requestOrigin)) {
         $currentHost = '';
@@ -2824,7 +2845,7 @@ function allowOrigin($allowAll = false)
         } elseif (!empty($_SERVER['SERVER_NAME'])) {
             $currentHost = $_SERVER['SERVER_NAME'];
         }
-        $isTrustedSubdomain = isTrustedOriginFamilyForCORS($requestOrigin, [$siteDomain, $currentHost]);
+        $isTrustedSubdomain = isTrustedOriginFamilyForCORS($requestOrigin, [$siteDomain, $currentHost, 'cdn.ypt.me']);
     }
 
     // Handle CORS preflight requests (OPTIONS) first - must exit early
