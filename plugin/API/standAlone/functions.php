@@ -17,6 +17,13 @@ function _decryptString($string)
     _error_log("Decrypting string using URL: $url");
     //return json_encode(array('_decryptString'=>$url));
     $data = ['string' => $string];
+
+    // Forward the already validated API secret so the platform can authorize
+    // this standalone decrypt request without requiring an admin session.
+    if (!empty($_REQUEST['APISecret'])) {
+        $data['APISecret'] = $_REQUEST['APISecret'];
+    }
+
     $content = postVariables($url, $data, false);
     $json = json_decode($content);
 
