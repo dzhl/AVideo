@@ -233,6 +233,18 @@ class Message implements MessageComponentInterface {
                 if (isset($json['from_identification'])) {
                     $json['from_identification'] = strip_tags((string)($msgObj->user_name ?? ''));
                 }
+                // Strip eval-able fields from browser/guest messages.
+                // autoEvalCodeOnHTML is a server-to-client feature (e.g. Live/getImage.php);
+                // browser clients must not inject it into broadcasts.
+                // callback must be a valid JS identifier to prevent eval injection on clients.
+                if (empty($msgObj->isCommandLineInterface) && ($msgObj->sentFrom ?? '') !== 'php') {
+                    if (is_array($json['msg'] ?? null)) {
+                        unset($json['msg']['autoEvalCodeOnHTML']);
+                    }
+                    if (isset($json['callback']) && !preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', (string)$json['callback'])) {
+                        unset($json['callback']);
+                    }
+                }
                 if (!empty($msgObj->send_to_uri_pattern)) {
                     $this->msgToSelfURI($json, $msgObj->send_to_uri_pattern);
                 } else if (!empty($json['resourceId'])) {

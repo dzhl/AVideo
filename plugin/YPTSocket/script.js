@@ -88,17 +88,23 @@ function processSocketJson(json) {
             }
         }
 
-        if (json.callback) {
-            // Check if a function exists with the name in json.callback
-            var code = "if (typeof " + json.callback + " == 'function') { myfunc = " + json.callback + "; } else { myfunc = defaultCallback; }";
+        if (json.callback && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(String(json.callback))) {
+            // Safe property lookup — no eval. Resolves the named function from the global
+            // scope without constructing or executing arbitrary code strings.
+            // isNativeFunction guards against resolving built-ins such as eval, Function,
+            // setTimeout, setInterval, etc., which would re-introduce code execution.
+            var cbFunc = window[json.callback];
+            var isNativeFunction = function(fn) {
+                return typeof fn === 'function' && /\[native code\]/.test(Function.prototype.toString.call(fn));
+            };
             socketLog('Executing callback:', json.callback);
-            eval(code);
+            myfunc = (typeof cbFunc === 'function' && !isNativeFunction(cbFunc)) ? cbFunc : defaultCallback;
 
             // Trigger the event with the same name as json.callback and pass the JSON object
             const event = new CustomEvent(json.callback, { detail: _details });
             document.dispatchEvent(event);
         } else {
-            socketLog('No callback defined, using default');
+            socketLog('No valid callback defined, using default');
             myfunc = defaultCallback;
         }
 

@@ -282,6 +282,15 @@ class Message implements MessageComponentInterface
             default:
                 $this->msgToArray($json);
                 //_log_message("onMessage:msgObj: " . json_encode($json));
+                // Strip eval-able fields from browser/guest messages.
+                if (empty($msgObj->isCommandLineInterface) && ($msgObj->sentFrom ?? '') !== 'php') {
+                    if (is_array($json['msg'] ?? null)) {
+                        unset($json['msg']['autoEvalCodeOnHTML']);
+                    }
+                    if (isset($json['callback']) && !preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', (string)$json['callback'])) {
+                        unset($json['callback']);
+                    }
+                }
                 if (!empty($msgObj->send_to_uri_pattern)) {
                     $this->msgToSelfURI($json, $msgObj->send_to_uri_pattern);
                 } else if (!empty($json['resourceId'])) {
