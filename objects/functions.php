@@ -2764,18 +2764,36 @@ function allowOrigin($allowAll = false)
 
     // Public resources (e.g. VAST/VMAP ad XML) should be readable by any
     // origin.  Pass $allowAll = true for permissive CORS.
-    // When the browser sends a credentialed request (credentials:'include', e.g.
-    // the IMA SDK), it rejects the wildcard '*' – the spec requires echoing the
-    // exact origin in that case.  We reflect whatever origin is in the request
-    // and add Allow-Credentials:true so credentialed fetches also succeed.
-    // These endpoints return public ad XML and carry no session-sensitive data,
-    // so reflecting any origin is safe here.
+    // SECURITY: even in $allowAll mode we must NOT reflect an arbitrary third-party
+    // Origin together with Access-Control-Allow-Credentials:true — that lets any
+    // attacker page make credentialed cross-origin requests and read session-
+    // authenticated API responses (user PII, stream keys, admin flags).
+    // We therefore validate the origin the same way as the $allowAll=false path:
+    // - Same-origin requests get reflected + credentials (logged-in browser calls)
+    // - All other origins get wildcard without credentials (public/ad-tech reads)
+    // Mobile apps use APISecret token auth, not session cookies, so they are
+    // unaffected by removing Allow-Credentials for third-party origins.
     if ($allowAll) {
         $requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
-        if (!empty($requestOrigin)) {
+
+        $siteOriginForAllowAll = '';
+        if (!empty($global['webSiteRootURL'])) {
+            $parsedForAllowAll = parse_url($global['webSiteRootURL']);
+            if (!empty($parsedForAllowAll['scheme']) && !empty($parsedForAllowAll['host'])) {
+                $siteOriginForAllowAll = $parsedForAllowAll['scheme'] . '://' . $parsedForAllowAll['host'];
+                if (!empty($parsedForAllowAll['port'])) {
+                    $siteOriginForAllowAll .= ':' . $parsedForAllowAll['port'];
+                }
+            }
+        }
+
+        if (!empty($requestOrigin) && !empty($siteOriginForAllowAll) && $requestOrigin === $siteOriginForAllowAll) {
+            // Verified same-origin request — reflect with credentials
             header('Access-Control-Allow-Origin: ' . $requestOrigin);
             header('Access-Control-Allow-Credentials: true');
         } else {
+            // Third-party or no origin: allow non-credentialed reads only.
+            // This covers IMA/ad-tech fetches (VAST/VMAP) which never send credentials.
             header('Access-Control-Allow-Origin: *');
         }
         header('Access-Control-Allow-Private-Network: true');
