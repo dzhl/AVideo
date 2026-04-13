@@ -1,20 +1,22 @@
 <?php
 
-// CORS handling - must be done before any other processing
-$HTTP_ORIGIN = empty($_SERVER['HTTP_ORIGIN']) ? @$_SERVER['HTTP_REFERER'] : $_SERVER['HTTP_ORIGIN'];
-if (empty($HTTP_ORIGIN)) {
-    header('Access-Control-Allow-Origin: *');
-} else {
-    header("Access-Control-Allow-Origin: " . $HTTP_ORIGIN);
-}
-header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, HEAD");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, ua-resolution, APISecret, Origin, Accept, Access-Control-Request-Method, Access-Control-Request-Headers");
-header('Access-Control-Allow-Private-Network: true');
-
-// Handle preflight OPTIONS request immediately
+// CORS preflight handling.
+// OPTIONS preflights are cross-origin by definition (same-origin requests are never
+// preflighted by browsers). Returning Access-Control-Allow-Origin: * without
+// Access-Control-Allow-Credentials is safe:
+//   - External API clients using APISecret (non-credentialed) proceed normally.
+//   - Credentialed attacker requests are blocked: the browser sees no
+//     Allow-Credentials:true in the preflight and aborts the actual request,
+//     so session cookies are never sent.
+// Actual GET/POST responses are handled by allowOrigin(true) in get/set.json.php
+// which enforces same-origin-only credentials (fixed in commit 986e64aad).
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    header("Access-Control-Max-Age: 86400"); // Cache preflight for 24 hours
-    http_response_code(200);
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, HEAD');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, ua-resolution, APISecret, Origin, Accept, Access-Control-Request-Method, Access-Control-Request-Headers');
+    header('Access-Control-Allow-Private-Network: true');
+    header('Access-Control-Max-Age: 86400');
+    http_response_code(204);
     exit;
 }
 
