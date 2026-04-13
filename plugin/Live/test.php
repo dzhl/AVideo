@@ -10,7 +10,7 @@ if (!User::isAdmin()) {
 $timeStarted = microtime(true);
 
 $statsURL = $_REQUEST['statsURL'];
-if (empty($statsURL) || $statsURL == "php://input" || !preg_match("/^http/", $statsURL)) {
+if (empty($statsURL) || $statsURL == "php://input" || !preg_match("/^https?:\/\//i", $statsURL)) {
     liveStatsTestLog('this is not a URL ');
     exit;
 }
@@ -177,7 +177,7 @@ function liveNormalizeStatsTestURL($url)
 
 function liveStatsTestWget($url, $filename)
 {
-    if (empty($url) || $url == "php://input" || !preg_match("/^http/", $url)) {
+    if (empty($url) || $url == "php://input" || !preg_match("/^https?:\/\//i", $url)) {
         liveStatsTestLog('this is not a URL ');
         return false;
     }
