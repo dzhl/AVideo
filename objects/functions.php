@@ -4304,11 +4304,19 @@ function isSSRFSafeURL($url, &$resolvedIP = null)
 
     $host = strtolower($host);
 
-    // Allow loopback/private IPs if the URL points to the same domain as webSiteRootURL
+    // Allow requests to the same origin as webSiteRootURL (hostname + port must both match).
+    // Checking hostname only is insufficient: an attacker can reach arbitrary internal ports
+    // on the same host by using the site's public hostname with a non-standard port.
     if (!empty($global['webSiteRootURL'])) {
-        $siteHost = strtolower(parse_url($global['webSiteRootURL'], PHP_URL_HOST));
-        if ($host === $siteHost) {
-            _error_log("isSSRFSafeURL: allowing same-domain request to {$host} (matches webSiteRootURL)");
+        $siteHost   = strtolower(parse_url($global['webSiteRootURL'], PHP_URL_HOST));
+        $siteScheme = strtolower(parse_url($global['webSiteRootURL'], PHP_URL_SCHEME) ?: 'http');
+        $sitePort   = (int)(parse_url($global['webSiteRootURL'], PHP_URL_PORT) ?: ($siteScheme === 'https' ? 443 : 80));
+
+        $urlScheme = strtolower(parse_url($url, PHP_URL_SCHEME) ?: 'http');
+        $urlPort   = (int)(parse_url($url, PHP_URL_PORT) ?: ($urlScheme === 'https' ? 443 : 80));
+
+        if ($host === $siteHost && $urlPort === $sitePort) {
+            _error_log("isSSRFSafeURL: allowing same-origin request to {$host}:{$urlPort} (matches webSiteRootURL)");
             return true;
         }
     }
