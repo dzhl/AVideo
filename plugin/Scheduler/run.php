@@ -45,15 +45,15 @@ if (!isCommandLineInterface()) {
     echo '<pre>';
 }
 if (empty($rows)) {
-    //echo ("Scheduler row is empty".PHP_EOL); 
+    //echo ("Scheduler row is empty".PHP_EOL);
 }
 
 $rows2 = Scheduler_commands::getAllScheduledTORepeat();
 if (empty($rows)) {
-    //echo ("Scheduler row2 is empty".PHP_EOL); 
+    //echo ("Scheduler row2 is empty".PHP_EOL);
 }
 $total3 = count($rows2);
-//_log("There are {$total1} active requests; getAllActiveAndReady={$total2} getAllScheduledTORepeat={$total3} on time ". json_encode(Scheduler_commands::getTimesNow())); 
+//_log("There are {$total1} active requests; getAllActiveAndReady={$total2} getAllScheduledTORepeat={$total3} on time ". json_encode(Scheduler_commands::getTimesNow()));
 
 foreach ($rows as $value) {
     _log("getAllActiveAndReady run " . json_encode($value));
@@ -72,7 +72,7 @@ foreach ($rows2 as $value) {
 }
 $lastVisitFile = Scheduler::setLastVisit();
 if (!empty($lastVisitFile) && !empty($lastVisitFile['size'])) {
-    //echo 'Saved '.json_encode($lastVisitFile); 
+    //echo 'Saved '.json_encode($lastVisitFile);
     //_error_log("Last visit set {$lastVisitFile}");
 } else {
     $msg = 'ERROR: Last visit NOT set ' . json_encode($lastVisitFile);
@@ -90,17 +90,17 @@ function _log($msg)
     _error_log("Scheduler::run {$msg}");
 }
 
-echo ("Scheduler watchDog".PHP_EOL); 
+echo ("Scheduler watchDog".PHP_EOL);
 include $global['systemRootPath'] . 'plugin/Scheduler/watchDog.php';
-echo ("Scheduler watchDog done".PHP_EOL); 
+echo ("Scheduler watchDog done".PHP_EOL);
 
-echo ("Scheduler sendEmails".PHP_EOL); 
+echo ("Scheduler sendEmails".PHP_EOL);
 Scheduler::sendEmails();
-echo ("Scheduler sendEmails done".PHP_EOL); 
+echo ("Scheduler sendEmails done".PHP_EOL);
 
-echo ("Scheduler executeEveryMinute".PHP_EOL); 
+echo ("Scheduler executeEveryMinute".PHP_EOL);
 AVideoPlugin::executeEveryMinute();
-echo ("Scheduler executeEveryMinute done".PHP_EOL); 
+echo ("Scheduler executeEveryMinute done".PHP_EOL);
 
 // This script runs every minute
 $current_minute = date('i'); // Get the current minute (00-59)
@@ -109,23 +109,23 @@ $current_day = date('j'); // Get the current day of the month (1-31)
 
 // Block to execute every hour
 if ($current_minute == '00') {
-    echo ("Scheduler executeEveryHour".PHP_EOL); 
+    echo ("Scheduler executeEveryHour".PHP_EOL);
     AVideoPlugin::executeEveryHour();
-    echo ("Scheduler executeEveryHour done".PHP_EOL); 
+    echo ("Scheduler executeEveryHour done".PHP_EOL);
 }
 
 // Block to execute every day (at midnight)
 if ($current_hour == '0' && $current_minute == '00') {
-    echo ("Scheduler executeEveryDay".PHP_EOL); 
+    echo ("Scheduler executeEveryDay".PHP_EOL);
     AVideoPlugin::executeEveryDay();
-    echo ("Scheduler executeEveryDay done".PHP_EOL); 
+    echo ("Scheduler executeEveryDay done".PHP_EOL);
 }
 
 // Block to execute every month (at midnight)
 if ($current_day == '1' && $current_hour == '0' && $current_minute == '00') {
-    echo ("Scheduler executeEveryMonth".PHP_EOL); 
+    echo ("Scheduler executeEveryMonth".PHP_EOL);
     AVideoPlugin::executeEveryMonth();
-    echo ("Scheduler executeEveryMonth done".PHP_EOL); 
+    echo ("Scheduler executeEveryMonth done".PHP_EOL);
 }
 if (!isCommandLineInterface()) {
     echo '</pre>';
