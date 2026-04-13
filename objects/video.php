@@ -915,7 +915,10 @@ if (!class_exists('Video')) {
             if (empty($duration) || strtolower($duration) == "ee:ee:ee" || $duration == '0:00:00' || $duration == '00:00:00' || $duration == "0:00:00.000000") {
                 return false;
             }
-            return preg_match('/^[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}/', $duration);
+            // SECURITY: $ anchor is required — without it, arbitrary content after a valid
+            // HH:MM:SS prefix passes validation and can be stored/rendered as XSS.
+            // Optional decimal-seconds suffix (e.g. 00:01:23.456) is allowed.
+            return preg_match('/^[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}(\.[0-9]+)?$/', $duration);
         }
 
         public function getDuration()
@@ -3477,7 +3480,9 @@ if (!class_exists('Video')) {
                 } elseif (count($durationParts) == 2) {
                     return '0:' . static::addZero($durationParts[0]) . ':' . static::addZero($durationParts[1]);
                 }
-                return $duration;
+                // Reconstruct from parts instead of returning the raw string — defense in depth
+                // against any malformed duration that may already be stored in the database.
+                return static::addZero($durationParts[0]) . ':' . static::addZero($durationParts[1]) . ':' . static::addZero($durationParts[2]);
             }
         }
 

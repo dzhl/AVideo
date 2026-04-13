@@ -69,7 +69,7 @@ if (!empty($videoSerie)) {
         width: 250px;
         height: 100px;
         margin-left: 5px;
-        position: relative;    
+        position: relative;
         display: flex;
         justify-content: center;
     }
@@ -156,7 +156,7 @@ if (!empty($videoSerie)) {
                             <?php
                             if ($value['type'] !== 'pdf' && $value['type'] !== 'article' && $value['type'] !== 'serie') {
                             ?>
-                                <time class="duration"><?php echo Video::getCleanDuration(@$value['duration']); ?></time>
+                                <time class="duration"><?php echo htmlspecialchars(Video::getCleanDuration(@$value['duration']), ENT_QUOTES, 'UTF-8'); ?></time>
                                 <div class="progress" style="height: 3px; margin-bottom: 2px;">
                                     <div class="progress-bar progress-bar-danger" role="progressbar" style="width: <?php echo $value['progress']['percent'] ?>%;" aria-valuenow="<?php echo $value['progress']['percent'] ?>" aria-valuemin="0" aria-valuemax="100"></div>
                                 </div>
