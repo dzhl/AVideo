@@ -29,9 +29,12 @@ class Captcha
         $branco = imagecolorallocate($imagem, 255, 255, 255); // define a cor branca
 
         // define a palavra conforme a quantidade de letras definidas no parametro $quantidade_letras
-        //$letters = 'AaBbCcDdEeFfGgHhIiJjKkLlMmNnPpQqRrSsTtUuVvYyXxWwZz23456789';
         $letters = 'AaBbCcDdEeFfGgHhIiJjKkLlMmNnPpQqRrSsTtUuVvYyXxWwZz23456789';
-        $palavra = substr(str_shuffle($letters), 0, ($this->quantidade_letras));
+        $len = strlen($letters);
+        $palavra = '';
+        for ($j = 0; $j < $this->quantidade_letras; $j++) {
+            $palavra .= $letters[random_int(0, $len - 1)];
+        }
         if (User::isAdmin() && empty($_REQUEST['forceCaptcha'])) {
             $palavra = "admin";
         }
@@ -57,19 +60,19 @@ class Captcha
 
     public static function validation($word)
     {
-        if (User::isAdmin() && $_SESSION["palavra"] === 'admin') {
-            return true;
-        }
         _session_start();
         if (empty($_SESSION["palavra"])) {
             _error_log("Captcha validation Error: you type ({$word}) and session is empty - session_name ". session_name()." session_id: ". session_id());
             return false;
         }
-        $validation = (strcasecmp($word, $_SESSION["palavra"]) == 0);
+        $stored = $_SESSION["palavra"];
+        unset($_SESSION["palavra"]); // always consume on any attempt to prevent brute-force
+        if (User::isAdmin() && $stored === 'admin') {
+            return true;
+        }
+        $validation = (strcasecmp($word, $stored) === 0);
         if (!$validation) {
-            _error_log("Captcha validation Error: you type ({$word}) and session is ({$_SESSION["palavra"]})- session_name ". session_name()." session_id: ". session_id());
-        } else {
-            unset($_SESSION["palavra"]); // Consume the captcha token to prevent reuse within the same session
+            _error_log("Captcha validation Error: you type ({$word}) and session is ({$stored})- session_name ". session_name()." session_id: ". session_id());
         }
         return $validation;
     }
