@@ -25,10 +25,7 @@ if (!empty($_COOKIE['themeMode'])) {
     function toogleThemeMode() {
         var themeMode = Cookies.get('themeMode');
         var isEmptythemeMode = empty(themeMode);
-        Cookies.set('themeMode', isEmptythemeMode ? 1 : 0, {
-            path: '/',
-            expires: 365
-        });
+        Cookies.set('themeMode', isEmptythemeMode ? 1 : 0, avideoCookieOptions(365));
 
         loadTheme();
     }

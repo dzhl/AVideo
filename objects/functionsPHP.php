@@ -89,6 +89,96 @@ function _ob_get_clean()
     return $content;
 }
 
+function _getCookieTargetDomains()
+{
+    $domain = getDomain();
+    $domains = [];
+
+    if (!empty($domain)) {
+        $domains[] = $domain;
+
+        if (stripos($domain, 'www.') !== 0) {
+            $domains[] = 'www.' . $domain;
+        }
+    }
+
+    return array_values(array_unique(array_filter($domains)));
+}
+
+function _getCookieDeleteTargets()
+{
+    $targets = [
+        [
+            'path' => '/',
+            'domain' => null,
+        ],
+    ];
+
+    foreach (_getCookieTargetDomains() as $domain) {
+        $targets[] = [
+            'path' => '/',
+            'domain' => $domain,
+        ];
+        $targets[] = [
+            'path' => '/',
+            'domain' => '.' . ltrim($domain, '.'),
+        ];
+    }
+
+    return $targets;
+}
+
+function _setcookieInternal($cookieName, $value, $expires, $path = '/', $domain = null)
+{
+    $secure = true;
+    $httpOnly = true;
+    $sameSite = 'None';
+
+    if (version_compare(PHP_VERSION, '7.3', '>=')) {
+        $cookieOptions = [
+            'expires' => (int) $expires,
+            'path' => $path,
+            'secure' => $secure,
+            'httponly' => $httpOnly,
+            'samesite' => $sameSite,
+        ];
+
+        if ($domain !== null) {
+            $cookieOptions['domain'] = $domain;
+        }
+
+        return setcookie($cookieName, $value, $cookieOptions);
+    }
+
+    $legacyPath = $path;
+    if ($secure || !empty($sameSite)) {
+        $legacyPath .= '; SameSite=' . $sameSite;
+    }
+
+    return setcookie($cookieName, $value, (int) $expires, $legacyPath, $domain, $secure, $httpOnly);
+}
+
+function _setSessionCookieParams($lifetime)
+{
+    $domain = getDomain();
+    $secure = true;
+    $httpOnly = true;
+    $path = '/';
+    $sameSite = 'None';
+
+    if (version_compare(PHP_VERSION, '7.3.0', '>=')) {
+        return session_set_cookie_params([
+            'lifetime' => (int) $lifetime,
+            'path' => $path,
+            'domain' => $domain,
+            'secure' => $secure,
+            'httponly' => $httpOnly,
+            'samesite' => $sameSite,
+        ]);
+    }
+
+    return session_set_cookie_params((int) $lifetime, $path . '; SameSite=' . $sameSite, $domain, $secure, $httpOnly);
+}
 
 function _setcookie($cookieName, $value, $expires = 0)
 {
@@ -103,43 +193,33 @@ function _setcookie($cookieName, $value, $expires = 0)
                 $config = new AVideoConf();
             }
         }
-        if (!empty($config) && is_object($config)) {
-            $expires = time() + $config->getSession_timeout();
-        }
+    if (!empty($config) && is_object($config)) {
+        $expires = time() + $config->getSession_timeout();
     }
-    $domain = getDomain();
-    if (version_compare(phpversion(), '7.3', '>=')) {
-        $cookie_options = [
-            'expires' => $expires,
-            'path' => '/',
-            'domain' => $domain,
-            'secure' => true,
-            'httponly' => true,
-            'samesite' => 'None'
-        ];
-        setcookie($cookieName, $value, $cookie_options);
-        $cookie_options['domain'] = 'www.' . $domain;
-        setcookie($cookieName, $value, $cookie_options);
-    } else {
-        setcookie($cookieName, $value, (int) $expires, "/", $domain);
-        setcookie($cookieName, $value, (int) $expires, "/", 'www.' . $domain);
+    }
+
+    // Clear any stale host-only cookie on the current host before writing the
+    // canonical domain-scoped copies. This avoids browsers sending conflicting
+    // values for the same cookie name.
+    _setcookieInternal($cookieName, '', strtotime('-10 years'), '/', null);
+
+    $set = false;
+    foreach (_getCookieTargetDomains() as $domain) {
+        $set = _setcookieInternal($cookieName, $value, $expires, '/', $domain) || $set;
     }
     $_COOKIE[$cookieName] = $value;
+    return $set;
 }
 
 function _unsetcookie($cookieName)
 {
-    $domain = getDomain();
     $expires = strtotime("-10 years");
     $value = '';
-    _setcookie($cookieName, $value, $expires);
-    setcookie($cookieName, $value, (int) $expires, "/") && setcookie($cookieName, $value, (int) $expires);
-    setcookie($cookieName, $value, (int) $expires, "/", str_replace("www", "", $domain));
-    setcookie($cookieName, $value, (int) $expires, "/", "www." . $domain);
-    setcookie($cookieName, $value, (int) $expires, "/", ".www." . $domain);
-    setcookie($cookieName, $value, (int) $expires, "/", "." . $domain);
-    setcookie($cookieName, $value, (int) $expires, "/", $domain);
-    setcookie($cookieName, $value, (int) $expires, "/");
+
+    foreach (_getCookieDeleteTargets() as $target) {
+        _setcookieInternal($cookieName, $value, $expires, $target['path'], $target['domain']);
+    }
+
     setcookie($cookieName, $value, (int) $expires);
     unset($_COOKIE[$cookieName]);
 }
@@ -317,8 +397,8 @@ function session_start_preload()
     // server should keep session data for AT LEAST 1 hour
     ini_set('session.gc_maxlifetime', $config->getSession_timeout());
 
-    // each client should remember their session id for EXACTLY 1 hour
-    session_set_cookie_params($config->getSession_timeout());
+    // The real PHP session cookie must also be cross-site compatible for embeds.
+    _setSessionCookieParams($config->getSession_timeout());
 
     // Fix “set SameSite cookie to none” warning and check if cookie already set
     if (isset($_COOKIE['key'])) {
@@ -522,4 +602,3 @@ function getSystemAPIs()
     }
     return array('methodsList' => $methodsList, 'response' => $response, 'plugins' => $plugins);
 }
-

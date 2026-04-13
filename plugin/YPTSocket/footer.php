@@ -198,14 +198,8 @@ if (!empty($obj->debugAllUsersSocket) || (User::isAdmin() && !empty($obj->debugS
                             socket_info_container_draging = false;
                         }, 100);
                         var currentPos = $(this).position();
-                        Cookies.set('socketInfoPositionTop', currentPos.top, {
-                            path: '/',
-                            expires: 365
-                        });
-                        Cookies.set('socketInfoPositionLeft', currentPos.left, {
-                            path: '/',
-                            expires: 365
-                        });
+                        Cookies.set('socketInfoPositionTop', currentPos.top, avideoCookieOptions(365));
+                        Cookies.set('socketInfoPositionLeft', currentPos.left, avideoCookieOptions(365));
                     }
                 });
             } else {
@@ -220,18 +214,12 @@ if (!empty($obj->debugAllUsersSocket) || (User::isAdmin() && !empty($obj->debugS
         function socketInfoMinimize() {
             $("#socket_info_container").addClass('socketMinimized');
 
-            Cookies.set('socketInfoMinimized', 1, {
-                path: '/',
-                expires: 365
-            });
+            Cookies.set('socketInfoMinimized', 1, avideoCookieOptions(365));
         }
 
         function socketInfoMaximize() {
             $("#socket_info_container").removeClass('socketMinimized');
-            Cookies.set('socketInfoMinimized', 0, {
-                path: '/',
-                expires: 365
-            });
+            Cookies.set('socketInfoMinimized', 0, avideoCookieOptions(365));
         }
 
         function socketInfoToogle() {
@@ -263,10 +251,7 @@ if (!empty($obj->debugAllUsersSocket) || (User::isAdmin() && !empty($obj->debugS
             } else {
                 $(socketUserDivID).addClass('visible');
             }
-            Cookies.set(socketUserDivID, !isVisible, {
-                path: '/',
-                expires: 365
-            });
+            Cookies.set(socketUserDivID, !isVisible, avideoCookieOptions(365));
         }
     </script>
 <?php

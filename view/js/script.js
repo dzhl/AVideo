@@ -102,6 +102,29 @@ function getSearchParam(param) {
     return urlParams.get(param) || "";
 }
 
+function avideoCookieOptions(expires, extraOptions) {
+    var options = {
+        path: '/'
+    };
+
+    if (!empty(expires)) {
+        options.expires = expires;
+    }
+
+    if (window.location.protocol === 'https:') {
+        options.sameSite = 'None';
+        options.secure = true;
+    }
+
+    if (typeof extraOptions === 'object' && extraOptions !== null) {
+        for (var key in extraOptions) {
+            options[key] = extraOptions[key];
+        }
+    }
+
+    return options;
+}
+
 function forwardToIframe(data) {
     var iframe = document.getElementById('avideoModalIframe'); // Get the iframe by ID
     if (iframe && iframe.contentWindow) {
@@ -330,10 +353,7 @@ async function setPlayerListners() {
             }, 500);
         });
         $("#mainVideo .vjs-mute-control").click(function () {
-            Cookies.set('muted', player.muted(), {
-                path: '/',
-                expires: 365
-            });
+            Cookies.set('muted', player.muted(), avideoCookieOptions(365));
         });
     } else {
         setTimeout(function () {
@@ -780,10 +800,7 @@ function showUnmutePopup() {
                     player.muted(false);
                     break;
                 case "donotShowUnmuteAgain":
-                    Cookies.set('donotShowUnmuteAgain', true, {
-                        path: '/',
-                        expires: 365
-                    });
+                    Cookies.set('donotShowUnmuteAgain', true, avideoCookieOptions(365));
                     break;
             }
         });
@@ -1067,10 +1084,7 @@ async function setPlayerLoop(loop) {
         //$.toast("Loop OFF");
         player.loop(0);
     }
-    Cookies.set('playerLoop', loop, {
-        path: '/',
-        expires: 365
-    });
+    Cookies.set('playerLoop', loop, avideoCookieOptions(365));
     if (typeof setImageLoop === 'function') {
         setImageLoop();
     }
@@ -1219,10 +1233,7 @@ function isAutoplayEnabled() {
 }
 
 function setAutoplay(value) {
-    Cookies.set('autoplay', value, {
-        path: '/',
-        expires: 365
-    });
+    Cookies.set('autoplay', value, avideoCookieOptions(365));
 }
 
 async function showAutoPlayVideoDiv() {
@@ -3138,10 +3149,7 @@ $(document).ready(function () {
         checkDescriptionArea();
     }, 3000);
     if (typeof Cookies != 'undefined') {
-        Cookies.set('timezone', timezone, {
-            path: '/',
-            expires: 365
-        });
+        Cookies.set('timezone', timezone, avideoCookieOptions(365));
     }
     tabsCategoryDocumentHeight = $(document).height();
     modal = getPleaseWait();
@@ -3190,10 +3198,7 @@ $(document).ready(function () {
     checkSavedCookies();
     $("input.saveCookie").change(function () {
         var auto = $(this).prop('checked');
-        Cookies.set($(this).attr("name"), auto, {
-            path: '/',
-            expires: 365
-        });
+        Cookies.set($(this).attr("name"), auto, avideoCookieOptions(365));
     });
     if (isAutoplayEnabled()) {
         $("#autoplay").prop('checked', true);
@@ -3888,10 +3893,7 @@ function toogleVideoSuggested(btn) {
 
 // Cookie functions stolen from w3schools
 function setCookie(cname, cvalue, exdays) {
-    Cookies.set(cname, cvalue, {
-        path: '/',
-        expires: exdays
-    });
+    Cookies.set(cname, cvalue, avideoCookieOptions(exdays));
 }
 
 function getCookie(cname) {

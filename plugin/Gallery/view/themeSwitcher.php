@@ -118,10 +118,7 @@ if (!isset($themeSwitcherAdded)) {
             $('.liThemes').removeClass('active');
             $('#li' + name).addClass('active');
             $('#customCSS').attr('href', webSiteRootURL + 'view/css/custom/' + name + '.css');
-            Cookies.set('customCSS', name, {
-                path: '/',
-                expires: 365
-            });
+            Cookies.set('customCSS', name, avideoCookieOptions(365));
         }
 
         $(document).ready(function() {

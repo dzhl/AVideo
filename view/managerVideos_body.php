@@ -544,14 +544,10 @@ if (empty($advancedCustom)) {
                     $('#compactMode').change(function() {
                         if ($(this).is(':checked')) {
                             $('body').addClass('compact');
-                            Cookies.set('compactMode', 'on', {
-                                expires: 7
-                            }); // Cookie expires in 7 days
+                            Cookies.set('compactMode', 'on', avideoCookieOptions(7)); // Cookie expires in 7 days
                         } else {
                             $('body').removeClass('compact');
-                            Cookies.set('compactMode', 'off', {
-                                expires: 7
-                            });
+                            Cookies.set('compactMode', 'off', avideoCookieOptions(7));
                         }
                     });
                 });

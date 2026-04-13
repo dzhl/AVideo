@@ -5855,13 +5855,25 @@ function getBodyClass()
 
 function getCurrentTheme()
 {
-    global $config;
+    global $config, $global;
+    $customCSSPattern = '/^[a-zA-Z0-9_-]{1,64}$/';
+
     if (!empty($_REQUEST['customCSS'])) {
-        _setcookie('customCSS', $_REQUEST['customCSS']);
-        return $_REQUEST['customCSS'];
+        $theme = trim($_REQUEST['customCSS']);
+        $themeFile = $global['systemRootPath'] . "view/css/custom/{$theme}.css";
+        if (preg_match($customCSSPattern, $theme) && file_exists($themeFile)) {
+            _setcookie('customCSS', $theme);
+            return $theme;
+        }
+        _unsetcookie('customCSS');
     }
     if (!empty($_COOKIE['customCSS'])) {
-        return $_COOKIE['customCSS'];
+        $theme = trim($_COOKIE['customCSS']);
+        $themeFile = $global['systemRootPath'] . "view/css/custom/{$theme}.css";
+        if (preg_match($customCSSPattern, $theme) && file_exists($themeFile)) {
+            return $theme;
+        }
+        _unsetcookie('customCSS');
     }
 
     if (!empty($_COOKIE['themeMode'])) {

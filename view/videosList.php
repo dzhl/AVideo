@@ -212,14 +212,8 @@ if (!$searchForVideosNow) {
         var rowCount = $('#rowCount').val();
         var sortBy = $('#sortBy').val();
 
-        Cookies.set(loadVideosListPagerowCount, rowCount, {
-            path: '/',
-            expires: 365
-        });
-        Cookies.set(loadVideosListPagesortBy, sortBy, {
-            path: '/',
-            expires: 365
-        });
+        Cookies.set(loadVideosListPagerowCount, rowCount, avideoCookieOptions(365));
+        Cookies.set(loadVideosListPagesortBy, sortBy, avideoCookieOptions(365));
 
         url = addQueryStringParameter(url, 'rowCount', rowCount);
         url = addQueryStringParameter(url, 'sortBy', sortBy);

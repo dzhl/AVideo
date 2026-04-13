@@ -148,10 +148,10 @@ async function addViewFromCookie() {
 }
 
 async function addViewSetCookie(PHPSESSID, videos_id, playerCurrentTime, seconds_watching_video) {
-    Cookies.set('addView_PHPSESSID', PHPSESSID, { path: '/', expires: 1 });
-    Cookies.set('addView_videos_id', videos_id, { path: '/', expires: 1 });
-    Cookies.set('addView_playerCurrentTime', playerCurrentTime, { path: '/', expires: 1 });
-    Cookies.set('addView_seconds_watching_video', seconds_watching_video, { path: '/', expires: 1 });
+    Cookies.set('addView_PHPSESSID', PHPSESSID, avideoCookieOptions(1));
+    Cookies.set('addView_videos_id', videos_id, avideoCookieOptions(1));
+    Cookies.set('addView_playerCurrentTime', playerCurrentTime, avideoCookieOptions(1));
+    Cookies.set('addView_seconds_watching_video', seconds_watching_video, avideoCookieOptions(1));
 }
 
 async function startAddViewCountInPlayer(){
