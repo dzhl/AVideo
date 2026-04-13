@@ -47,7 +47,8 @@ if (!empty($_GET['deleteDump'])) {
     $filePath = "{$clonesDir}{$deleteDump}";
     $realFilePath = realpath($filePath);
     $realClonesDir = realpath($clonesDir);
-    if ($realFilePath === false || $realClonesDir === false || strpos($realFilePath, $realClonesDir) !== 0) {
+    $realClonesDirPrefix = rtrim($realClonesDir, '/\\') . DIRECTORY_SEPARATOR;
+    if ($realFilePath === false || $realClonesDir === false || strpos($realFilePath, $realClonesDirPrefix) !== 0) {
         $resp->msg = "Invalid file path";
         die(json_encode($resp));
     }
