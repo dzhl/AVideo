@@ -46,7 +46,7 @@ function liveStatsTestUrlGetContents($url, $timeout = 0)
     $agent = "AVideoStreamer";
 
     $opts = [
-        'http' => ['header' => "User-Agent: {$agent}\r\n"],
+        'http' => ['header' => "User-Agent: {$agent}\r\n", 'follow_location' => 0],
         "ssl" => [
             "verify_peer" => false,
             "verify_peer_name" => false,
@@ -55,7 +55,7 @@ function liveStatsTestUrlGetContents($url, $timeout = 0)
     ];
     if (!empty($timeout)) {
         ini_set('default_socket_timeout', $timeout);
-        $opts['http'] = ['timeout' => $timeout];
+        $opts['http'] = ['timeout' => $timeout, 'follow_location' => 0];
     }
 
     $context = stream_context_create($opts);
@@ -185,7 +185,7 @@ function liveStatsTestWget($url, $filename)
         liveStatsTestLog('this is a windows OS ');
         return false;
     }
-    $cmd = "wget --tries=1 " . escapeshellarg($url) . " -O " . escapeshellarg($filename) . " --no-check-certificate";
+    $cmd = "wget --tries=1 --max-redirect=0 " . escapeshellarg($url) . " -O " . escapeshellarg($filename) . " --no-check-certificate";
     exec($cmd);
     if (!file_exists($filename)) {
         liveStatsTestLog('wget download fail, we cannot read the file: ' . $filename);
