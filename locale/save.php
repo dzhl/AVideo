@@ -24,10 +24,22 @@ if (!is_writable($dir) && !isWindowsServer()) {
     die(json_encode($obj));
 }
 
+if (!isGlobalTokenValid()) {
+    $obj->status = 0;
+    $obj->error = __("Invalid token");
+    die(json_encode($obj));
+}
+
 if (empty($_POST['flag'])) {
     forbiddenPage('Flag is empty');
 }
-$file = $dir.($_POST['flag']).".php";
+$flag = basename($_POST['flag']);
+if (empty($flag) || preg_match('/[^a-zA-Z0-9_\-]/', $flag)) {
+    $obj->status = 0;
+    $obj->error = __("Invalid locale flag");
+    die(json_encode($obj));
+}
+$file = $dir . $flag . ".php";
 $myfile = fopen($file, "w") or die("Unable to open file!");
 if (!$myfile) {
     $obj->status = 0;

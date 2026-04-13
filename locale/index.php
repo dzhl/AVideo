@@ -145,6 +145,7 @@ $_page = new Page(array('Translate AVideo'));
 </div>
 <script>
     var arrayLocale = <?php echo json_encode(array_values($vars)); ?>;
+    var localeSaveToken = '<?php echo getToken(); ?>';
     $(document).ready(function() {
         $('#translatedCode').keyup(function() {
             var lines = $(this).val().split('\n');
@@ -175,7 +176,8 @@ $_page = new Page(array('Translate AVideo'));
                 url: 'save.php',
                 data: {
                     "flag": $("#selectFlag").val(),
-                    "code": $('#arrayCode').val()
+                    "code": $('#arrayCode').val(),
+                    "globalToken": localeSaveToken
                 },
                 type: 'post',
                 success: function(response) {
