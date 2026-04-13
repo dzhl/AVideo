@@ -429,6 +429,25 @@ class ParsedownSafeWithLinks extends Parsedown
         return $Link;
     }
 
+    protected function inlineUrlTag($Excerpt)
+    {
+        $Link = parent::inlineUrlTag($Excerpt);
+
+        if ($Link === null) {
+            return null;
+        }
+
+        $href = isset($Link['element']['attributes']['href']) ? $Link['element']['attributes']['href'] : '';
+
+        // Auto-link syntax <url> — apply the same protocol whitelist.
+        // The base regex requires scheme:// so javascript:// is the realistic bypass vector.
+        if ($href !== '' && !preg_match('/^https?:\/\//i', $href)) {
+            $Link['element']['attributes']['href'] = '';
+        }
+
+        return $Link;
+    }
+
     protected function inlineMarkup($Excerpt)
     {
         if (strpos($Excerpt['text'], '>') === false) {
