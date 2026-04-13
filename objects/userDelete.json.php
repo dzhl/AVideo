@@ -9,5 +9,6 @@ require_once $global['systemRootPath'] . 'objects/userGroups.php';
 if (!User::isAdmin() || empty($_POST['id'])) {
     die('{"error":"'.__("Permission denied").'"}');
 }
+forbidIfIsUntrustedRequest('userDelete');
 $item = new UserGroups($_POST['id']);
 echo '{"status":"'.$item->delete().'"}';

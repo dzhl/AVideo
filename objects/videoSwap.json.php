@@ -18,7 +18,7 @@ if (!User::canUpload()) {
     $obj->msg = __("Permission denied");
     die(json_encode($obj));
 }
-
+forbidIfIsUntrustedRequest('videoSwap');
 if (empty($_POST['videos_id_1']) || empty($_POST['videos_id_2'])) {
     $obj->msg = __("Mou MUST select 2 videos to swap");
     die(json_encode($obj));

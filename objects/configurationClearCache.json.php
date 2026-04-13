@@ -11,6 +11,7 @@ $obj->msg = '';
 $obj->clearCache = false;
 $obj->deleteALLCache = false;
 $obj->deleteAllSessionCache = false;
+forbidIfIsUntrustedRequest('configurationClearCache');
 $_SESSION['user']['sessionCache']['getAllCategoriesClearCache'] = 1;
 
 if (!Permissions::canClearCache() || !empty($_REQUEST['sessionOnly'])) {

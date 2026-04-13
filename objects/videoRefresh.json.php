@@ -11,7 +11,7 @@ if (!empty($_GET['id'])) {
 if (!Permissions::canModerateVideos() || empty($_POST['id'])) {
     die('{"error":"'.__("Permission denied").'"}');
 }
-
+forbidIfIsUntrustedRequest('videoRefresh');
 require_once 'video.php';
 $obj = new Video("", "", $_POST['id']);
 if (empty($obj)) {

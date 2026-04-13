@@ -9,6 +9,7 @@ require_once $global['systemRootPath'] . 'objects/plugin.php';
 if (!User::isAdmin()) {
     die('{"error":"'.__("Permission denied").'"}');
 }
+forbidIfIsUntrustedRequest('pluginAddDataObject');
 if (empty($_POST['id'])) {
     die('{"error":"'.__("ID can't be blank").'"}');
 }

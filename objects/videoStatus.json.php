@@ -9,6 +9,7 @@ require_once $global['systemRootPath'] . 'objects/user.php';
 if (!User::canUpload() || empty($_POST['id'])) {
     die('{"error":"' . __("Permission denied") . '"}');
 }
+forbidIfIsUntrustedRequest('videoStatus');
 if (!is_array($_POST['id'])) {
     $_POST['id'] = [$_POST['id']];
 }

@@ -10,6 +10,7 @@ require_once $global['systemRootPath'] . 'objects/user.php';
 if (!User::canUpload()) {
     forbiddenPage('You can not notify');
 }
+forbidIfIsUntrustedRequest('notifySubscribers');
 $user_id = User::getId();
 // if admin bring all subscribers
 if (User::isAdmin()) {

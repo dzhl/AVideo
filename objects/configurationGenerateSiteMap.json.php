@@ -16,6 +16,7 @@ if (!Permissions::canGenerateSiteMap()) {
     $obj->msg = __("Permission denied");
     die(json_encode($obj));
 }
+forbidIfIsUntrustedRequest('configurationGenerateSiteMap');
 $sitemap = siteMap();
 
 if (empty($sitemap)) {

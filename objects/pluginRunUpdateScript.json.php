@@ -9,6 +9,7 @@ require_once $global['systemRootPath'] . 'objects/plugin.php';
 if (!User::isAdmin()) {
     forbiddenPage('Permission denied');
 }
+forbidIfIsUntrustedRequest('pluginRunUpdateScript');
 if (empty($_POST['name'])) {
     forbiddenPage('Name can\'t be blank');
 }

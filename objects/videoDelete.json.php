@@ -8,6 +8,7 @@ require_once $global['systemRootPath'] . 'objects/user.php';
 if (empty($_POST['id'])) {
     forbiddenPage("Id is empty");
 }
+forbidIfIsUntrustedRequest('videoDelete');
 require_once 'video.php';
 if (!is_array($_POST['id'])) {
     $_POST['id'] = [$_POST['id']];

@@ -19,6 +19,7 @@ if (!Category::canCreateCategory()) {
     $obj->msg = __("Permission denied");
     die(json_encode($obj));
 }
+forbidIfIsUntrustedRequest('categoryAddNew');
 
 $objCat = new Category(intval(@$_POST['id']));
 $objCat->setName($_POST['name']);

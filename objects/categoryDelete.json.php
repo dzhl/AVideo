@@ -10,6 +10,7 @@ require_once $global['systemRootPath'] . 'objects/category.php';
 if (!Category::canCreateCategory()) {
     die('{"error":"' . __("Permission denied") . '"}');
 }
+forbidIfIsUntrustedRequest('categoryDelete');
 require_once 'category.php';
 $obj = new Category($_POST['id']);
 

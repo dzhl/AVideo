@@ -8,6 +8,7 @@ require_once $global['systemRootPath'] . 'objects/user.php';
 if (!Permissions::canAdminUserGroups()) {
     die('{"error":"' . __("Permission denied") . '"}');
 }
+forbidIfIsUntrustedRequest('userGroupsAddNew');
 
 require_once 'userGroups.php';
 $obj = new UserGroups(@$_POST['id']);
