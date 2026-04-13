@@ -7,39 +7,64 @@ set_time_limit($global_timeLimit);
 ini_set('max_execution_time', $global_timeLimit);
 ini_set("memory_limit", "4G");
 
-function _decryptString($string)
+function getStandaloneAPIEndpoint($apiName)
 {
     global $global;
-    $url = "{$global['webSiteRootURL']}plugin/API/get.json.php?APIName=decryptString";
 
-    $url = str_replace('http://192.168.0.2/', 'https://vlu.me/', $url);
+    $url = "{$global['webSiteRootURL']}plugin/API/get.json.php?APIName={$apiName}";
 
-    _error_log("Decrypting string using URL: $url");
-    //return json_encode(array('_decryptString'=>$url));
-    $data = ['string' => $string];
+    // Preserve the existing environment-specific override.
+    return str_replace('http://192.168.0.2/', 'https://vlu.me/', $url);
+}
 
-    // Forward the already validated API secret so the platform can authorize
-    // this standalone decrypt request without requiring an admin session.
+function getStandaloneAPIAuthPayload()
+{
+    $data = [];
+
     if (!empty($_REQUEST['APISecret'])) {
         $data['APISecret'] = $_REQUEST['APISecret'];
     }
 
+    return $data;
+}
+
+function isStandaloneDecryptedPayloadValid($payload)
+{
+    if (empty($payload) || empty($payload->time)) {
+        return false;
+    }
+
+    if (!empty($_SERVER["SERVER_NAME"]) && $_SERVER["SERVER_NAME"] === 'vlu.me') {
+        return true;
+    }
+
+    return $payload->time > strtotime('30 seconds ago');
+}
+
+function _decryptString($string)
+{
+    $url = getStandaloneAPIEndpoint('decryptString');
+
+    _error_log("Decrypting string using URL: $url");
+    $data = array_merge(
+        ['string' => $string],
+        getStandaloneAPIAuthPayload()
+    );
+
     $content = postVariables($url, $data, false);
     $json = json_decode($content);
 
-    if (!empty($json) && empty($json->error)) {
-        $json2 = json_decode($json->message);
-        if ($_SERVER["SERVER_NAME"] == 'vlu.me') {
-            //_error_log("String decrypted successfully vlu.me $content");
-            return $json2;
-        }
-        if ($json2->time > strtotime('30 seconds ago')) {
-            //_error_log("String decrypted successfully");
-            return $json2;
-        }
+    if (empty($json) || !empty($json->error)) {
+        _error_log("Failed to decrypt string or invalid time $content");
+        return false;
     }
+
+    $payload = json_decode($json->message);
+    if (isStandaloneDecryptedPayloadValid($payload)) {
+        return $payload;
+    }
+
     _error_log("Failed to decrypt string or invalid time $content");
-    //return $json2;
     return false;
 }
 
