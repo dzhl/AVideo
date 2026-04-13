@@ -162,7 +162,9 @@ async function getUserNotification() {
     $.ajax({
         url: url,
         success: function (response) {
-            modal.hidePleaseWait();
+            if (typeof modal !== 'undefined' && modal && typeof modal.hidePleaseWait === 'function') {
+                modal.hidePleaseWait();
+            }
             if (response.error) {
                 avideoToastError(response.msg);
             } else {

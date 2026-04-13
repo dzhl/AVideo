@@ -223,6 +223,8 @@ if (User::hasBlockedUser($video['users_id'])) {
     <link rel="image_src" href="<?php echo $img; ?>" />
 
     <script src="<?php echo getURL('node_modules/jquery/dist/jquery.min.js'); ?>" type="text/javascript"></script>
+    <script src="<?php echo getURL('view/js/script.js'); ?>" type="text/javascript"></script>
+    <script src="<?php echo getURL('node_modules/js-cookie/dist/js.cookie.js'); ?>" type="text/javascript"></script>
     <style>
         body {
             padding: 0 !important;
@@ -503,9 +505,7 @@ if (User::hasBlockedUser($video['users_id'])) {
     $jsFiles[] = "node_modules/sweetalert/dist/sweetalert.min.js";
     //$jsFiles[] = "view/js/bootgrid/jquery.bootgrid.js";
     //$jsFiles[] = "view/bootstrap/bootstrapSelectPicker/js/bootstrap-select.min.js";
-    $jsFiles[] = "view/js/script.js";
     $jsFiles[] = "view/js/addView.js";
-    $jsFiles[] = "node_modules/js-cookie/dist/js.cookie.js";
     //$jsFiles[] = "view/css/flagstrap/js/jquery.flagstrap.min.js";
     $jsFiles[] = "node_modules/jquery-lazy/jquery.lazy.min.js";
     $jsFiles[] = "node_modules/jquery-lazy/jquery.lazy.plugins.min.js";

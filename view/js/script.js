@@ -753,7 +753,9 @@ function playerPlay(currentTime) {
 }
 
 function showUnmutePopup() {
-
+    if (inIframe()) {
+        return;
+    }
     var donotShowUnmuteAgain = Cookies.get('donotShowUnmuteAgain');
     if (!donotShowUnmuteAgain) {
         var span = document.createElement("span");
