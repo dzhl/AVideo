@@ -7,10 +7,10 @@ if (!User::canStream()) {
     die('{"data": []}');
 }
 
-if (empty($_GET['users_id'])) {
-    if (!User::isAdmin()) {
-        $_GET['users_id'] = User::getId();
-    }
+if (!User::isAdmin()) {
+    // Non-admin users are always restricted to their own records.
+    // The empty() guard was bypassable by supplying users_id explicitly (IDOR).
+    $_GET['users_id'] = User::getId();
 }
 
 if (empty($_GET['users_id'])) {
