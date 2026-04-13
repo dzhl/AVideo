@@ -4261,7 +4261,7 @@ function isSafeRedirectURL($url)
  * @param string $url The URL to validate
  * @return bool True if safe from SSRF, false otherwise
  */
-function isSSRFSafeURL($url)
+function isSSRFSafeURL($url, &$resolvedIP = null)
 {
     global $global;
     if (empty($url) || !is_string($url)) {
@@ -4317,17 +4317,19 @@ function isSSRFSafeURL($url)
         return false;
     }
 
-    // Resolve hostname to IP to check for DNS rebinding attacks
+    // Resolve hostname to IP to check for DNS rebinding attacks.
+    // $resolvedIP (out-param) is set to the final validated IP so callers can
+    // pin the DNS resolution (e.g. via CURLOPT_RESOLVE) and eliminate TOCTOU races.
     $ip = $host;
     if (!filter_var($host, FILTER_VALIDATE_IP)) {
         // It's a hostname, resolve it
-        $resolvedIP = gethostbyname($host);
-        if ($resolvedIP === $host) {
+        $dnsResolved = gethostbyname($host);
+        if ($dnsResolved === $host) {
             // DNS resolution failed
             _error_log("isSSRFSafeURL: DNS resolution failed for: {$host}");
             return false;
         }
-        $ip = $resolvedIP;
+        $ip = $dnsResolved;
     }
 
     // Remove IPv6 brackets if present
@@ -4369,6 +4371,8 @@ function isSSRFSafeURL($url)
         }
     }
 
+    // Expose the validated IP to the caller for DNS pinning.
+    $resolvedIP = $ip;
     return true;
 }
 
