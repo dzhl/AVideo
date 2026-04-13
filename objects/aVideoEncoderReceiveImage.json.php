@@ -43,11 +43,14 @@ $securityChecks = array(
 
 foreach ($securityChecks as $key => $value) {
     if (!empty($_REQUEST[$value])) {
-        // Block directory traversal in URL paths.
-        // str_replace('../','') is bypassable via '....//'; instead reject any URL
-        // whose decoded path contains '..' (covers '../', '....//'-bypass, and %2e%2e variants).
-        $decodedPath = urldecode((string)(parse_url($_REQUEST[$value], PHP_URL_PATH) ?? ''));
-        if (strpos($decodedPath, '..') !== false) {
+        // Block directory traversal in URL paths AND query strings.
+        // The previous check only inspected parse_url(..., PHP_URL_PATH), so a payload
+        // like http://host/x?a=/videos/../../etc/passwd bypassed it entirely because
+        // the '..' appears only in the query string component, not the path.
+        // Decode the full URL string (handles %2e%2e and similar encodings) and reject
+        // any URL that contains '..' anywhere.
+        $decodedFull = urldecode((string)$_REQUEST[$value]);
+        if (strpos($decodedFull, '..') !== false) {
             unset($_REQUEST[$value]);
         }
     }

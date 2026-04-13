@@ -227,6 +227,18 @@ function try_get_contents_from_local($url)
             $encoder = 'Encoder/';
         }
         $tryFile = "{$global['systemRootPath']}{$encoder}videos/{$parts[1]}";
+        // Defense-in-depth: validate the resolved path stays within the videos directory.
+        // explode('/videos/', $url) operates on the full URL string including query string,
+        // so a traversal payload in the query string (e.g. ?a=/videos/../../etc/passwd)
+        // populates $parts[1] with '../../etc/passwd' and escapes the directory.
+        $videosBaseDir = realpath("{$global['systemRootPath']}{$encoder}videos");
+        $realTryFile   = realpath($tryFile);
+        if ($videosBaseDir === false || $realTryFile === false
+            || strpos($realTryFile, $videosBaseDir . DIRECTORY_SEPARATOR) !== 0
+        ) {
+            _error_log("try_get_contents_from_local: blocked path traversal attempt for url={$url}");
+            return false;
+        }
         //_error_log("try_get_contents_from_local {$url} => {$tryFile}");
         if (file_exists($tryFile)) {
             return file_get_contents($tryFile);
