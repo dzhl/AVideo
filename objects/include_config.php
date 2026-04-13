@@ -326,7 +326,7 @@ if (
     $_SERVER['REQUEST_METHOD'] === 'POST' &&
     substr($baseName, -9) === '.json.php'
 ) {
-    autoCSRFGuard($baseName);
+    autoCSRFGuard($baseName, $_SERVER['SCRIPT_FILENAME']);
 }
 // ─────────────────────────────────────────────────────────────────────────────
 

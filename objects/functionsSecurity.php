@@ -800,11 +800,19 @@ function enforceRateLimit(string $operation = '', int $maxAttempts = 20, int $ti
  *     for the current request.  Must be set BEFORE require configuration.php.
  *
  *  3. $global['csrfBypassFiles'][] = 'myfile.json.php'  — persistent per-file
- *     opt-out; add it in videos/configuration.php (or a plugin config file).
+ *     opt-out by exact basename; add in videos/configuration.php.
  *
- * @param string $baseName  basename of the currently executing script
+ *  4. $global['csrfBypassPatterns'][] = 'myprefix*.json.php'  — fnmatch-style
+ *     pattern opt-out; add in videos/configuration.php.
+ *
+ * Mobile apps:  automatically pass through because isAVideoUserAgent() detects
+ * the AVideoMobileApp User-Agent inside forbidIfIsUntrustedRequest().  No
+ * whitelist entry is needed for mobile-facing endpoints.
+ *
+ * @param string $baseName   basename of the currently executing script
+ * @param string $scriptPath full path of the currently executing script
  */
-function autoCSRFGuard($baseName)
+function autoCSRFGuard($baseName, $scriptPath = '')
 {
     global $global;
 
@@ -818,7 +826,28 @@ function autoCSRFGuard($baseName)
         return;
     }
 
-    // Built-in bypass list.
+    // ── Pattern-based built-in bypasses ──────────────────────────────────────
+    //
+    // ipn*.json.php   — payment-processor IPN callbacks (Mercado Pago, etc.)
+    // webhook*.json.php — payment/service webhooks (PayPal, Stripe, etc.)
+    //   These are called by external servers; no browser Origin is present.
+    //
+    // plugin/API/*    — the REST API plugin is designed for external callers;
+    //   get.json.php / set.json.php already set bypassSameDomainCheck before
+    //   require, so they never reach here.  The remaining *.ffmpeg.json.php
+    //   files are also part of the external API surface.
+    if (
+        fnmatch('ipn*.json.php',     $baseName) ||
+        fnmatch('webhook*.json.php', $baseName) ||
+        (
+            $scriptPath !== '' &&
+            strpos(strtolower(str_replace('\\', '/', $scriptPath)), '/plugin/api/') !== false
+        )
+    ) {
+        return;
+    }
+
+    // ── Exact-name built-in bypass list ──────────────────────────────────────
     // Groups:
     //   auth/signup  — accept calls from mobile apps & external clients
     //   public reads — use POST params for filtering, but mutate nothing
@@ -853,20 +882,35 @@ function autoCSRFGuard($baseName)
         'aVideoEncoderLog.json.php',
         'aVideoEncoderNotifyIsDone.json.php',
         'aVideoEncoderReceiveImage.json.php',
+        'aVideoQueueEncoder.json.php',
+        // Live recording callbacks (cross-origin from recorder agent)
+        'recordStart.json.php',
+        'recordStop.json.php',
+        // Bulk import tool — intentional cross-origin / CLI use
+        'import_spreadsheet_videos.json.php',
     ];
 
     if (in_array($baseName, $builtinBypass, true)) {
         return;
     }
 
-    // Allow operators to extend the bypass list in videos/configuration.php:
-    //   $global['csrfBypassFiles'] = ['myWebhook.json.php'];
+    // ── Operator-defined bypass lists ─────────────────────────────────────────
+    // Exact basenames:  $global['csrfBypassFiles'] = ['myWebhook.json.php'];
     if (
         !empty($global['csrfBypassFiles']) &&
         is_array($global['csrfBypassFiles']) &&
         in_array($baseName, $global['csrfBypassFiles'], true)
     ) {
         return;
+    }
+
+    // fnmatch patterns:  $global['csrfBypassPatterns'] = ['payment*.json.php'];
+    if (!empty($global['csrfBypassPatterns']) && is_array($global['csrfBypassPatterns'])) {
+        foreach ($global['csrfBypassPatterns'] as $pattern) {
+            if (fnmatch($pattern, $baseName)) {
+                return;
+            }
+        }
     }
 
     forbidIfIsUntrustedRequest("autoCSRF::{$baseName}");
