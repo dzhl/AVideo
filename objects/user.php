@@ -1346,7 +1346,13 @@ if (typeof gtag !== \"function\") {
                 return true;
             }
         }
-        $array = array('users_id' => $users_id, 'user' => $user, 'pass' => $pass, 'ip' => getRealIpAddr());
+        // Keep the remember-me cookie as small as possible because it is sent
+        // on every request and can easily become part of an oversized Cookie header.
+        $array = array(
+            'u' => intval($users_id),
+            'p' => $pass,
+            'i' => getRealIpAddr(),
+        );
         $cookieValue = encryptString(json_encode($array));
         _setcookie("credentials", $cookieValue, $expires);
         _error_log("setUserCookieCredentials credentials set");
@@ -1358,6 +1364,34 @@ if (typeof gtag !== \"function\") {
         if (!empty($_COOKIE['credentials'])) {
             $string = decryptString($_COOKIE['credentials']);
             $array = json_decode($string);
+            if (empty($array) || !is_object($array)) {
+                self::unsetUserCookie();
+                return false;
+            }
+
+            // Backward compatibility with the previous larger payload.
+            if (isset($array->u) && empty($array->users_id)) {
+                $array->users_id = intval($array->u);
+            }
+            if (isset($array->p) && empty($array->pass)) {
+                $array->pass = $array->p;
+            }
+            if (isset($array->i) && empty($array->ip)) {
+                $array->ip = $array->i;
+            }
+
+            if (empty($array->user) && !empty($array->users_id)) {
+                $user = self::getUserDb($array->users_id);
+                if (!empty($user['user'])) {
+                    $array->user = $user['user'];
+                }
+            }
+
+            if (empty($array->users_id) || empty($array->user) || empty($array->pass) || empty($array->ip)) {
+                self::unsetUserCookie();
+                return false;
+            }
+
             $ipNow = getRealIpAddr();
             if ($array->ip !== $ipNow) {
                 _error_log("getUserCookieCredentials ip does not match {$array->ip} != $ipNow");
