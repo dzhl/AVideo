@@ -15,6 +15,8 @@ require_once $global['systemRootPath'] . 'videos/configuration.php';
 require_once $global['systemRootPath'] . 'objects/configuration.php';
 require_once $global['systemRootPath'] . 'objects/functions.php';
 
+forbidIfIsUntrustedRequest('configurationUpdate');
+
 _error_log("save configuration {$_POST['language']}");
 
 $config = new AVideoConf();
