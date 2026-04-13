@@ -8,11 +8,13 @@ $obj->error = true;
 $obj->msg = "";
 
 $plugin = AVideoPlugin::loadPluginIfEnabled('{pluginName}');
-                                                
+
 if(!User::isAdmin()){
     $obj->msg = "You cant do this";
     die(json_encode($obj));
 }
+
+forbidIfIsUntrustedRequest('{pluginName}::{classname}::add');
 
 $o = new {classname}(@$_POST['id']);
 {columnsAdd}

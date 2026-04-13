@@ -317,4 +317,17 @@ if (!empty($_GET['type'])) {
     $metaDescription = " {$_GET['showOnly']}";
 }
 
+// ── Auto CSRF guard ───────────────────────────────────────────────────────────
+// Blocks cross-origin POST to every *.json.php endpoint unless the file is
+// whitelisted.  See objects/functionsSecurity.php → autoCSRFGuard() for the
+// full bypass documentation.
+if (
+    isset($_SERVER['REQUEST_METHOD']) &&
+    $_SERVER['REQUEST_METHOD'] === 'POST' &&
+    substr($baseName, -9) === '.json.php'
+) {
+    autoCSRFGuard($baseName);
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 includeConfigLog(__LINE__);

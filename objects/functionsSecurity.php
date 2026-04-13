@@ -786,3 +786,89 @@ function enforceRateLimit(string $operation = '', int $maxAttempts = 20, int $ti
     ObjectYPT::setCacheGlobal($key, $attempts + 1);
 }
 
+/**
+ * Automatic CSRF guard invoked once by include_config.php for every POST
+ * to a *.json.php endpoint.
+ *
+ * Bypass options (pick the one that fits your use-case):
+ *
+ *  1. $global['bypassSameDomainCheck'] = 1  — existing flag; disables all
+ *     same-domain checks globally (encoder-to-encoder calls, etc.).
+ *     Must be set BEFORE require configuration.php.
+ *
+ *  2. $global['skipAutoCSRFCheck'] = true  — disables only this auto-guard
+ *     for the current request.  Must be set BEFORE require configuration.php.
+ *
+ *  3. $global['csrfBypassFiles'][] = 'myfile.json.php'  — persistent per-file
+ *     opt-out; add it in videos/configuration.php (or a plugin config file).
+ *
+ * @param string $baseName  basename of the currently executing script
+ */
+function autoCSRFGuard($baseName)
+{
+    global $global;
+
+    // Respect existing full bypass (encoder callbacks, CLI, etc.)
+    if (!empty($global['bypassSameDomainCheck']) || isCommandLineInterface()) {
+        return;
+    }
+
+    // Per-request opt-out — must be set before configuration.php loads
+    if (!empty($global['skipAutoCSRFCheck'])) {
+        return;
+    }
+
+    // Built-in bypass list.
+    // Groups:
+    //   auth/signup  — accept calls from mobile apps & external clients
+    //   public reads — use POST params for filtering, but mutate nothing
+    //   public write — like/view/subscribe actions open to all users
+    //   encoder      — authenticated via video-hash token, not session
+    static $builtinBypass = [
+        // Auth & account management
+        'login.json.php',
+        'userCreate.json.php',
+        'userRecoverPassSave.json.php',
+        // Public write actions
+        'sendEmail.json.php',
+        'subscribe.json.php',
+        'subscribeNotify.json.php',
+        'like.json.php',
+        'videoAddViewCount.json.php',
+        // Read-only endpoints that accept POST params
+        'categories.json.php',
+        'comments.json.php',
+        'users.json.php',
+        'videos.json.php',
+        'videosAndroid.json.php',
+        'plugins.json.php',
+        'playlistsPublic.json.php',
+        'playlistsVideos.json.php',
+        'playlistsFromUserVideos.json.php',
+        'mention.json.php',
+        'notifications.json.php',
+        'listFiles.json.php',
+        // Encoder upload callbacks (auth via video-hash, not session)
+        'aVideoEncoder.json.php',
+        'aVideoEncoderLog.json.php',
+        'aVideoEncoderNotifyIsDone.json.php',
+        'aVideoEncoderReceiveImage.json.php',
+    ];
+
+    if (in_array($baseName, $builtinBypass, true)) {
+        return;
+    }
+
+    // Allow operators to extend the bypass list in videos/configuration.php:
+    //   $global['csrfBypassFiles'] = ['myWebhook.json.php'];
+    if (
+        !empty($global['csrfBypassFiles']) &&
+        is_array($global['csrfBypassFiles']) &&
+        in_array($baseName, $global['csrfBypassFiles'], true)
+    ) {
+        return;
+    }
+
+    forbidIfIsUntrustedRequest("autoCSRF::{$baseName}");
+}
+

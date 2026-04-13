@@ -5,6 +5,7 @@ if (!isset($global['systemRootPath'])) {
     require_once '../videos/configuration.php';
 }
 require_once $global['systemRootPath'] . 'objects/comment.php';
+require_once $global['systemRootPath'] . 'objects/functions.php';
 
 $obj = new stdClass();
 $obj->error = true;
@@ -20,6 +21,8 @@ if (empty($obj->id)) {
     $obj->msg = __("ID can not be empty");
     die(_json_encode($obj));
 }
+
+forbidIfIsUntrustedRequest('commentDelete');
 
 $objC = new Comment("", 0, $obj->id);
 $obj->videos_id = $objC->getVideos_id();

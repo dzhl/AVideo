@@ -13,6 +13,8 @@ if(!User::isAdmin()){
     die(json_encode($obj));
 }
 
+forbidIfIsUntrustedRequest('{pluginName}::{classname}::delete');
+
 $id = intval($_POST['id']);
 $row = new {classname}($id);
 $obj->error = !$row->delete();
