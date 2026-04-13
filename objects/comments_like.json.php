@@ -15,6 +15,6 @@ if (!empty($_GET['user']) && !empty($_GET['pass'])) {
 if (empty($_POST['comments_id']) && !empty($_GET['comments_id'])) {
     $_POST['comments_id'] = $_GET['comments_id'];
 }
-
+forbidIfIsUntrustedRequest('comments_like');
 $like = new CommentsLike($_GET['like'], $_POST['comments_id']);
 echo json_encode(CommentsLike::getLikes($_POST['comments_id']));

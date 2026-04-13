@@ -35,6 +35,7 @@ if (!User::canComment()) {
     $obj->msg = __("Permission denied");
     die(json_encode($obj));
 }
+forbidIfIsUntrustedRequest('commentAddNew');
 
 function isCommentASpam($comment, $videos_id)
 {

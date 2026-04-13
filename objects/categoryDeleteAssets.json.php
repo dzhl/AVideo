@@ -17,7 +17,7 @@ if (!Category::canCreateCategory()) {
     $obj->msg = __("Permission denied");
     die(json_encode($obj));
 }
-
+forbidIfIsUntrustedRequest('categoryDeleteAssets');
 if (!Category::deleteAssets($obj->id)) {
     $obj->error = false;
 }else{
