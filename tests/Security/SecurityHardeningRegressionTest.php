@@ -61,9 +61,9 @@ class SecurityHardeningRegressionTest extends TestCase
         foreach ($matches[0] as [$headerCall, $offset]) {
             // Look backwards from this header() call to find the nearest enclosing if-condition.
             $preceding = substr($source, 0, $offset);
-            // The $allowAll early-return path (for public-resource endpoints such as VAST/VMAP ad XML)
-            // intentionally allows credentials for any origin and precedes the $isSameOrigin assignment.
-            // Skip those occurrences; only enforce the guard on the general-purpose path.
+            // The $allowAll early-return path uses $siteOriginForAllowAll (not $isSameOrigin) for its
+            // same-origin guard and exits before $isSameOrigin is assigned. Skip the loop validation
+            // for those occurrences — they are covered by the $siteOriginForAllowAll assertions below.
             if (!str_contains($preceding, '$isSameOrigin')) {
                 continue;
             }
@@ -75,6 +75,21 @@ class SecurityHardeningRegressionTest extends TestCase
                 'Access-Control-Allow-Credentials:true must only be set when $isSameOrigin is true.'
             );
         }
+
+        // Verify the $allowAll path: it must derive and use $siteOriginForAllowAll for
+        // its same-origin guard before granting credentials — not blindly reflect any origin.
+        $this->assertStringContainsString(
+            '$siteOriginForAllowAll',
+            $source,
+            'allowOrigin($allowAll=true) must compare against $siteOriginForAllowAll before granting credentials.'
+        );
+        // The old dangerous pattern inside $allowAll — emit Allow-Credentials for any non-empty
+        // $requestOrigin without a comparison — must not exist.
+        $this->assertDoesNotMatchRegularExpression(
+            '/if\s*\(\s*!empty\s*\(\s*\$requestOrigin\s*\)\s*\)\s*\{\s*\n[^}]*Access-Control-Allow-Credentials/',
+            $source,
+            'allowOrigin($allowAll=true) must not grant credentials to any non-empty origin without comparison.'
+        );
 
         // The old dangerous pattern (reflect any origin + credentials) must not exist.
         $this->assertDoesNotMatchRegularExpression(
