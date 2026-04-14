@@ -3473,16 +3473,114 @@ Click <a href=\"{link}\">here</a> to join our live.";
         return $newFile;
     }
 
+    private static function getRestreamReconnectStateFile($key, $live_servers_id)
+    {
+        $hash = md5($key . '|' . intval($live_servers_id));
+        return ObjectYPT::getTmpCacheDir() . "liveRestreamReconnect/{$hash}.json";
+    }
+
+    private static function getRestreamReconnectState($key, $live_servers_id)
+    {
+        $file = self::getRestreamReconnectStateFile($key, $live_servers_id);
+        if (empty($file) || !file_exists($file)) {
+            return [];
+        }
+
+        $content = @file_get_contents($file);
+        $state = json_decode($content, true);
+        if (!is_array($state)) {
+            return [];
+        }
+
+        return $state;
+    }
+
+    private static function saveRestreamReconnectState($key, $live_servers_id, $state)
+    {
+        $file = self::getRestreamReconnectStateFile($key, $live_servers_id);
+        make_path($file);
+        @file_put_contents($file, json_encode($state));
+    }
+
+    private static function registerRestreamReconnectEvent($key, $live_servers_id, $liveTransmitionHistory_id, $isReconnection)
+    {
+        $state = self::getRestreamReconnectState($key, $live_servers_id);
+        $now = time();
+        $window = 600;
+        $recentReconnections = [];
+
+        if (!empty($state['recent_reconnections']) && is_array($state['recent_reconnections'])) {
+            foreach ($state['recent_reconnections'] as $timestamp) {
+                $timestamp = intval($timestamp);
+                if ($timestamp >= ($now - $window)) {
+                    $recentReconnections[] = $timestamp;
+                }
+            }
+        }
+
+        $state['key'] = $key;
+        $state['live_servers_id'] = intval($live_servers_id);
+        $state['last_liveTransmitionHistory_id'] = intval($liveTransmitionHistory_id);
+        $state['updated_at'] = $now;
+        $state['recent_reconnections'] = $recentReconnections;
+
+        if (empty($isReconnection)) {
+            $state['recent_reconnections'] = [];
+            $state['last_auto_restream_at'] = 0;
+        } else {
+            $state['recent_reconnections'][] = $now;
+        }
+
+        $state['recent_reconnections_count'] = count($state['recent_reconnections']);
+        $state['has_suspicious_reconnections'] = !empty($isReconnection) && $state['recent_reconnections_count'] >= 3;
+        self::saveRestreamReconnectState($key, $live_servers_id, $state);
+
+        return $state;
+    }
+
+    private static function markAutoRestreamOnReconnection($key, $live_servers_id)
+    {
+        $state = self::getRestreamReconnectState($key, $live_servers_id);
+        $state['last_auto_restream_at'] = time();
+        self::saveRestreamReconnectState($key, $live_servers_id, $state);
+    }
+
+    private static function canAutoRestreamOnReconnection($key, $live_servers_id, $cooldownSeconds = 120)
+    {
+        $state = self::getRestreamReconnectState($key, $live_servers_id);
+        $lastAutoRestreamAt = intval(@$state['last_auto_restream_at']);
+
+        if (empty($lastAutoRestreamAt)) {
+            return true;
+        }
+
+        return $lastAutoRestreamAt <= (time() - intval($cooldownSeconds));
+    }
+
 
     public static function _on_publish($liveTransmitionHistory_id, $isReconnection)
     {
         $obj = AVideoPlugin::getDataObject("Live");
-        if (empty($obj->disableRestream)) {
-            self::restream($liveTransmitionHistory_id);
-        }
         $lt = new LiveTransmitionHistory($liveTransmitionHistory_id);
         $users_id = $lt->getUsers_id();
         $live_servers_id = $lt->getLive_servers_id();
+        $key = $lt->getKey();
+        $reconnectState = self::registerRestreamReconnectEvent($key, $live_servers_id, $liveTransmitionHistory_id, $isReconnection);
+
+        if (!empty($reconnectState['has_suspicious_reconnections'])) {
+            _error_log("on_publish: suspicious reconnections detected key={$key} live_servers_id={$live_servers_id} liveTransmitionHistory_id={$liveTransmitionHistory_id} count={$reconnectState['recent_reconnections_count']} window=600");
+        }
+
+        if (empty($obj->disableRestream) && empty($isReconnection)) {
+            self::restream($liveTransmitionHistory_id);
+        } elseif (empty($obj->disableRestream) && self::canAutoRestreamOnReconnection($key, $live_servers_id)) {
+            _error_log("on_publish: auto restream restart on reconnection after cooldown key={$key} live_servers_id={$live_servers_id} liveTransmitionHistory_id={$liveTransmitionHistory_id}");
+            self::restream($liveTransmitionHistory_id);
+            self::markAutoRestreamOnReconnection($key, $live_servers_id);
+        } elseif (!empty($isReconnection)) {
+            _error_log("on_publish: skipping automatic restream restart on reconnection due cooldown key={$key} live_servers_id={$live_servers_id} liveTransmitionHistory_id={$liveTransmitionHistory_id}");
+        }
+
         _error_log("on_publish: liveTransmitionHistory_id={$liveTransmitionHistory_id} users_id={$users_id} live_servers_id={$live_servers_id} isReconnection=$isReconnection ");
         AVideoPlugin::on_publish($users_id, $live_servers_id, $liveTransmitionHistory_id, $lt->getKey(), $isReconnection);
     }
