@@ -248,9 +248,11 @@ class AuthorizeNet extends PluginAbstract
         string $uniq_key,
         string $eventType,
         array $payload = [],
-        string $description = 'Authorize.Net one-time payment'
+        string $description = 'Authorize.Net one-time payment',
+        string $transactionId = ''
     ): array {
         global $global;
+        $lockKey = $transactionId ?: $uniq_key;
         try {
             if ($amount <= 0) {
                 return ['error' => true, 'msg' => 'Invalid amount'];
@@ -258,14 +260,27 @@ class AuthorizeNet extends PluginAbstract
             if (empty($users_id)) {
                 return ['error' => true, 'msg' => 'Missing users_id'];
             }
-
-            if (Anet_webhook_log::alreadyProcessed($uniq_key)) {
-                _error_log("[Authorize.Net] Duplicate processing prevented ($uniq_key)");
-                return ['error' => false, 'msg' => 'Already processed'];
+            if (!self::acquireProcessingLock($lockKey)) {
+                return ['error' => true, 'msg' => 'Could not acquire processing lock'];
             }
 
-            $logId = Anet_webhook_log::createIfNotExists($uniq_key, $eventType, $payload, $users_id);
+            if (Anet_webhook_log::alreadyProcessed($uniq_key, $transactionId)) {
+                _error_log("[Authorize.Net] Duplicate processing prevented (uniq_key={$uniq_key}, transactionId={$transactionId})");
+                return ['error' => false, 'msg' => 'Already processed', 'duplicate' => true];
+            }
+
+            $existingLog = Anet_webhook_log::getExistingLog($uniq_key, $transactionId);
+            if (!empty($existingLog['id'])) {
+                _error_log("[Authorize.Net] Duplicate processing prevented by existing log (uniq_key={$uniq_key}, transactionId={$transactionId})");
+                return ['error' => false, 'msg' => 'Already received', 'duplicate' => true, 'logId' => (int)$existingLog['id']];
+            }
+
+            $logId = Anet_webhook_log::createIfNotExists($uniq_key, $eventType, $payload, $users_id, $transactionId);
             _error_log("[Authorize.Net] Webhook log created id=$logId");
+
+            if (empty($logId)) {
+                return ['error' => true, 'msg' => 'Could not create webhook log'];
+            }
 
             $walletPlugin = AVideoPlugin::loadPluginIfEnabled("YPTWallet");
             if (!$walletPlugin) {
@@ -277,6 +292,7 @@ class AuthorizeNet extends PluginAbstract
             _error_log("[Authorize.Net] addBalance call completed for users_id=$users_id amount=$amount");
 
             if (!empty($logId)) {
+                $global['bypassSameDomainCheck'] = 1;
                 $log = new Anet_webhook_log($logId);
                 $log->setProcessed(1);
                 $log->setModified_php_time(time());
@@ -288,6 +304,8 @@ class AuthorizeNet extends PluginAbstract
         } catch (Throwable $e) {
             _error_log('[Authorize.Net] Exception in processSinglePayment: ' . $e->getMessage());
             return ['error' => true, 'msg' => $e->getMessage()];
+        } finally {
+            self::releaseProcessingLock($lockKey);
         }
     }
 
@@ -409,6 +427,31 @@ class AuthorizeNet extends PluginAbstract
     private static function buildWebhookUniqKey(string $eventType, string $transactionId): string
     {
         return sha1($eventType . $transactionId);
+    }
+
+    private static function acquireProcessingLock(string $lockKey, int $timeoutSeconds = 10): bool
+    {
+        if ($lockKey === '') {
+            return true;
+        }
+
+        $lockName = 'anet_txn_' . sha1($lockKey);
+        $res = sqlDAL::readSql("SELECT GET_LOCK(?, ?) AS locked", "si", [$lockName, $timeoutSeconds], true);
+        $row = sqlDAL::fetchAssoc($res);
+        sqlDAL::close($res);
+
+        return !empty($row['locked']);
+    }
+
+    private static function releaseProcessingLock(string $lockKey): void
+    {
+        if ($lockKey === '') {
+            return;
+        }
+
+        $lockName = 'anet_txn_' . sha1($lockKey);
+        $res = sqlDAL::readSql("SELECT RELEASE_LOCK(?) AS released", "s", [$lockName], true);
+        sqlDAL::close($res);
     }
 
     public static function generatePendingReference(): string
@@ -551,7 +594,7 @@ class AuthorizeNet extends PluginAbstract
         }
         $pending = self::getPendingRecordFromTxnInfo($txnInfo);
 
-        if (Anet_webhook_log::alreadyProcessed($uniq_key)) {
+        if (Anet_webhook_log::alreadyProcessed($uniq_key, $transactionId)) {
             if (!empty($pending['id'])) {
                 Anet_pending_payment::markProcessedById((int)$pending['id'], $transactionId);
             }
@@ -605,7 +648,8 @@ class AuthorizeNet extends PluginAbstract
             $uniq_key,
             $eventType,
             $payload,
-            $description
+            $description,
+            $transactionId
         );
         if (!empty($paymentResult['error'])) {
             return $paymentResult;
@@ -1764,7 +1808,20 @@ class AuthorizeNet extends PluginAbstract
 
     public function getPluginVersion()
     {
-        return "1.1";
+        return "1.2";
+    }
+
+    public function updateScript()
+    {
+        global $global;
+
+        if (AVideoPlugin::compareVersion($this->getName(), "1.2") < 0) {
+            $updateFile = $global['systemRootPath'] . 'plugin/AuthorizeNet/install/updateV1.2.sql';
+            sqlDal::executeFile($updateFile);
+            _error_log('[Authorize.Net] updateScript executed updateV1.2.sql');
+        }
+
+        return true;
     }
 
     public function executeEveryMinute()

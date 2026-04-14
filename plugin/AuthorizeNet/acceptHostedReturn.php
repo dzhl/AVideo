@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/../../videos/configuration.php';
 require_once $global['systemRootPath'] . 'plugin/AuthorizeNet/AuthorizeNet.php';
+global $global;
+$global['bypassSameDomainCheck'] = 1;
 
 _error_log('[AuthorizeNet acceptHostedReturn] GET=' . json_encode($_GET) . ' POST=' . json_encode($_POST) . ' RAW=' . file_get_contents('php://input'));
 

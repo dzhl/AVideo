@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS `anet_webhook_log` (
   `users_id` INT(11) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE INDEX `uniq_key_UNIQUE` (`uniq_key` ASC),
+  INDEX `anet_webhook_log_trans_id_idx` (`trans_id` ASC),
   INDEX `fk_anet_webhook_log_users1_idx` (`users_id` ASC),
   INDEX `event_type_index` (`event_type` ASC),
   CONSTRAINT `fk_anet_webhook_log_users1`

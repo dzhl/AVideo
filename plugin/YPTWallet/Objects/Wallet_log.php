@@ -113,7 +113,7 @@ class WalletLog extends ObjectYPT {
                 $row['previous_wallet_balance_formated'] = YPTWallet::formatCurrency($row['previous_wallet_balance']);
                 $row['wallet'] = Wallet::getFromWalletId($row['wallet_id']);
                 $row['user'] = $row['wallet']['user'];
-                $row['balance'] = $row['wallet']['balance'];
+                $row['balance'] = (float)$row['previous_wallet_balance'] + (float)$row['value'];
                 $row['balance_formated'] = YPTWallet::formatCurrency($row['balance']);
                 $row['crypto_wallet_address'] = "";
                 $rows[] = $row;

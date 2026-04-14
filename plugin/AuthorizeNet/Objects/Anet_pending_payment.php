@@ -6,6 +6,12 @@ class Anet_pending_payment extends ObjectYPT
 {
     protected $id, $ref_id, $users_id, $plans_id, $amount, $currency, $status, $transaction_id, $metadata_json, $attempts, $last_checked_php_time, $created_php_time, $modified_php_time, $error_text;
 
+    private static function enableInternalSaveBypass(): void
+    {
+        global $global;
+        $global['bypassSameDomainCheck'] = 1;
+    }
+
     static function getSearchFieldsNames()
     {
         return ['ref_id', 'status', 'transaction_id', 'currency', 'error_text'];
@@ -76,6 +82,7 @@ class Anet_pending_payment extends ObjectYPT
 
     static function createPending(string $refId, int $users_id, float $amount, array $metadata = [], string $currency = 'USD'): int
     {
+        self::enableInternalSaveBypass();
         $obj = new self();
         $obj->setRef_id($refId);
         $obj->setUsers_id($users_id);
@@ -94,6 +101,7 @@ class Anet_pending_payment extends ObjectYPT
 
     static function markChecked(int $id, string $status = 'reconciling', string $errorText = ''): bool
     {
+        self::enableInternalSaveBypass();
         $obj = new self($id);
         if (empty($obj->getId())) {
             return false;
@@ -110,6 +118,7 @@ class Anet_pending_payment extends ObjectYPT
 
     static function markProcessedById(int $id, string $transactionId): bool
     {
+        self::enableInternalSaveBypass();
         $obj = new self($id);
         if (empty($obj->getId())) {
             return false;

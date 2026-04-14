@@ -7,6 +7,12 @@ class Anet_webhook_log extends ObjectYPT
 
     protected $id, $uniq_key, $event_type, $trans_id, $payload_json, $processed, $error_text, $status, $created_php_time, $modified_php_time, $users_id;
 
+    private static function enableInternalSaveBypass(): void
+    {
+        global $global;
+        $global['bypassSameDomainCheck'] = 1;
+    }
+
     static function getSearchFieldsNames()
     {
         return array('uniq_key', 'event_type', 'trans_id', 'error_text', 'status');
@@ -107,14 +113,24 @@ class Anet_webhook_log extends ObjectYPT
         return intval($this->users_id);
     }
 
-    public static function alreadyProcessed($uniq_key)
+    public static function alreadyProcessed($uniq_key, $transactionId = '')
     {
-        if (empty($uniq_key)) {
+        if (empty($uniq_key) && empty($transactionId)) {
             return false;
         }
-        $obj = self::getFromUniqKey($uniq_key);
-        if (!empty($obj) && !empty($obj['processed'])) {
-            return true;
+
+        if (!empty($uniq_key)) {
+            $obj = self::getFromUniqKey($uniq_key);
+            if (!empty($obj) && !empty($obj['processed'])) {
+                return true;
+            }
+        }
+
+        if (!empty($transactionId)) {
+            $obj = self::getFromTransactionId($transactionId);
+            if (!empty($obj) && !empty($obj['processed'])) {
+                return true;
+            }
         }
         return false;
     }
@@ -132,10 +148,42 @@ class Anet_webhook_log extends ObjectYPT
         return false;
     }
 
-    public static function createIfNotExists($uniq_key, $event_type, $payload_json, $users_id = 0)
+    public static function getFromTransactionId($transactionId)
     {
-        if (self::alreadyProcessed($uniq_key)) {
+        if (empty($transactionId)) {
             return false;
+        }
+        $sql = "SELECT * FROM " . static::getTableName() . " WHERE trans_id = ? LIMIT 1";
+        $res = sqlDAL::readSql($sql, "s", [$transactionId]);
+        $data = sqlDAL::fetchAssoc($res);
+        sqlDAL::close($res);
+        if ($res) {
+            return $data;
+        }
+        return false;
+    }
+
+    public static function getExistingLog($uniq_key, $transactionId = '')
+    {
+        $obj = self::getFromUniqKey($uniq_key);
+        if (!empty($obj)) {
+            return $obj;
+        }
+        if (!empty($transactionId)) {
+            $obj = self::getFromTransactionId($transactionId);
+            if (!empty($obj)) {
+                return $obj;
+            }
+        }
+        return false;
+    }
+
+    public static function createIfNotExists($uniq_key, $event_type, $payload_json, $users_id = 0, $transactionId = '')
+    {
+        self::enableInternalSaveBypass();
+        $existing = self::getExistingLog($uniq_key, $transactionId);
+        if (!empty($existing['id'])) {
+            return (int)$existing['id'];
         }
 
         if(empty($users_id)){
@@ -145,12 +193,25 @@ class Anet_webhook_log extends ObjectYPT
         $obj = new self();
         $obj->setUniq_key($uniq_key);
         $obj->setEvent_type($event_type);
+        if (empty($transactionId) && is_array($payload_json)) {
+            $transactionId = $payload_json['id'] ?? ($payload_json['transId'] ?? '');
+        }
+        $obj->setTrans_id($transactionId);
         $obj->setPayload_json(_json_encode($payload_json));
         $obj->setUsers_id($users_id);
         $obj->setProcessed(0);
         $obj->setCreated_php_time(time());
         $obj->setModified_php_time(time());
 
-        return $obj->save();
+        try {
+            return $obj->save();
+        } catch (Throwable $e) {
+            $existing = self::getExistingLog($uniq_key, $transactionId);
+            if (!empty($existing['id'])) {
+                _error_log("[Authorize.Net] Reusing existing webhook log after save race (uniq_key={$uniq_key}, transactionId={$transactionId})");
+                return (int)$existing['id'];
+            }
+            throw $e;
+        }
     }
 }
