@@ -14,6 +14,10 @@ if (!Video::canEdit($videos_id)) {
     forbiddenPage('You cannot edit this video');
 }
 
+if (!empty($_REQUEST['imageTime'])) {
+    $isModeYouTube = 1;
+}
+
 $video = new Video('', '', $videos_id);
 $title = $video->getTitle();
 $description = $video->getDescription();
