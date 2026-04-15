@@ -1,4 +1,5 @@
 <?php
+$global['skipAutoCSRFCheck'] = true;
 header('Content-Type: application/json');
 require_once '../../../../videos/configuration.php';
 require_once $global['systemRootPath'] . 'plugin/Live/Objects/Live_restreams_logs.php';

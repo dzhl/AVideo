@@ -1,5 +1,6 @@
 <?php
 
+$global['skipAutoCSRFCheck'] = true;
 require_once '../../../../videos/configuration.php';
 
 header('Content-Type: application/json');
@@ -7,6 +8,14 @@ header('Content-Type: application/json');
 $obj = new stdClass();
 $obj->error = true;
 $obj->msg = "";
+
+if (empty($_REQUEST['token'])) {
+    $request = file_get_contents("php://input");
+    $json = json_decode($request);
+    if (!empty($json->token)) {
+        $_REQUEST['token'] = $json->token;
+    }
+}
 
 if (!AVideoPlugin::isEnabledByName('Live')) {
     forbiddenPage('Plugin is disabled');

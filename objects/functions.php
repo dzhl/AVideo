@@ -181,6 +181,24 @@ function isPrivateOrLoopbackIP($ip)
     return !filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
 }
 
+function isLoopbackIP($ip)
+{
+    if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+        return false;
+    }
+
+    if ($ip === '::1') {
+        return true;
+    }
+
+    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+        $ipLong = ip2long($ip);
+        return $ipLong >= ip2long('127.0.0.0') && $ipLong <= ip2long('127.255.255.255');
+    }
+
+    return false;
+}
+
 function getForwardedClientIpFromServerArray($server)
 {
     $ipv6 = '';
@@ -4303,6 +4321,7 @@ function isSSRFSafeURL($url, &$resolvedIP = null)
     }
 
     $host = strtolower($host);
+    $hostForValidation = trim($host, '[]');
 
     // Allow requests to the same origin as webSiteRootURL (hostname + port must both match).
     // Checking hostname only is insufficient: an attacker can reach arbitrary internal ports
@@ -4321,36 +4340,27 @@ function isSSRFSafeURL($url, &$resolvedIP = null)
         }
     }
 
-    // Block localhost variations
+    // Block localhost hostname variations. Literal loopback IPs are handled below
+    // with isLoopbackIP() after bracket normalization.
     $localhostPatterns = [
         'localhost',
-        '127.0.0.1',
-        '::1',
-        '[::1]',
-        '0.0.0.0',
         '0',
     ];
     foreach ($localhostPatterns as $pattern) {
-        if ($host === $pattern) {
-            _error_log("isSSRFSafeURL: blocked localhost pattern: {$host}");
+        if ($hostForValidation === $pattern) {
+            _error_log("isSSRFSafeURL: blocked localhost host: {$host}");
             return false;
         }
-    }
-
-    // Block localhost with port variations (127.x.x.x range)
-    if (preg_match('/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/', $host)) {
-        _error_log("isSSRFSafeURL: blocked loopback IP: {$host}");
-        return false;
     }
 
     // Resolve hostname to IP to check for DNS rebinding attacks.
     // $resolvedIP (out-param) is set to the final validated IP so callers can
     // pin the DNS resolution (e.g. via CURLOPT_RESOLVE) and eliminate TOCTOU races.
-    $ip = $host;
-    if (!filter_var($host, FILTER_VALIDATE_IP)) {
+    $ip = $hostForValidation;
+    if (!filter_var($hostForValidation, FILTER_VALIDATE_IP)) {
         // It's a hostname, resolve it
-        $dnsResolved = gethostbyname($host);
-        if ($dnsResolved === $host) {
+        $dnsResolved = gethostbyname($hostForValidation);
+        if ($dnsResolved === $hostForValidation) {
             // DNS resolution failed
             _error_log("isSSRFSafeURL: DNS resolution failed for: {$host}");
             return false;
@@ -4375,11 +4385,15 @@ function isSSRFSafeURL($url, &$resolvedIP = null)
         $ip = $mapped[1];
     }
 
-    // Block all private and reserved IP ranges using PHP's built-in validation flags.
-    // FILTER_FLAG_NO_PRIV_RANGE rejects: RFC 1918 (10/8, 172.16/12, 192.168/16), fc00::/7
-    // FILTER_FLAG_NO_RES_RANGE rejects: 0/8, 127/8, 169.254/16, ::1, fe80::/10, and others
-    // This replaces the previous manual regex checks and the separate IPv6 block section.
-    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+    if (isLoopbackIP($ip)) {
+        _error_log("isSSRFSafeURL: blocked loopback IP: {$ip}");
+        return false;
+    }
+
+    // Block all private and reserved IP ranges using the shared IP helper.
+    // This includes RFC1918, link-local, unspecified, IPv6 private/reserved, and
+    // cloud metadata ranges such as 169.254.169.254.
+    if (isPrivateOrLoopbackIP($ip)) {
         _error_log("isSSRFSafeURL: blocked private/reserved IP: {$ip}");
         return false;
     }

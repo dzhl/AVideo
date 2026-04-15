@@ -149,6 +149,10 @@ function isUntrustedRequest($logMsg = '', $approveAVideoUserAgent = true)
     if (!empty($global['bypassSameDomainCheck']) || isCommandLineInterface()) {
         return false;
     }
+    $remoteAddr = getRemoteAddrFromServerArray($_SERVER);
+    if (!empty($remoteAddr) && isLoopbackIP($remoteAddr) && isLoopbackIP(getRealIpAddr())) {
+        return false;
+    }
     if (!requestComesFromSameDomainAsMyAVideo()) {
         if ($approveAVideoUserAgent && isAVideoUserAgent()) {
             return false;
@@ -934,4 +938,3 @@ function autoCSRFGuard($baseName, $scriptPath = '')
 
     forbidIfIsUntrustedRequest("autoCSRF::{$baseName}");
 }
-
