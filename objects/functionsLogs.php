@@ -144,6 +144,42 @@ function _error_log($message, $type = 0, $doNotRepeat = false)
     error_log($str);
 }
 
+function rateLimitedLog($key, $message, $ttl = 300, $type = null)
+{
+    if (!is_string($message)) {
+        $message = json_encode($message);
+    }
+
+    if (class_exists('ObjectYPT')) {
+        $tmpDir = ObjectYPT::getTmpCacheDir() . 'rateLimitedLogs' . DIRECTORY_SEPARATOR;
+    } else {
+        $tmpDir = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'YPTObjectCache' . DIRECTORY_SEPARATOR . 'rateLimitedLogs' . DIRECTORY_SEPARATOR;
+    }
+    if (!is_dir($tmpDir)) {
+        @mkdir($tmpDir, 0777, true);
+    }
+    $safeKey = preg_replace('/[^a-zA-Z0-9_\-]/', '_', (string) $key);
+    $rateFile = $tmpDir . 'rate_limited_log_' . $safeKey . '.cache';
+    $now = time();
+
+    if (is_file($rateFile)) {
+        $lastLogged = intval(@file_get_contents($rateFile));
+        if (!empty($lastLogged) && ($lastLogged + $ttl) > $now) {
+            return false;
+        }
+    }
+
+    @file_put_contents($rateFile, $now);
+
+    if ($type === null) {
+        error_log($message);
+    } else {
+        _error_log($message, $type);
+    }
+
+    return true;
+}
+
 function isSchedulerRun()
 {
     return preg_match('/Scheduler\/run\.php$/', $_SERVER['SCRIPT_NAME']);
