@@ -160,6 +160,31 @@ function _error_log($message, $type = 0, $doNotRepeat = null)
 
 function rateLimitedLog($key, $message, $ttl = 300, $type = null)
 {
+    global $global;
+
+    if (!is_string($message)) {
+        $message = json_encode($message);
+    }
+
+    if (!empty($global['printLogs'])) {
+        if ($type === null) {
+            echo $message . PHP_EOL;
+        } else {
+            echo _error_log_build_message($message, $type) . PHP_EOL;
+        }
+        return false;
+    }
+
+    if (!empty($global['noDebug']) && ($type == AVideoLog::$DEBUG || $type == AVideoLog::$PERFORMANCE)) {
+        if (is_array($global['noDebug'])) {
+            if (in_array($type, $global['noDebug'])) {
+                return false;
+            }
+        } else if (($type == AVideoLog::$DEBUG || $type == AVideoLog::$PERFORMANCE)) {
+            return false;
+        }
+    }
+
     if (class_exists('ObjectYPT')) {
         $tmpDir = ObjectYPT::getTmpCacheDir() . 'rateLimitedLogs' . DIRECTORY_SEPARATOR;
     } else {
@@ -182,9 +207,6 @@ function rateLimitedLog($key, $message, $ttl = 300, $type = null)
     @file_put_contents($rateFile, $now);
 
     if ($type === null) {
-        if (!is_string($message)) {
-            $message = json_encode($message);
-        }
         error_log($message);
     } else {
         error_log(_error_log_build_message($message, $type));
