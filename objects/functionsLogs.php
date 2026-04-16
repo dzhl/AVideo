@@ -84,38 +84,12 @@ function _error_log_debug($message, $show_args = false)
     _error_log(PHP_EOL . '***' . PHP_EOL . $message . '***');
 }
 
-function _error_log($message, $type = 0, $doNotRepeat = false)
+function _error_log_build_message($message, $type = 0)
 {
-    global $global;
     if (!is_string($message)) {
         $message = json_encode($message);
     }
-    if (!empty($global['printLogs'])) {
-        echo $message . PHP_EOL;
-        return false;
-    }
-    if (empty($doNotRepeat)) {
-        // do not log it too many times when you are using HLS format, other wise it will fill the log file with the same error
-        $doNotRepeat = preg_match("/hls.php$/", $_SERVER['SCRIPT_NAME']);
-    }
-    if ($doNotRepeat) {
-        return false;
-    }
-    if (isCommandLineInterface() && empty($global['doNotPrintLogs'])) {
-        //echo '[' . date('Y-m-d H:i:s') . '] ' . $message . PHP_EOL;
-    }
-    if (empty($global['noDebug'])) {
-        $global['noDebug'] = array();
-    }
-    if (!empty($global['noDebug']) && ($type == AVideoLog::$DEBUG || $type == AVideoLog::$PERFORMANCE)) {
-        if (is_array($global['noDebug'])) {
-            if (in_array($type, $global['noDebug'])) {
-                return false;
-            }
-        } else if (($type == AVideoLog::$DEBUG || $type == AVideoLog::$PERFORMANCE)) {
-            return false;
-        }
-    }
+    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
     $prefix = "AVideoLog::";
     switch ($type) {
         case AVideoLog::$DEBUG:
@@ -140,16 +114,52 @@ function _error_log($message, $type = 0, $doNotRepeat = false)
             $prefix .= "MONITORE:    ";
             break;
     }
-    $str = $prefix . $message . " SCRIPT_NAME: {$_SERVER['SCRIPT_NAME']}";
+    return $prefix . $message . " SCRIPT_NAME: {$scriptName}";
+}
+
+function _error_log($message, $type = 0, $doNotRepeat = null)
+{
+    global $global;
+    if (!is_string($message)) {
+        $message = json_encode($message);
+    }
+    if (!empty($global['printLogs'])) {
+        echo $message . PHP_EOL;
+        return false;
+    }
+
+    if ($doNotRepeat === null) {
+        // HLS requests can repeat the same error many times per playback session.
+        $doNotRepeat = preg_match("/hls.php$/", $_SERVER['SCRIPT_NAME'] ?? '');
+    }
+
+    if (isCommandLineInterface() && empty($global['doNotPrintLogs'])) {
+        //echo '[' . date('Y-m-d H:i:s') . '] ' . $message . PHP_EOL;
+    }
+    if (empty($global['noDebug'])) {
+        $global['noDebug'] = array();
+    }
+    if (!empty($global['noDebug']) && ($type == AVideoLog::$DEBUG || $type == AVideoLog::$PERFORMANCE)) {
+        if (is_array($global['noDebug'])) {
+            if (in_array($type, $global['noDebug'])) {
+                return false;
+            }
+        } else if (($type == AVideoLog::$DEBUG || $type == AVideoLog::$PERFORMANCE)) {
+            return false;
+        }
+    }
+    $str = _error_log_build_message($message, $type);
+    if ($doNotRepeat) {
+        return rateLimitedLog(
+            '_error_log_' . md5($str),
+            $str
+        );
+    }
     error_log($str);
 }
 
 function rateLimitedLog($key, $message, $ttl = 300, $type = null)
 {
-    if (!is_string($message)) {
-        $message = json_encode($message);
-    }
-
     if (class_exists('ObjectYPT')) {
         $tmpDir = ObjectYPT::getTmpCacheDir() . 'rateLimitedLogs' . DIRECTORY_SEPARATOR;
     } else {
@@ -172,9 +182,12 @@ function rateLimitedLog($key, $message, $ttl = 300, $type = null)
     @file_put_contents($rateFile, $now);
 
     if ($type === null) {
+        if (!is_string($message)) {
+            $message = json_encode($message);
+        }
         error_log($message);
     } else {
-        _error_log($message, $type);
+        error_log(_error_log_build_message($message, $type));
     }
 
     return true;

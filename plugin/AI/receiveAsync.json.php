@@ -4,26 +4,26 @@ require_once '../../videos/configuration.php';
 header('Content-Type: application/json');
 
 if (empty($_REQUEST['response'])) {
-    _error_log('AI: ' . basename(__FILE__) . ' line=' . __LINE__ . ' ' . json_encode($_REQUEST));
+    rateLimitedLog('AI-receiveAsync-empty-response', 'AI: ' . basename(__FILE__) . ' line=' . __LINE__ . ' type=' . ($_REQUEST['type'] ?? 'unknown'));
     forbiddenPage('Response is empty');
 }
 
 $objAI = AVideoPlugin::getDataObjectIfEnabled('AI');
 
 if (empty($objAI)) {
-    _error_log('AI: ' . basename(__FILE__) . ' line=' . __LINE__);
+    rateLimitedLog('AI-receiveAsync-plugin-disabled', 'AI: ' . basename(__FILE__) . ' line=' . __LINE__);
     forbiddenPage('AI plugin is disabled');
 }
 
 $token = AI::getTokenFromRequest();
 
 if (empty($token)) {
-    _error_log('AI: ' . basename(__FILE__) . ' line=' . __LINE__ . ' ' . json_encode($_REQUEST));
+    rateLimitedLog('AI-receiveAsync-invalid-token-' . md5(json_encode([$_REQUEST['type'] ?? '', $_REQUEST['ai_responses_id'] ?? '', getRealIpAddr()])), 'AI: ' . basename(__FILE__) . ' line=' . __LINE__ . ' invalid token type=' . ($_REQUEST['type'] ?? 'unknown'));
     forbiddenPage('invalid token');
 }
 
 if (empty($token->ai_responses_id)) {
-    _error_log('AI: ' . basename(__FILE__) . ' line=' . __LINE__);
+    rateLimitedLog('AI-receiveAsync-empty-ai-responses-id', 'AI: ' . basename(__FILE__) . ' line=' . __LINE__);
     forbiddenPage('invalid ai_responses_id');
 }
 
@@ -33,13 +33,9 @@ $jsonDecoded->msg = '';
 $jsonDecoded->type = $_REQUEST['type'];
 $jsonDecoded->token = $token;
 
-_error_log('Start line=' . __LINE__ . ' type=' . $_REQUEST['type']);
-
 switch ($_REQUEST['type']) {
     case AI::$typeTranslation:
-        _error_log('AI: ' . basename(__FILE__) . ' line=' . __LINE__);
         if (!empty($_REQUEST['response']['vtt'])) {
-            _error_log('Start line=' . __LINE__);
             //$jsonDecoded->lines[] = __LINE__;
             $o = new Ai_transcribe_responses(0);
             $o->setVtt($_REQUEST['response']['vtt']);
@@ -52,7 +48,6 @@ switch ($_REQUEST['type']) {
 
             $jsonDecoded->vttsaved = false;
             if (!empty($jsonDecoded->Ai_transcribe_responses)) {
-                _error_log('Start line=' . __LINE__);
                 //$jsonDecoded->lines[] = __LINE__;
                 $paths = Ai_transcribe_responses::getVTTPaths($token->videos_id, $_REQUEST['response']['lang']);
                 $jsonDecoded->vttsaved = file_put_contents($paths['path'], $_REQUEST['response']['vtt']);
@@ -65,9 +60,7 @@ switch ($_REQUEST['type']) {
         }
         break;
     case AI::$typeBasic:
-        _error_log('AI: ' . basename(__FILE__) . ' line=' . __LINE__);
         if (!empty($_REQUEST['response'])) {
-            _error_log('AI: ' . basename(__FILE__) . ' line=' . __LINE__);
             //$jsonDecoded->lines[] = __LINE__;
             $o = new Ai_metatags_responses(0);
             $o->setVideoTitles($_REQUEST['response']['videoTitles']);
@@ -89,7 +82,6 @@ switch ($_REQUEST['type']) {
         }
         break;
     case AI::$typeTranscription:
-        _error_log('AI: ' . basename(__FILE__) . ' line=' . __LINE__);
         if (!empty($_REQUEST['response'])) {
             $jsonDecoded = Ai_transcribe_responses::saveVTT(
                 $_REQUEST['response']['vtt'],
@@ -104,9 +96,7 @@ switch ($_REQUEST['type']) {
         }
         break;
     case AI::$typeShorts:
-        _error_log('AI: ' . basename(__FILE__) . ' line=' . __LINE__);
         if (!empty($_REQUEST['response']) && !empty($_REQUEST['response']['shorts'])) {
-            _error_log('AI: ' . basename(__FILE__) . ' line=' . __LINE__ . json_encode($_REQUEST['response']));
             $shorts = $_REQUEST['response']['shorts'];
             if (!empty($shorts)) {
                 $o = new Ai_responses_json(0);
@@ -117,16 +107,14 @@ switch ($_REQUEST['type']) {
                 $jsonDecoded->Ai_responses_json = $o->save();
                 $jsonDecoded->error = empty($jsonDecoded->Ai_responses_json);
             } else {
-                _error_log('AI: shorts ERROR' . basename(__FILE__) . ' line=' . __LINE__);
+                rateLimitedLog('AI-receiveAsync-shorts-empty-' . md5(json_encode([$token->ai_responses_id ?? 0, $token->videos_id ?? 0])), 'AI: shorts ERROR ' . basename(__FILE__) . ' line=' . __LINE__);
             }
         } else {
-            _error_log('AI: ERROR ' . basename(__FILE__) . ' line=' . __LINE__ . json_encode($_REQUEST));
+            rateLimitedLog('AI-receiveAsync-shorts-invalid-' . md5(json_encode([$token->ai_responses_id ?? 0, $token->videos_id ?? 0, $_REQUEST['type'] ?? ''])), 'AI: ERROR ' . basename(__FILE__) . ' line=' . __LINE__ . ' invalid shorts payload');
         }
         break;
     case AI::$typeDubbing:
-        _error_log('AI: ' . basename(__FILE__) . ' line=' . __LINE__);
         if (!empty($_REQUEST['relativeFile'])) {
-            _error_log('Start line=' . __LINE__);
             require_once __DIR__ . '/../../plugin/VideoHLS/HLSAudioManager.php';
             $mp3URL = AI::getMetadataURL() . $_REQUEST['relativeFile'];
             $vttURL = AI::getMetadataURL() . $_REQUEST['relativeFileVTT'];
@@ -159,13 +147,10 @@ switch ($_REQUEST['type']) {
             $o->setAi_type(AI::$typeDubbing);
             $o->setAi_responses_id($token->ai_responses_id);
             $jsonDecoded->Ai_transcribe_responses = $o->save();
-
-            _error_log('End line=' . __LINE__ . ' ' . json_encode($jsonDecoded->addAudioTrack));
             //$jsonDecoded->lines[] = __LINE__;
         }
         break;
     case AI::$typeImage:
-        error_log('AI: ' . basename(__FILE__) . ' line=' . __LINE__);
         if (!empty($_REQUEST['response'])) {
             $o = new Ai_responses_json(0);
             $o->setResponse($_REQUEST['response']);
@@ -175,11 +160,11 @@ switch ($_REQUEST['type']) {
                 $imageUrl = $_REQUEST['response']['data'][0]['url'];
                 // SSRF Protection: Validate URL before fetching
                 if (!isSSRFSafeURL($imageUrl)) {
-                    _error_log('AI: ' . basename(__FILE__) . ' line=' . __LINE__ . ' SSRF protection blocked URL: ' . $imageUrl);
+                    rateLimitedLog('AI-receiveAsync-image-ssrf-' . md5($imageUrl), 'AI: ' . basename(__FILE__) . ' line=' . __LINE__ . ' SSRF protection blocked URL: ' . $imageUrl);
                 } else {
                     $imageContent = file_get_contents($imageUrl);
                     if (empty($imageContent)) {
-                        _error_log('AI: ' . basename(__FILE__) . ' line=' . __LINE__ . ' Error fetching image content');
+                        rateLimitedLog('AI-receiveAsync-image-fetch-fail-' . md5($imageUrl), 'AI: ' . basename(__FILE__) . ' line=' . __LINE__ . ' Error fetching image content');
                     } else {
                         Video::saveImageInVideoLib($token->videos_id, $imageContent, 'png', 'ai');
                     }
@@ -192,23 +177,21 @@ switch ($_REQUEST['type']) {
         break;
 
     default:
-        _error_log('AI: ' . basename(__FILE__) . ' line=' . __LINE__);
+        rateLimitedLog('AI-receiveAsync-type-not-found-' . md5($_REQUEST['type'] ?? 'unknown'), 'AI: ' . basename(__FILE__) . ' line=' . __LINE__ . ' type not found');
         $jsonDecoded->msg = 'Type not found';
         break;
 }
 
 if ($jsonDecoded->error) {
-    error_log($global['lastQuery'] . ' Error : (' . $global['mysqli']->errno . ') ' . $global['mysqli']->error);
+    rateLimitedLog('AI-receiveAsync-db-error-' . md5(($global['lastQuery'] ?? '') . '|' . ($global['mysqli']->errno ?? '0')), ($global['lastQuery'] ?? '') . ' Error : (' . $global['mysqli']->errno . ') ' . $global['mysqli']->error);
 }
 
 if ($jsonDecoded->vttsaved) {
     Video::clearCache($token->videos_id);
 }
 
-_error_log('You received a new translation ' . json_encode(debug_backtrace()));
 sendSocketMessageToUsers_id(['type' => $_REQUEST['type']], $token->users_id, 'aiSocketMessage');
 
 $r = json_encode($jsonDecoded);
-_error_log($r);
 
 echo $r;

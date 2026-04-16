@@ -8,9 +8,9 @@ $obj = new stdClass();
 $obj->error = true;
 $obj->liveTransmitionHistory_id = 0;
 
-_error_log("NGINX ON Publish POST: " . json_encode($_POST));
-_error_log("NGINX ON Publish GET: " . json_encode($_GET));
-_error_log("NGINX ON Publish php://input " . file_get_contents("php://input"));
+_error_log("NGINX ON Publish POST: " . json_encode($_POST), AVideoLog::$DEBUG, true);
+_error_log("NGINX ON Publish GET: " . json_encode($_GET), AVideoLog::$DEBUG, true);
+_error_log("NGINX ON Publish php://input " . file_get_contents("php://input"), AVideoLog::$DEBUG, true);
 
 // get GET parameters
 $url = $_POST['tcurl'];
@@ -43,7 +43,7 @@ if (empty($_GET['p'])) {
             $user = new User($objE->users_id);
             $_GET['p'] = $user->getPassword();
         } else {
-            _error_log("NGINX ON Publish encryption token error: " . json_encode($objE));
+            _error_log("NGINX ON Publish encryption token error: " . json_encode($objE), AVideoLog::$WARNING, true);
         }
     }else if (!empty($_REQUEST['s'])) {
         if (strpos($_REQUEST['s'], '/') !== false) {
@@ -59,21 +59,21 @@ if (empty($_GET['p'])) {
 
         if(!empty($name)){
             $lt = LiveTransmition::getFromKey($name);
-            _error_log("NGINX ON Publish encryption getFromKey($name)");
+            _error_log("NGINX ON Publish encryption getFromKey($name)", AVideoLog::$DEBUG, true);
             if(!empty($lt) && !empty($lt['users_id'])){
                 $name = Live::cleanUpKey($_POST['name']);
                 if($name == $lt['key']){
                     $user = new User($lt['users_id']);
                     $_GET['p'] = $user->getPassword();
-                    _error_log("NGINX ON Publish encryption token found users_id: [{$lt['users_id']}] {$name} == {$lt['key']}");
+                    _error_log("NGINX ON Publish encryption token found users_id: [{$lt['users_id']}] {$name} == {$lt['key']}", AVideoLog::$DEBUG, true);
                 }else{
-                    _error_log("NGINX ON Publish encryption token keys doe not matchd: {$name} == {$lt['key']}");
+                    _error_log("NGINX ON Publish encryption token keys doe not matchd: {$name} == {$lt['key']}", AVideoLog::$WARNING, true);
                 }
             }else{
-                _error_log("NGINX ON Publish encryption token error livetransmition error: [{$name}] ".json_encode($lt));
+                _error_log("NGINX ON Publish encryption token error livetransmition error: [{$name}] ".json_encode($lt), AVideoLog::$WARNING, true);
             }
         }else{
-            _error_log("NGINX ON Publish could not decrypt $_GET[s]: [{$_REQUEST['s']}] ");
+            _error_log("NGINX ON Publish could not decrypt $_GET[s]: [{$_REQUEST['s']}] ", AVideoLog::$WARNING, true);
         }
 
     }
@@ -83,17 +83,17 @@ if (empty($_GET['p']) && !empty($_POST['p'])) {
     $_GET['p'] = $_POST['p'];
 }
 
-_error_log("NGINX ON Publish parse_url: " . json_encode($parts));
-_error_log("NGINX ON Publish parse_str: " . json_encode($_GET));
+_error_log("NGINX ON Publish parse_url: " . json_encode($parts), AVideoLog::$DEBUG, true);
+_error_log("NGINX ON Publish parse_str: " . json_encode($_GET), AVideoLog::$DEBUG, true);
 
 $_GET = object_to_array($_GET);
 
 if ($_POST['name'] == 'live') {
-    _error_log("NGINX ON Publish wrong name {$_POST['p']}");
+    _error_log("NGINX ON Publish wrong name {$_POST['p']}", AVideoLog::$WARNING, true);
     // fix name for streamlab
     $pParts = explode("/", $_POST['p']);
     if (!empty($pParts[1])) {
-        _error_log("NGINX ON Publish like key fixed");
+        _error_log("NGINX ON Publish like key fixed", AVideoLog::$DEBUG, true);
         $_POST['name'] = $pParts[1];
     }
 }
@@ -131,7 +131,7 @@ if (!empty($activeLive)) {
     }
 }
 
-_error_log("isReconnection=".json_encode(array($isReconnection, $activeLive, $_POST['name'], $live_servers_id, $getLatestSQL)));
+_error_log("isReconnection=".json_encode(array($isReconnection, $activeLive, $_POST['name'], $live_servers_id, $getLatestSQL)), AVideoLog::$DEBUG, true);
 /*
     $code = 301;
     header("Location: {$_POST['name']}");

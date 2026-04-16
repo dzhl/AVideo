@@ -35,7 +35,7 @@ if (!$byPassPermissionCheck && $Live_restreams->getUsers_id() !== User::getId() 
 
 $parameters = $Live_restreams->getParameters();
 if (empty($parameters)) {
-    _error_log('Restream parameters not present', true);
+    _error_log('Restream parameters not present', AVideoLog::$WARNING);
 }else{
     $parametersJson = json_decode($parameters);
 }

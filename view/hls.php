@@ -33,12 +33,12 @@ if (empty($video) || !file_exists($filename)) {
     header("Content-Type: text/plain");
     if (empty($video)) {
         $msg = "HLS.php: Video Not found videoDirectory=({$_GET['videoDirectory']})";
-        error_log($msg);
+        rateLimitedLog('hls-video-not-found-' . md5($_GET['videoDirectory']), $msg);
         //echo $msg;
     }
     if (!file_exists($filename)) {
         $msg = "HLS.php: Video file do not exists ({$filename})";
-        error_log($msg);
+        rateLimitedLog('hls-file-not-found-' . md5($filename), $msg);
         //echo $msg;
     }
 
@@ -110,7 +110,7 @@ if (isAVideoUserAgent() || isAVideoEncoderOnSameDomain() || $tokenIsValid || !em
     $newContent .= $tokenIsValid ? "" : " tokenInvalid";
     $newContent .= User::canWatchVideo($video['id']) ? "" : " cannot watch ({$video['id']})";
     $newContent .= " " . date("Y-m-d H:i:s");
-    _error_log($newContent);
+    rateLimitedLog('hls-cannot-see-video-' . md5(json_encode([$video['id'], $_GET['videoDirectory'], $tokenIsValid, User::getId(), getRealIpAddr()])), $newContent);
 }
 //header("Content-Type: text/plain");
 header("Content-Type: application/vnd.apple.mpegurl");

@@ -27,7 +27,7 @@ if (!empty($isStandAlone)) {
 }
 
 if (empty($_GET['file'])) {
-    _error_log("XSENDFILE GET file not found ");
+    _error_log("XSENDFILE GET file not found ", AVideoLog::$WARNING, true);
     die('GET file not found');
 }
 if ($_GET['file'] == 'index.mp3') {
@@ -84,7 +84,7 @@ if ($file == "X-Sendfile.mp4") {
 }
 
 if ($file == "configuration.php") {
-    _error_log("XSENDFILE Can't read this configuration ");
+    _error_log("XSENDFILE Can't read this configuration ", AVideoLog::$WARNING, true);
     forbiddenPage("Can't read this");
 }
 if (!empty($_REQUEST['cacheDownload'])) {
@@ -92,7 +92,7 @@ if (!empty($_REQUEST['cacheDownload'])) {
     $relativePath = "cache/download/";
     $path = getVideosDir() . $relativePath . $file;
     $_GET['download'] = 1;
-    _error_log("cacheDownload: $path");
+    _error_log("cacheDownload: $path", AVideoLog::$DEBUG, true);
 } else {
     $path = Video::getPathToFile($file);
     $folder = preg_replace('/[^a-z0-9_-]/i', '', @$_GET['folder']);
@@ -115,7 +115,7 @@ if (file_exists($path)) {
     $filesize = filesize($path);
     if (!empty($_GET['download'])) {
         if (empty($_REQUEST['cacheDownload']) && !CustomizeUser::canDownloadVideos()) {
-            _error_log("downloadHLS: CustomizeUser::canDownloadVideos said NO");
+            _error_log("downloadHLS: CustomizeUser::canDownloadVideos said NO", AVideoLog::$WARNING, true);
             forbiddenPage("Can't download this");
         }
         if (!empty($_GET['title'])) {

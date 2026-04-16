@@ -37,7 +37,7 @@ if (!empty($array['time']) && time() - $array['time'] > $twelveHours) {
 
 $liveObj = AVideoPlugin::getDataObject('Live');
 
-_error_log("Live::verifyToken.json.php {$_SERVER['HTTP_REFERER']} ". json_encode($array));
+_error_log("Live::verifyToken.json.php {$_SERVER['HTTP_REFERER']} ". json_encode($array), AVideoLog::$DEBUG, true);
 
 $trasnmition = LiveTransmition::createTransmitionIfNeed($obj->users_id);
 $obj->key = $trasnmition['key'].'_'.time();
