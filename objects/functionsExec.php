@@ -186,11 +186,46 @@ function secureUnzipDirectory($zipFile, $destination)
 {
     global $obj;
 
+    if (empty($zipFile)) {
+        $msg = "[secureUnzipDirectory] ZIP file path is empty; destination={$destination}";
+        if (function_exists('_error_log') && class_exists('AVideoLog')) {
+            _error_log($msg, AVideoLog::$ERROR);
+        } else {
+            error_log($msg);
+        }
+        if (isset($obj) && is_object($obj) && isset($obj->errorMSG) && is_array($obj->errorMSG)) {
+            $obj->errorMSG[] = $msg;
+        }
+        return false;
+    }
+
+    if (empty($destination)) {
+        $msg = "[secureUnzipDirectory] Destination path is empty for ZIP file {$zipFile}";
+        if (function_exists('_error_log') && class_exists('AVideoLog')) {
+            _error_log($msg, AVideoLog::$ERROR);
+        } else {
+            error_log($msg);
+        }
+        if (isset($obj) && is_object($obj) && isset($obj->errorMSG) && is_array($obj->errorMSG)) {
+            $obj->errorMSG[] = $msg;
+        }
+        return false;
+    }
+
     error_log("[secureUnzipDirectory] Starting unzip for file: $zipFile");
 
     // Create lock file to prevent race conditions
     $lockFile = $destination . '.lock';
     $fp = fopen($lockFile, 'w');
+    if ($fp === false) {
+        $msg = "[secureUnzipDirectory] Could not create lock file {$lockFile}";
+        if (function_exists('_error_log') && class_exists('AVideoLog')) {
+            _error_log($msg, AVideoLog::$ERROR);
+        } else {
+            error_log($msg);
+        }
+        return false;
+    }
     if (!flock($fp, LOCK_EX)) {
         error_log("[secureUnzipDirectory] Could not acquire lock for ZIP extraction");
         return false;

@@ -230,6 +230,15 @@ if (empty($_FILES['video']['tmp_name']) && !empty($_REQUEST['chunkFile'])) {
     }
 }
 
+if (empty($_FILES['video']['tmp_name'])) {
+    if (isMetadataOnlyEncoderRequest()) {
+        logIncomingMediaState("aVideoEncoder.json: metadata-only request received without direct media file; the streamer will create or update the video record only");
+    } else {
+        $obj->errorMSG[] = "No incoming media file was provided";
+        logIncomingMediaState("aVideoEncoder.json: missing incoming media file after upload/download/chunk resolution", AVideoLog::$ERROR);
+    }
+}
+
 // get video file from encoder
 if (!empty($_FILES['video']['tmp_name'])) {
     $obj->lines[] = __LINE__;
@@ -416,5 +425,31 @@ function __errlog($txt)
     _error_log($txt, AVideoLog::$ERROR);
 }
 
-secureUnzipDirectory($tmp_name, $dir);
-cleanDirectory($dir);
+function getIncomingMediaStateForLog()
+{
+    return [
+        'format' => @$_REQUEST['format'],
+        'first_request' => !empty($_REQUEST['first_request']),
+        'videos_id' => intval(@$_REQUEST['videos_id']),
+        'video_id_hash_present' => !empty($_REQUEST['video_id_hash']),
+        'encoderURL' => @$_REQUEST['encoderURL'],
+        'downloadURL' => empty($_REQUEST['downloadURL']) ? '' : $_REQUEST['downloadURL'],
+        'chunkFile' => empty($_REQUEST['chunkFile']) ? '' : $_REQUEST['chunkFile'],
+        'video_tmp_name' => empty($_FILES['video']['tmp_name']) ? '' : $_FILES['video']['tmp_name'],
+        'video_error' => isset($_FILES['video']['error']) ? $_FILES['video']['error'] : null,
+        'received_files' => array_keys($_FILES),
+    ];
+}
+
+function isMetadataOnlyEncoderRequest()
+{
+    return empty($_FILES['video']['tmp_name']) &&
+        empty($_REQUEST['downloadURL']) &&
+        empty($_REQUEST['chunkFile']) &&
+        !empty($_REQUEST['first_request']);
+}
+
+function logIncomingMediaState($message, $type = 0)
+{
+    _error_log($message . ' ' . json_encode(getIncomingMediaStateForLog()), $type);
+}
