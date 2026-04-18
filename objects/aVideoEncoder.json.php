@@ -1,4 +1,14 @@
 <?php
+// Early diagnostic log — fires before configuration.php loads.
+// Captures the raw Content-Type header and whether PHP parsed any POST or FILES.
+// This is the first thing to check when response_raw is empty: if post_count=0 and
+// files_count=0 despite a POST being sent, the Content-Type header is malformed
+// (e.g. missing multipart boundary) and PHP silently discarded the entire body.
+error_log("aVideoEncoder.json: EARLY content_type=" . ($_SERVER['CONTENT_TYPE'] ?? 'not-set')
+    . " method=" . ($_SERVER['REQUEST_METHOD'] ?? 'not-set')
+    . " post_count=" . count($_POST)
+    . " files_count=" . count($_FILES)
+    . " request_count=" . count($_REQUEST));
 /*
 error_log("avideoencoder REQUEST 1: " . json_encode($_REQUEST));
 error_log("avideoencoder POST 1: " . json_encode($_REQUEST));
@@ -18,6 +28,7 @@ if (!isset($global['systemRootPath'])) {
 }
 
 inputToRequest();
+_error_log("aVideoEncoder.json: after inputToRequest post_keys=[" . implode(',', array_keys($_POST)) . "] files_keys=[" . implode(',', array_keys($_FILES)) . "] request_count=" . count($_REQUEST));
 /*
 _error_log("REQUEST: " . json_encode($_REQUEST));
 _error_log("POST: " . json_encode($_REQUEST));
