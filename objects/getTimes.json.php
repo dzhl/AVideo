@@ -4,6 +4,7 @@ if (empty($global['systemRootPath'])) {
     $global['systemRootPath'] = '../';
 }
 require_once $global['systemRootPath'] . 'videos/configuration.php';
+allowOrigin(true);
 
 $obj = new stdClass();
 $obj->_serverTime = time();

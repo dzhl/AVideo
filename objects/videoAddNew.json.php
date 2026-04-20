@@ -5,7 +5,7 @@ if (empty($global['systemRootPath'])) {
     $global['systemRootPath'] = '../';
 }
 require_once $global['systemRootPath'] . 'videos/configuration.php';
-allowOrigin();
+allowOrigin(true);
 require_once $global['systemRootPath'] . 'objects/user.php';
 if (!User::canUpload()) {
     die('{"error":"1 ' . __("Permission denied") . '"}');
