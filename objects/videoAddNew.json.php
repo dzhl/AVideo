@@ -1,12 +1,32 @@
 <?php
 //error_reporting(0);
 header('Content-Type: application/json');
+// Allow the encoder to create the draft video cross-domain only when it sends
+// explicit credentials that we can validate right after configuration loads.
+$videoAddNewCrossDomainAuth = (
+    (!empty($_POST['user']) || !empty($_REQUEST['user'])) &&
+    (
+        !empty($_POST['pass']) ||
+        !empty($_POST['password']) ||
+        !empty($_REQUEST['pass']) ||
+        !empty($_REQUEST['password'])
+    )
+);
+if ($videoAddNewCrossDomainAuth) {
+    $global['skipAutoCSRFCheck'] = 1;
+}
 if (empty($global['systemRootPath'])) {
     $global['systemRootPath'] = '../';
 }
 require_once $global['systemRootPath'] . 'videos/configuration.php';
 allowOrigin(true);
 require_once $global['systemRootPath'] . 'objects/user.php';
+if ($videoAddNewCrossDomainAuth) {
+    User::loginFromRequestIfNotLogged();
+    if (User::isLogged()) {
+        $global['bypassSameDomainCheck'] = 1;
+    }
+}
 if (!User::canUpload()) {
     die('{"error":"1 ' . __("Permission denied") . '"}');
 }
