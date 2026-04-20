@@ -37,13 +37,39 @@ _error_log("GET: " . json_encode($_GET));
 header('Content-Type: application/json');
 allowOrigin();
 
+function dieJsonResponse($obj, $context = '')
+{
+    $json = _json_encode($obj);
+    if ($json === false || $json === '') {
+        $jsonError = json_last_error_msg();
+        $objectDump = print_r($obj, true);
+        if (strlen($objectDump) > 4000) {
+            $objectDump = substr($objectDump, 0, 4000) . '... [truncated]';
+        }
+        _error_log("aVideoEncoder.json: JSON encode failed context={$context} error={$jsonError}");
+        _error_log("aVideoEncoder.json: JSON encode object dump context={$context} {$objectDump}");
+
+        $fallback = [
+            'error' => true,
+            'msg' => "json_encode failed: {$jsonError}",
+            'context' => $context,
+        ];
+        $json = json_encode($fallback);
+
+        if ($json === false || $json === '') {
+            $json = '{"error":true,"msg":"json_encode failed with unrecoverable error"}';
+        }
+    }
+    die($json);
+}
+
 $global['bypassSameDomainCheck'] = 1;
 if (empty($_REQUEST)) {
     $obj->msg = ("Your POST data is empty, maybe your video file is too big for the host");
     //$obj->SERVER_ADDR = $_SERVER['SERVER_ADDR'];
     //$obj->dir = __DIR__;
     _error_log($obj->msg);
-    die(json_encode($obj));
+    dieJsonResponse($obj, 'empty-request');
 }
 //_error_log("aVideoEncoder.json: start");
 _error_log("aVideoEncoder.json: start");
@@ -53,13 +79,13 @@ if (empty($global['allowedExtension'])) {
 if (empty($_REQUEST['format']) || !in_array($_REQUEST['format'], $global['allowedExtension'])) {
     $obj->msg = "aVideoEncoder.json: ERROR Extension not allowed File {$_REQUEST['format']}";
     _error_log($obj->msg . ": " . json_encode($_REQUEST));
-    die(json_encode($obj));
+    dieJsonResponse($obj, 'invalid-format-extension');
 }
 
 if (!preg_match('/^[a-zA-Z0-9_-]+$/', $_REQUEST['format'])) {
     $obj->msg = "aVideoEncoder.json: ERROR Invalid format characters: {$_REQUEST['format']}";
     _error_log($obj->msg);
-    die(json_encode($obj));
+    dieJsonResponse($obj, 'invalid-format-characters');
 }
 
 if (!isset($_REQUEST['encodedPass'])) {
@@ -71,7 +97,7 @@ if (!User::canUpload()) {
     $obj->msg = __("Permission denied to receive a file") . ': ' . json_encode($_REQUEST);
     _error_log("aVideoEncoder.json: {$obj->msg}  canUploadMessage=[{$canUploadMessage}] " . json_encode(User::canNotUploadReason()));
     _error_log($obj->msg);
-    die(json_encode($obj));
+    dieJsonResponse($obj, 'permission-denied-upload');
 }
 
 if (!empty($_REQUEST['videos_id'])) {
@@ -79,7 +105,7 @@ if (!empty($_REQUEST['videos_id'])) {
         _error_log("aVideoEncoder.json: Permission denied to edit videos_id=" . intval($_REQUEST['videos_id']) . " isLogged=" . (User::isLogged() ? 'true' : 'false') . " userId=" . User::getId());
         $obj->msg = __("Permission denied to edit a video: ") . json_encode($_REQUEST);
         _error_log($obj->msg);
-        die(json_encode($obj));
+        dieJsonResponse($obj, 'permission-denied-edit');
     }
 }
 
@@ -283,7 +309,7 @@ if (!empty($_FILES['image']['tmp_name']) && !file_exists("{$destination_local}.j
         $obj->lines[] = __LINE__;
         $obj->msg = print_r(sprintf(__("Could not move image file [%s.jpg]"), $destination_local), true);
         _error_log("aVideoEncoder.json: " . $obj->msg);
-        die(json_encode($obj));
+        dieJsonResponse($obj, 'move-image-failed');
     }
 }
 if (!empty($_FILES['gifimage']['tmp_name']) && !file_exists("{$destination_local}.gif")) {
@@ -292,7 +318,7 @@ if (!empty($_FILES['gifimage']['tmp_name']) && !file_exists("{$destination_local
         $obj->lines[] = __LINE__;
         $obj->msg = print_r(sprintf(__("Could not move gif image file [%s.gif]"), $destination_local), true);
         _error_log("aVideoEncoder.json: " . $obj->msg);
-        die(json_encode($obj));
+        dieJsonResponse($obj, 'move-gif-failed');
     }
 }
 
@@ -316,7 +342,7 @@ $video_id = $video->save();
 if (empty($video_id)) {
     $obj->msg = __("Your video has NOT been saved!") . ' ' . $global['lastBeforeSaveVideoMessage'];
     _error_log("aVideoEncoder.json: " . $obj->msg);
-    die(json_encode($obj));
+    dieJsonResponse($obj, 'video-save-failed');
 }
 
 $video->updateDurationIfNeed();
@@ -351,7 +377,7 @@ if (!empty($destinationFile)) {
         _error_log("aVideoEncoder.json: ERROR $destinationFile ");
     }
 }
-die(json_encode($obj));
+dieJsonResponse($obj, 'success');
 
 /*
   _error_log(print_r($_REQUEST, true));
