@@ -9,25 +9,30 @@ if (!isset($global['systemRootPath'])) {
 }
 allowOrigin();
 
+function receiveImageDebugLog($message)
+{
+    _error_log($message);
+}
+
 $global['bypassSameDomainCheck'] = 1;
 inputToRequest();
 
 if (empty($_REQUEST)) {
     $obj->msg = ("Your REQUEST data is empty, maybe your video file is too big for the host");
-    rateLimitedLog('ReceiveImage-empty-request', "ReceiveImage: " . $obj->msg);
+    receiveImageDebugLog("ReceiveImage: " . $obj->msg);
     die(json_encode($obj));
 }
 
 useVideoHashOrLogin();
 if (!User::canUpload()) {
     $obj->msg = __("Permission denied to receive a image: " . json_encode($_REQUEST));
-    rateLimitedLog('ReceiveImage-canUpload-' . md5(json_encode([User::getId(), getRealIpAddr()])), "ReceiveImage: " . $obj->msg);
+    receiveImageDebugLog("ReceiveImage: " . $obj->msg);
     die(json_encode($obj));
 }
 
 if (!Video::canEdit($_REQUEST['videos_id'])) {
     $obj->msg = __("Permission denied to edit a video: " . json_encode($_REQUEST));
-    rateLimitedLog('ReceiveImage-canEdit-' . md5(json_encode([$_REQUEST['videos_id'] ?? 0, User::getId(), getRealIpAddr()])), "ReceiveImage: " . $obj->msg);
+    receiveImageDebugLog("ReceiveImage: " . $obj->msg);
     die(json_encode($obj));
 }
 
@@ -80,7 +85,7 @@ if (!file_exists($obj->jpgDest) || !fileIsAnValidImage($obj->jpgDest)) {
                     } else {
                         $obj->msg = print_r(sprintf(__("Could not move image file %s => [%s]"), $_FILES['image']['tmp_name'], $obj->jpgDest), true);
                     }
-                    rateLimitedLog('ReceiveImage-jpg-move-fail-' . md5($obj->jpgDest), "ReceiveImage: " . $obj->msg);
+                    receiveImageDebugLog("ReceiveImage: " . $obj->msg);
                     die(json_encode($obj));
                 }
             }
@@ -89,12 +94,12 @@ if (!file_exists($obj->jpgDest) || !fileIsAnValidImage($obj->jpgDest)) {
         }
     } else {
         if (empty($_FILES['image']['tmp_name'])) {
-            rateLimitedLog('ReceiveImage-empty-image-tmp-' . md5($obj->jpgDest), "ReceiveImage: empty \$_FILES['image']['tmp_name'] for {$obj->jpgDest}");
+            receiveImageDebugLog("ReceiveImage: empty \$_FILES['image']['tmp_name'] for {$obj->jpgDest}");
         }
         if (file_exists($obj->jpgDest)) {
-            rateLimitedLog('ReceiveImage-jpg-exists-' . md5($obj->jpgDest), "ReceiveImage: File already exists " . $obj->jpgDest);
+            receiveImageDebugLog("ReceiveImage: File already exists " . $obj->jpgDest);
             if (fileIsAnValidImage($obj->jpgDest)) {
-                rateLimitedLog('ReceiveImage-jpg-valid-' . md5($obj->jpgDest), "ReceiveImage: file is valid image " . filesize($obj->jpgDest));
+                receiveImageDebugLog("ReceiveImage: file is valid image " . filesize($obj->jpgDest));
             }
         }
     }
@@ -116,19 +121,19 @@ if (!empty($_REQUEST['downloadURL_spectrumimage']) && isSSRFSafeURL($_REQUEST['d
     if ((!empty($_REQUEST['update_video_id']) || !fileIsAnValidImage($obj->jpgSpectrumDest))) {
         if (!move_uploaded_file($_FILES['spectrumimage']['tmp_name'], $obj->jpgSpectrumDest)) {
             $obj->msg = print_r(sprintf(__("Could not move image file [%s.jpg]"), $destination_local), true);
-            rateLimitedLog('ReceiveImage-spectrum-move-fail-' . md5($destination_local), "ReceiveImage: " . $obj->msg);
+            receiveImageDebugLog("ReceiveImage: " . $obj->msg);
             die(json_encode($obj));
         } else {
             $obj->jpgSpectrumDestSize = humanFileSize(filesize($obj->jpgSpectrumDest));
         }
     } else {
         if (empty($_FILES['spectrumimage']['tmp_name'])) {
-            rateLimitedLog('ReceiveImage-empty-spectrum-tmp-' . md5($destination_local), "ReceiveImage: empty \$_FILES['spectrumimage']['tmp_name'] for {$destination_local}");
+            receiveImageDebugLog("ReceiveImage: empty \$_FILES['spectrumimage']['tmp_name'] for {$destination_local}");
         }
         if (file_exists($obj->jpgSpectrumDest)) {
-            rateLimitedLog('ReceiveImage-spectrum-exists-' . md5($obj->jpgSpectrumDest), "ReceiveImage: File already exists " . $obj->jpgSpectrumDest);
+            receiveImageDebugLog("ReceiveImage: File already exists " . $obj->jpgSpectrumDest);
             if (fileIsAnValidImage($obj->jpgSpectrumDestSize)) {
-                rateLimitedLog('ReceiveImage-spectrum-valid-' . md5($obj->jpgSpectrumDest), "ReceiveImage: file is valid image " . filesize($obj->jpgSpectrumDest));
+                receiveImageDebugLog("ReceiveImage: file is valid image " . filesize($obj->jpgSpectrumDest));
             }
         }
     }
@@ -149,12 +154,12 @@ if (!empty($_REQUEST['downloadURL_gifimage']) && isSSRFSafeURL($_REQUEST['downlo
     }
 } else {
     if (empty($_FILES['gifimage']['tmp_name'])) {
-        rateLimitedLog('ReceiveImage-empty-gif-tmp-' . md5($obj->gifDest), "ReceiveImage: empty \$_FILES['gifimage']['tmp_name'] for {$obj->gifDest}");
+        receiveImageDebugLog("ReceiveImage: empty \$_FILES['gifimage']['tmp_name'] for {$obj->gifDest}");
     }
     if (file_exists($obj->gifDest)) {
-        rateLimitedLog('ReceiveImage-gif-exists-' . md5($obj->gifDest), "ReceiveImage: File already exists " . $obj->gifDest);
+        receiveImageDebugLog("ReceiveImage: File already exists " . $obj->gifDest);
         if (fileIsAnValidImage($obj->gifDest)) {
-            rateLimitedLog('ReceiveImage-gif-valid-' . md5($obj->gifDest), "ReceiveImage: file is valid image " . filesize($obj->gifDest));
+            receiveImageDebugLog("ReceiveImage: file is valid image " . filesize($obj->gifDest));
         }
     }
 }
@@ -174,12 +179,12 @@ if (!empty($_REQUEST['downloadURL_webpimage']) && isSSRFSafeURL($_REQUEST['downl
     }
 } else {
     if (empty($_FILES['webpimage']['tmp_name'])) {
-        rateLimitedLog('ReceiveImage-empty-webp-tmp-' . md5($obj->webpDest), "ReceiveImage: empty \$_FILES['webpimage']['tmp_name'] for {$obj->webpDest}");
+        receiveImageDebugLog("ReceiveImage: empty \$_FILES['webpimage']['tmp_name'] for {$obj->webpDest}");
     }
     if (file_exists($obj->webpDest)) {
-        rateLimitedLog('ReceiveImage-webp-exists-' . md5($obj->webpDest), "ReceiveImage: File already exists " . $obj->webpDest);
+        receiveImageDebugLog("ReceiveImage: File already exists " . $obj->webpDest);
         if (fileIsAnValidImage($obj->webpDest)) {
-            rateLimitedLog('ReceiveImage-webp-valid-' . md5($obj->webpDest), "ReceiveImage: file is valid image " . filesize($obj->webpDest));
+            receiveImageDebugLog("ReceiveImage: file is valid image " . filesize($obj->webpDest));
         }
     }
 }
@@ -198,17 +203,12 @@ if (!empty($obj->webpDest)) {
 }
 
 if (!empty($_REQUEST['duration'])) {
-    _error_log("ReceiveImage: duration NOT empty {$_REQUEST['duration']}");
     $duration = $video->getDuration();
     if (empty($duration) || $duration === 'EE:EE:EE') {
-        _error_log("ReceiveImage: duration Line " . __LINE__);
         $video->setDuration($_REQUEST['duration']);
     } else if ($_REQUEST['duration'] !== 'EE:EE:EE') {
-        _error_log("ReceiveImage: duration Line " . __LINE__);
         $video->setDuration($_REQUEST['duration']);
     }
-} else {
-    _error_log("ReceiveImage: duration was empty {$_REQUEST['duration']}");
 }
 
 $videos_id = $video->save();
