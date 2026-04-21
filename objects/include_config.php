@@ -132,18 +132,7 @@ if (!isset($global['logRotationDays'])) {
 
 ini_set('error_log', $global['logfile']);
 
-// Only set secure cookie settings for HTTPS connections
-$isHTTPS = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
-           (!empty($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
-
-if ($isHTTPS) {
-    // SameSite=None is intentional: AVideo supports cross-origin iframe embedding
-    // where users must stay authenticated (e.g. video players on third-party sites).
-    // Setting Lax would break that use case. All state-mutating endpoints that are
-    // vulnerable to CSRF must instead enforce a short-lived globalToken (verifyToken).
-    ini_set('session.cookie_samesite', 'None');
-    ini_set('session.cookie_secure', '1');
-}
+require_once $global['systemRootPath'] . 'objects/functionsPHP.php';
 
 if (empty($global['mysqli_charset'])) {
     //$global['mysqli_charset'] = 'latin1';
@@ -161,6 +150,7 @@ if (empty($doNotConnectDatabaseIncludeConfig)) {
     $mysql_connect_was_closed = 1;
 }
 $global['webSiteRootURL'] = fixTestURL($global['webSiteRootURL']);
+_applySessionCookieIniSettings();
 require_once $global['systemRootPath'] . 'objects/mysql_dal.php';
 includeConfigLog(__LINE__);
 require_once $global['systemRootPath'] . 'objects/configuration.php';

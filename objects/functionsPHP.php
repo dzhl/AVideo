@@ -128,56 +128,198 @@ function _getCookieDeleteTargets()
     return $targets;
 }
 
-function _setcookieInternal($cookieName, $value, $expires, $path = '/', $domain = null)
+function _getCookieRequestDomain($host = null)
 {
-    $secure = true;
-    $httpOnly = true;
-    $sameSite = 'None';
+    global $global;
 
-    if (version_compare(PHP_VERSION, '7.3', '>=')) {
-        $cookieOptions = [
-            'expires' => (int) $expires,
-            'path' => $path,
-            'secure' => $secure,
-            'httponly' => $httpOnly,
-            'samesite' => $sameSite,
-        ];
-
-        if ($domain !== null) {
-            $cookieOptions['domain'] = $domain;
+    if ($host === null) {
+        if (!empty($_SERVER['HTTP_HOST'])) {
+            $host = $_SERVER['HTTP_HOST'];
+        } elseif (!empty($global['webSiteRootURL'])) {
+            $host = parse_url($global['webSiteRootURL'], PHP_URL_HOST);
         }
-
-        return setcookie($cookieName, $value, $cookieOptions);
     }
 
-    $legacyPath = $path;
-    if ($secure || !empty($sameSite)) {
-        $legacyPath .= '; SameSite=' . $sameSite;
-    }
+    $host = (string) $host;
+    $host = preg_replace('/^www\./i', '', $host);
+    $host = preg_match('/^\..+/', $host) ? ltrim($host, '.') : $host;
+    $host = preg_replace('/:[0-9]+$/', '', $host);
 
-    return setcookie($cookieName, $value, (int) $expires, $legacyPath, $domain, $secure, $httpOnly);
+    return $host;
 }
 
-function _setSessionCookieParams($lifetime)
+function _isCookieSecure()
 {
-    $domain = getDomain();
-    $secure = true;
-    $httpOnly = true;
-    $path = '/';
-    $sameSite = 'None';
-
-    if (version_compare(PHP_VERSION, '7.3.0', '>=')) {
-        return session_set_cookie_params([
-            'lifetime' => (int) $lifetime,
-            'path' => $path,
-            'domain' => $domain,
-            'secure' => $secure,
-            'httponly' => $httpOnly,
-            'samesite' => $sameSite,
-        ]);
+    if (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off') {
+        return true;
     }
 
-    return session_set_cookie_params((int) $lifetime, $path . '; SameSite=' . $sameSite, $domain, $secure, $httpOnly);
+    if (!empty($_SERVER['REQUEST_SCHEME']) && strtolower((string) $_SERVER['REQUEST_SCHEME']) === 'https') {
+        return true;
+    }
+
+    if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
+        $forwardedProto = array_map('trim', explode(',', strtolower((string) $_SERVER['HTTP_X_FORWARDED_PROTO'])));
+        if (in_array('https', $forwardedProto, true)) {
+            return true;
+        }
+    }
+
+    if (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower((string) $_SERVER['HTTP_X_FORWARDED_SSL']) === 'on') {
+        return true;
+    }
+
+    if (!empty($_SERVER['HTTP_FRONT_END_HTTPS']) && strtolower((string) $_SERVER['HTTP_FRONT_END_HTTPS']) !== 'off') {
+        return true;
+    }
+
+    if (!empty($_SERVER['HTTP_CF_VISITOR']) && stripos((string) $_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"') !== false) {
+        return true;
+    }
+
+    if (!empty($_SERVER['SERVER_PORT']) && (int) $_SERVER['SERVER_PORT'] === 443) {
+        return true;
+    }
+
+    return false;
+}
+
+function _getCookiePolicy()
+{
+    static $policy = null;
+
+    if ($policy !== null) {
+        return $policy;
+    }
+
+    $secure = _isCookieSecure();
+    $policy = [
+        'secure' => $secure,
+        'httponly' => true,
+        'samesite' => _getCookieSameSiteValue($secure),
+    ];
+
+    return $policy;
+}
+
+function _getDefaultCookieDomain()
+{
+    return function_exists('getDomain') ? getDomain() : _getCookieRequestDomain();
+}
+
+function _getSessionCookieIniSettings()
+{
+    $policy = _getCookiePolicy();
+
+    return [
+        'session.cookie_samesite' => $policy['samesite'],
+        'session.cookie_secure' => $policy['secure'] ? '1' : '0',
+    ];
+}
+
+function _applySessionCookieIniSettings()
+{
+    foreach (_getSessionCookieIniSettings() as $name => $value) {
+        ini_set($name, $value);
+    }
+}
+
+function _getCookieSameSiteValue($secure)
+{
+    return $secure ? 'None' : 'Lax';
+}
+
+function _getSessionCookieParamsConfig($lifetime, $domain = null, $path = '/')
+{
+    $policy = _getCookiePolicy();
+
+    return [
+        'lifetime' => (int) $lifetime,
+        'path' => $path,
+        'domain' => $domain,
+        'secure' => $policy['secure'],
+        'httponly' => $policy['httponly'],
+        'samesite' => $policy['samesite'],
+    ];
+}
+
+function _supportsCookieOptionsArray()
+{
+    return version_compare(PHP_VERSION, '7.3.0', '>=');
+}
+
+function _getCookieOptionsArray(array $config, $includeExpires = true)
+{
+    $cookieOptions = [
+        'path' => $config['path'],
+        'secure' => $config['secure'],
+        'httponly' => $config['httponly'],
+        'samesite' => $config['samesite'],
+    ];
+
+    if ($includeExpires) {
+        $cookieOptions['expires'] = $config['lifetime'];
+    }
+
+    if ($config['domain'] !== null && $config['domain'] !== '') {
+        $cookieOptions['domain'] = $config['domain'];
+    }
+
+    return $cookieOptions;
+}
+
+function _getLegacySameSitePath(array $config)
+{
+    $path = $config['path'];
+
+    if ($config['secure'] || !empty($config['samesite'])) {
+        $path .= '; SameSite=' . $config['samesite'];
+    }
+
+    return $path;
+}
+
+function _setcookieInternal($cookieName, $value, $expires, $path = '/', $domain = null)
+{
+    $config = _getSessionCookieParamsConfig($expires, $domain, $path);
+
+    if (_supportsCookieOptionsArray()) {
+        return setcookie($cookieName, $value, _getCookieOptionsArray($config));
+    }
+
+    return setcookie(
+        $cookieName,
+        $value,
+        $config['lifetime'],
+        _getLegacySameSitePath($config),
+        $config['domain'],
+        $config['secure'],
+        $config['httponly']
+    );
+}
+
+function _setSessionCookieParams($lifetime, $domain = null, $path = '/')
+{
+    if ($domain === null) {
+        $domain = _getDefaultCookieDomain();
+    }
+
+    $config = _getSessionCookieParamsConfig($lifetime, $domain, $path);
+
+    if (_supportsCookieOptionsArray()) {
+        return session_set_cookie_params(array_merge(
+            ['lifetime' => $config['lifetime']],
+            _getCookieOptionsArray($config, false)
+        ));
+    }
+
+    return session_set_cookie_params(
+        $config['lifetime'],
+        _getLegacySameSitePath($config),
+        $config['domain'],
+        $config['secure'],
+        $config['httponly']
+    );
 }
 
 function _setcookie($cookieName, $value, $expires = 0)
@@ -406,12 +548,7 @@ function session_start_preload()
         return true;
     }
 
-    if (version_compare(PHP_VERSION, '7.3.0') >= 0) {
-        setcookie('key', 'value', ['samesite' => 'None', 'secure' => true]);
-    } else {
-        header('Set-Cookie: cross-site-cookie=name; SameSite=None; Secure');
-        setcookie('key', 'value', time() + $config->getSession_timeout(), '/; SameSite=None; Secure');
-    }
+    _setcookieInternal('key', 'value', time() + $config->getSession_timeout());
 }
 
 

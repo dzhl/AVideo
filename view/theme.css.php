@@ -1,16 +1,7 @@
 <?php
 $sessionName = 'themeCSSSession';
-if (version_compare(PHP_VERSION, '7.3.0', '>=')) {
-    session_set_cookie_params([
-        'path' => '/',
-        'domain' => preg_replace('/:[0-9]+$/', '', preg_replace('/^www\./i', '', $_SERVER['HTTP_HOST'] ?? '')),
-        'secure' => true,
-        'httponly' => true,
-        'samesite' => 'None',
-    ]);
-} else {
-    session_set_cookie_params(0, '/; SameSite=None', preg_replace('/:[0-9]+$/', '', preg_replace('/^www\./i', '', $_SERVER['HTTP_HOST'] ?? '')), true, true);
-}
+require_once dirname(__DIR__) . '/objects/functionsPHP.php';
+_setSessionCookieParams(0, _getCookieRequestDomain());
 session_name($sessionName);
 session_start();
 if(!empty($_SESSION['theme'])){
