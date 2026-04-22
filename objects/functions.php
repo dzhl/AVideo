@@ -1486,6 +1486,73 @@ function getResolutionFromFilename($filename, $downloadIfNeed = true)
     return $res;
 }
 
+function sourceIsM3U8($source)
+{
+    $type = '';
+    $src = '';
+
+    if (is_object($source)) {
+        $type = strtolower((string) @$source->type);
+        $src = strtolower((string) @$source->src);
+    } elseif (is_array($source)) {
+        $type = strtolower((string) @$source['type']);
+        $src = strtolower((string) (@$source['src'] ?: @$source['url']));
+    } else {
+        return false;
+    }
+
+    return $type === 'application/x-mpegurl' || preg_match('/\.m3u8(?:$|\?)/', $src);
+}
+
+function sourceIsMP4($source)
+{
+    $type = '';
+    $src = '';
+
+    if (is_object($source)) {
+        $type = strtolower((string) @$source->type);
+        $src = strtolower((string) @$source->src);
+    } elseif (is_array($source)) {
+        $type = strtolower((string) @$source['type']);
+        $src = strtolower((string) (@$source['src'] ?: @$source['url']));
+    } else {
+        return false;
+    }
+
+    return $type === 'video/mp4' || preg_match('/\.mp4(?:$|\?)/', $src);
+}
+
+function removeMP4SourcesIfM3U8Exists($sources)
+{
+    if (empty($sources)) {
+        return $sources;
+    }
+
+    if (is_array($sources)) {
+        $hasM3U8 = false;
+        foreach ($sources as $source) {
+            if (sourceIsM3U8($source)) {
+                $hasM3U8 = true;
+                break;
+            }
+        }
+
+        if (!$hasM3U8) {
+            return $sources;
+        }
+
+        return array_values(array_filter($sources, function ($source) {
+            return !sourceIsMP4($source);
+        }));
+    }
+
+    if (is_string($sources) && preg_match('/<source\b[^>]*type="application\/x-mpegURL"[^>]*>/i', $sources)) {
+        return preg_replace('/\s*<source\b[^>]*type="video\/mp4"[^>]*>\s*/i', PHP_EOL . '<!-- mp4 source removed because m3u8 exists -->' . PHP_EOL, $sources);
+    }
+
+    return $sources;
+}
+
 function getSources($fileName, $returnArray = false, $try = 0)
 {
     global $getSourcesLastLine;
@@ -1534,14 +1601,13 @@ function getSources($fileName, $returnArray = false, $try = 0)
         $captionsTracks = getVTTChapterTracks($fileName, $returnArray);
         $getSourcesLastLine[] = __LINE__;
     }
+    $videoSources = removeMP4SourcesIfM3U8Exists($videoSources);
+    $getSourcesLastLine[] = __LINE__;
     //var_dump($subtitleTracks,  $captionsTracks);exit;
     if ($returnArray) {
         $return = array_merge($videoSources, $audioTracks, $subtitleTracks,  $captionsTracks);
         $getSourcesLastLine[] = __LINE__;
     } else {
-        // remove index.mp4
-        $videoSources = preg_replace('/<source src=".*index.mp4.*" type="video\/mp4" label="Low" res="360">/', '<!-- index.mp4 removed -->', $videoSources);
-        //var_dump($videoSources);exit;
         $return = $videoSources . $audioTracks  . PHP_EOL . $subtitleTracks  . PHP_EOL . $captionsTracks;
         $getSourcesLastLine[] = __LINE__;
     }
