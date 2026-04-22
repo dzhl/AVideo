@@ -5463,7 +5463,7 @@ class API extends PluginAbstract
      *
      * @return \ApiObject
      * - success: true if the code is valid and not expired
-     * - response: object containing user ID, name, email, photo URL, and user hash
+     * - response: object containing user ID, name, email, photo URL, user hash, age, and birth date
      * - error: returns appropriate message if the code is invalid, expired, not found, or corrupted
      */
     #[OA\Get(
@@ -5505,6 +5505,8 @@ class API extends PluginAbstract
                         $obj->photo = User::getPhoto($obj->users_id);
                         $obj->identification = User::getNameIdentificationById($obj->users_id);
                         $obj->email = User::getEmailDb($obj->users_id);
+                        $obj->age = User::getAge($obj->users_id);
+                        $obj->birth_date = User::getBirthIfIsSet($obj->users_id);
                         $obj->passhash = User::getUserHash($obj->users_id, $valid = '+1 year');
                     }
                 } else {
