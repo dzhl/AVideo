@@ -190,9 +190,7 @@ function rateLimitedLog($key, $message, $ttl = 300, $type = null)
     } else {
         $tmpDir = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'YPTObjectCache' . DIRECTORY_SEPARATOR . 'rateLimitedLogs' . DIRECTORY_SEPARATOR;
     }
-    if (!is_dir($tmpDir)) {
-        @mkdir($tmpDir, 0777, true);
-    }
+    make_path($tmpDir);
     $safeKey = preg_replace('/[^a-zA-Z0-9_\-]/', '_', (string) $key);
     $rateFile = $tmpDir . 'rate_limited_log_' . $safeKey . '.cache';
     $now = time();
@@ -204,7 +202,7 @@ function rateLimitedLog($key, $message, $ttl = 300, $type = null)
         }
     }
 
-    @file_put_contents($rateFile, $now);
+    @_file_put_contents($rateFile, $now);
 
     if ($type === null) {
         error_log($message);

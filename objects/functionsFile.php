@@ -192,13 +192,29 @@ function make_path($path)
         $created = true;
     }
 
-    if (preg_match('/cache/i', $path) || isCommandLineInterface()) {
-        $mode = 0777;
-    } else {
-        $mode = 0755;
-    }
-    @chmod($path, $mode);
+    setPathPermissions($path);
     return $created;
+}
+
+function setPathPermissions($path)
+{
+    if (empty($path) || !file_exists($path)) {
+        return false;
+    }
+
+    if (preg_match('/cache/i', $path) || isCommandLineInterface()) {
+        $dirMode = 0777;
+        $fileMode = 0666;
+    } else {
+        $dirMode = 0755;
+        $fileMode = 0644;
+    }
+
+    if (is_dir($path)) {
+        return @chmod($path, $dirMode);
+    }
+
+    return @chmod($path, $fileMode);
 }
 
 function local_get_contents($path)
@@ -830,7 +846,11 @@ function _file_put_contents($filename, $data, $flags = 0, $context = null)
     if (!is_string($data)) {
         $data = _json_encode($data);
     }
-    return file_put_contents($filename, $data, $flags, $context);
+    $bytes = file_put_contents($filename, $data, $flags, $context);
+    if ($bytes !== false) {
+        setPathPermissions($filename);
+    }
+    return $bytes;
 }
 
 // just realize the readdir is a lot faster then glob

@@ -3498,8 +3498,7 @@ Click <a href=\"{link}\">here</a> to join our live.";
     private static function saveRestreamReconnectState($key, $live_servers_id, $state)
     {
         $file = self::getRestreamReconnectStateFile($key, $live_servers_id);
-        make_path($file);
-        @file_put_contents($file, json_encode($state));
+        @_file_put_contents($file, json_encode($state));
     }
 
     private static function registerRestreamReconnectEvent($key, $live_servers_id, $liveTransmitionHistory_id, $isReconnection)

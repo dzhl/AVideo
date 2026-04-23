@@ -630,48 +630,47 @@ class Scheduler extends PluginAbstract
         self::manageLogFile();
     }
 
-    function fixCacheDirectoryPermissions($directory = '/var/www/tmp/YPTObjectCache')
+    function fixCacheDirectoryPermissions($directory = '/var/www/tmp/YPTObjectCache', $maxEntries = 1000)
     {
-        // Check if the directory exists
         if (!is_dir($directory)) {
             _error_log("Cache directory does not exist, attempting to create: $directory");
 
-            // Try to create the directory with proper permissions
             if (@mkdir($directory, 0777, true)) {
                 _error_log("Successfully created cache directory: $directory");
-                return true;
             } else {
                 _error_log("Failed to create cache directory: $directory");
                 return false;
             }
         }
 
-        // Check if the directory is writable
-        if (!is_writable($directory)) {
-            _error_log("Cache directory is not writable, attempting to fix permissions: $directory");
+        @chmod($directory, 0777);
 
-            // Try to change permissions to 0777 (full access)
-            if (@chmod($directory, 0777)) {
-                _error_log("Successfully changed permissions for cache directory: $directory");
+        $maxEntries = max(1, intval($maxEntries));
+        $processed = 0;
 
-                // Try to fix permissions recursively for subdirectories
-                $iterator = new RecursiveIteratorIterator(
-                    new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS),
-                    RecursiveIteratorIterator::SELF_FIRST
-                );
+        try {
+            $iterator = new DirectoryIterator($directory);
+        } catch (Throwable $th) {
+            _error_log("fixCacheDirectoryPermissions: could not iterate directory {$directory}: " . $th->getMessage());
+            return false;
+        }
 
-                foreach ($iterator as $item) {
-                    @chmod($item, 0777);
-                }
-
-                return true;
+        foreach ($iterator as $item) {
+            if ($item->isDot()) {
+                continue;
+            }
+            $pathname = $item->getPathname();
+            if ($item->isDir()) {
+                @chmod($pathname, 0777);
             } else {
-                _error_log("Failed to change permissions for cache directory: $directory");
-                return false;
+                @chmod($pathname, 0666);
+            }
+            $processed++;
+            if ($processed >= $maxEntries) {
+                break;
             }
         }
 
-        // Directory is already writable
         return true;
     }
 

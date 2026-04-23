@@ -621,6 +621,10 @@ abstract class ObjectYPT implements ObjectInterface
             //_error_log('Error on set cache, empty content '.$name);
             return false;
         }
+        if (isBot() && !isCommandLineInterface()) {
+            self::setLastUsedCacheMode("No cache saved for bot {$name}");
+            return false;
+        }
         $start = microtime(true);
         if (!self::isToSaveInASubDir($name) && $content = self::shouldUseDatabase($value)) {
             $saved = Cache::_setCache($name, $content);
@@ -648,9 +652,8 @@ abstract class ObjectYPT implements ObjectInterface
             // echo 'setCache ' . json_encode(array($name, $addSubDirs, $ignoreMetadata)) . PHP_EOL;
         }
         self::logTime($start, __LINE__, $name);
-        make_path($cachefile);
         //_error_log("YPTObject::setCache log error [{$name}] $cachefile filemtime = ".filemtime($cachefile));
-        $bytes = @file_put_contents($cachefile, $content);
+        $bytes = @_file_put_contents($cachefile, $content);
         self::logTime($start, __LINE__, $name);
         self::setSessionCache($name, $value);
         self::logTime($start, __LINE__, $name);
