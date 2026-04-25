@@ -495,9 +495,13 @@ function markDownToHTML($text) {
     $html = nl2br($html);
 
     // Convert bare URLs to clickable links with target="_blank"
-    $html = preg_replace(
-        '/\b[^"\']https?:\/\/[^\s<]+/i',
-        '<a href="$0" target="_blank" rel="noopener noreferrer">$0</a>',
+    $html = preg_replace_callback(
+        '/\b[^"\'\s<]https?:\/\/[^\s<"\']+/i',
+        function ($matches) {
+            $url = $matches[0];
+            $escapedUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+            return '<a href="' . $escapedUrl . '" target="_blank" rel="noopener noreferrer">' . $escapedUrl . '</a>';
+        },
         $html
     );
 
