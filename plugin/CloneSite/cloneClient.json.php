@@ -48,13 +48,15 @@ if (empty($objClone->cloneSiteURL)) {
 
 $objClone->cloneSiteURL = rtrim($objClone->cloneSiteURL, "/") . '/';
 $objCloneOriginal = $objClone;
-$argv[1] = preg_replace("/[^A-Za-z0-9 ]/", '', empty($argv[1])?'':$argv[1]);
+$cliKey = '';
+if (isCommandLineInterface() && !empty($argv[1])) {
+    $cliKey = preg_replace("/[^A-Za-z0-9 ]/", '', $argv[1]);
+}
 
-if (empty($objClone) || empty($argv[1]) || $objClone->myKey !== $argv[1]) {
+if (empty($objClone) || empty($cliKey) || !hash_equals((string) $objClone->myKey, (string) $cliKey)) {
     if (!User::isAdmin()) {
         $resp->msg = "You can't do this";
         $log->add("Clone: {$resp->msg}");
-        echo "$objClone->myKey !== $argv[1]";
         die(json_encode($resp));
     }
 }
