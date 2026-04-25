@@ -113,7 +113,7 @@ if (!empty($_REQUEST['nameIdentification'])) {
         ?>
 
         function _readyToClose() {
-            document.location = "<?php echo $readyToClose; ?>";
+            document.location = <?php echo json_encode($readyToClose, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         }
     </script>
 </body>

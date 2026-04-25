@@ -3363,7 +3363,7 @@ if (typeof gtag !== \"function\") {
     public static function loginFromRequestToGet()
     {
         if (!empty($_REQUEST['user']) && !empty($_REQUEST['pass'])) {
-            $return = "user={$_REQUEST['user']}&pass={$_REQUEST['pass']}";
+            $return = "user=" . rawurlencode((string) $_REQUEST['user']) . "&pass=" . rawurlencode((string) $_REQUEST['pass']);
             if (!empty($_REQUEST['encodedPass'])) {
                 $return .= "&encodedPass=" . intval($_REQUEST['encodedPass']);
             }
