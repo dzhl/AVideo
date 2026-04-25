@@ -143,6 +143,20 @@ class Message implements MessageComponentInterface {
         });
     }
 
+    private function removeAutoEvalCodeOnHTMLRecursive(&$data) {
+        if (!is_array($data)) {
+            return;
+        }
+        if (array_key_exists('autoEvalCodeOnHTML', $data)) {
+            unset($data['autoEvalCodeOnHTML']);
+        }
+        foreach ($data as &$value) {
+            if (is_array($value)) {
+                $this->removeAutoEvalCodeOnHTMLRecursive($value);
+            }
+        }
+    }
+
     public function onClose(ConnectionInterface $conn) {
         global $onMessageSentTo, $SocketGetTotals;
         $SocketGetTotals = null;
@@ -238,9 +252,8 @@ class Message implements MessageComponentInterface {
                 // browser clients must not inject it into broadcasts.
                 // callback must be a valid JS identifier to prevent eval injection on clients.
                 if (empty($msgObj->isCommandLineInterface) && ($msgObj->sentFrom ?? '') !== 'php') {
-                    if (is_array($json['msg'] ?? null)) {
-                        unset($json['msg']['autoEvalCodeOnHTML']);
-                    }
+                    // Remove from any nested carrier so msgToResourceId cannot relay it via msg/json/fallback paths.
+                    $this->removeAutoEvalCodeOnHTMLRecursive($json);
                     if (isset($json['callback']) && !preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', (string)$json['callback'])) {
                         unset($json['callback']);
                     }

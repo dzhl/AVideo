@@ -181,6 +181,21 @@ class Message implements MessageComponentInterface
         //_log_message("Connection {$conn->resourceId} has disconnected");
     }
 
+    private function removeAutoEvalCodeOnHTMLRecursive(&$data)
+    {
+        if (!is_array($data)) {
+            return;
+        }
+        if (array_key_exists('autoEvalCodeOnHTML', $data)) {
+            unset($data['autoEvalCodeOnHTML']);
+        }
+        foreach ($data as &$value) {
+            if (is_array($value)) {
+                $this->removeAutoEvalCodeOnHTMLRecursive($value);
+            }
+        }
+    }
+
     protected function setClient(ConnectionInterface $conn, $client)
     {
         $this->clients[$conn->resourceId] = $conn;
@@ -284,9 +299,8 @@ class Message implements MessageComponentInterface
                 //_log_message("onMessage:msgObj: " . json_encode($json));
                 // Strip eval-able fields from browser/guest messages.
                 if (empty($msgObj->isCommandLineInterface) && ($msgObj->sentFrom ?? '') !== 'php') {
-                    if (is_array($json['msg'] ?? null)) {
-                        unset($json['msg']['autoEvalCodeOnHTML']);
-                    }
+                    // Remove from any nested carrier so msgToResourceId cannot relay it via msg/json/fallback paths.
+                    $this->removeAutoEvalCodeOnHTMLRecursive($json);
                     if (isset($json['callback']) && !preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', (string)$json['callback'])) {
                         unset($json['callback']);
                     }
