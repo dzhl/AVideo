@@ -1031,6 +1031,107 @@ function base64DataToImage($imgBase64)
     return base64_decode($img);
 }
 
+function normalizeBase64ImageData($imgBase64)
+{
+    $imgBase64 = trim((string) $imgBase64);
+    if ($imgBase64 === '') {
+        return '';
+    }
+
+    if (preg_match('/^data:image\/[a-z0-9.+-]+;base64,/i', $imgBase64)) {
+        $parts = explode(',', $imgBase64, 2);
+        $imgBase64 = $parts[1] ?? '';
+    }
+
+    $imgBase64 = str_replace(' ', '+', $imgBase64);
+    return preg_replace('/\s+/', '', $imgBase64);
+}
+
+function estimateBase64DecodedSize($imgBase64)
+{
+    $length = strlen($imgBase64);
+    if ($length === 0) {
+        return 0;
+    }
+
+    $padding = 0;
+    if ($length >= 2 && substr($imgBase64, -2) === '==') {
+        $padding = 2;
+    } elseif (substr($imgBase64, -1) === '=') {
+        $padding = 1;
+    }
+
+    return (int) floor(($length * 3) / 4) - $padding;
+}
+
+function isValidImageBinaryData($fileData)
+{
+    if (!is_string($fileData) || $fileData === '') {
+        return false;
+    }
+
+    if (function_exists('getimagesizefromstring')) {
+        $imageInfo = @getimagesizefromstring($fileData);
+        if (is_array($imageInfo) && !empty($imageInfo[0]) && !empty($imageInfo[1]) && !empty($imageInfo['mime'])) {
+            return stripos($imageInfo['mime'], 'image/') === 0;
+        }
+    }
+
+    // Fallback for environments without GD: accept known image signatures.
+    if (strncmp($fileData, "\x89PNG\r\n\x1A\n", 8) === 0) {
+        return true;
+    }
+    if (strncmp($fileData, "\xFF\xD8\xFF", 3) === 0) {
+        return true;
+    }
+    if (strncmp($fileData, 'GIF87a', 6) === 0 || strncmp($fileData, 'GIF89a', 6) === 0) {
+        return true;
+    }
+    if (strncmp($fileData, 'RIFF', 4) === 0 && substr($fileData, 8, 4) === 'WEBP') {
+        return true;
+    }
+    if (strncmp($fileData, 'BM', 2) === 0) {
+        return true;
+    }
+
+    return false;
+}
+
+function getValidatedImageBinaryFromBase64($imgBase64, $maxBase64Size = 2097152, &$errorMsg = '')
+{
+    $errorMsg = '';
+    $imgBase64 = normalizeBase64ImageData($imgBase64);
+    $maxBase64Size = intval($maxBase64Size);
+
+    if (empty($imgBase64)) {
+        $errorMsg = __('Invalid image');
+        return false;
+    }
+
+    if (estimateBase64DecodedSize($imgBase64) > $maxBase64Size) {
+        $errorMsg = __('Image too large or invalid');
+        return false;
+    }
+
+    $fileData = base64_decode($imgBase64, true);
+    if (!is_string($fileData) || $fileData === '') {
+        $errorMsg = __('Invalid image');
+        return false;
+    }
+
+    if (strlen($fileData) > $maxBase64Size) {
+        $errorMsg = __('Image too large or invalid');
+        return false;
+    }
+
+    if (!isValidImageBinaryData($fileData)) {
+        $errorMsg = __('Invalid image');
+        return false;
+    }
+
+    return $fileData;
+}
+
 function saveBase64DataToPNGImage($imgBase64, $filePath)
 {
     $fileData = base64DataToImage($imgBase64);

@@ -13,6 +13,7 @@ if (!User::isLogged()) {
     $obj->msg = __("You must be logged");
     die(json_encode($obj));
 }
+forbidIfIsUntrustedRequest('userSavePhoto');
 $imagePath = "videos/userPhoto/";
 
 //Check write Access to Directory
@@ -26,7 +27,12 @@ if (!is_writable($dirPath)) {
     die(json_encode($obj));
 }
 */
-$fileData = base64DataToImage($_POST['imgBase64']);
+$fileData = getValidatedImageBinaryFromBase64($_POST['imgBase64'] ?? '', 2 * 1024 * 1024, $errorMsg);
+if ($fileData === false) {
+    $obj->msg = $errorMsg;
+    die(json_encode($obj));
+}
+
 $fileName = 'photo'. User::getId().'.png';
 $photoURL = $imagePath.$fileName;
 
@@ -40,11 +46,13 @@ if ($bytes) {
     $obj->msg = __("We could not save this file");
 }
 
-$user = new User(User::getId());
-$user->setPhotoURL($photoURL);
-if ($user->save()) {
-    User::deleteOGImage(User::getId());
-    User::updateSessionInfo();
-    clearCache(true);
+if ($bytes) {
+    $user = new User(User::getId());
+    $user->setPhotoURL($photoURL);
+    if ($user->save()) {
+        User::deleteOGImage(User::getId());
+        User::updateSessionInfo();
+        clearCache(true);
+    }
 }
 die(json_encode($obj));

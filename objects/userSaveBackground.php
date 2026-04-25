@@ -11,6 +11,7 @@ if (!User::isLogged()) {
     $obj->error = __("You must be logged");
     die(json_encode($obj));
 }
+forbidIfIsUntrustedRequest('userSaveBackground');
 $imagePath = "videos/userPhoto/";
 
 //Check write Access to Directory
@@ -27,7 +28,16 @@ if (!is_writable($global['systemRootPath'].$imagePath)) {
     return;
 }
 
-$fileData = base64DataToImage($_POST['imgBase64']);
+$fileData = getValidatedImageBinaryFromBase64($_POST['imgBase64'] ?? '', 2 * 1024 * 1024, $errorMsg);
+if ($fileData === false) {
+    $response = [
+        "status" => 'error',
+        "msg" => $errorMsg,
+    ];
+    print json_encode($response);
+    return;
+}
+
 $fileName = 'background'. User::getId().'.png';
 $photoURL = $imagePath.$fileName;
 $bytes = file_put_contents($global['systemRootPath'].$photoURL, $fileData);
@@ -43,9 +53,10 @@ if ($bytes) {
         "url" => $global['systemRootPath'].$photoURL,
     ];
 }
-
-$user = new User(User::getId());
-$user->setBackgroundURL($photoURL);
-$user->save();
-User::updateSessionInfo();
+if ($bytes) {
+    $user = new User(User::getId());
+    $user->setBackgroundURL($photoURL);
+    $user->save();
+    User::updateSessionInfo();
+}
 print json_encode($response);
