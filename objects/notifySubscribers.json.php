@@ -32,7 +32,9 @@ foreach ($Subscribes as $value) {
 }
 
 $subject = 'Message From Site ' . $config->getWebSiteTitle();
-$message = $_POST['message'];
+$message = (string)($_POST['message'] ?? '');
+// Notifications must be plain text to avoid arbitrary HTML in branded emails.
+$message = nl2br(xss_esc($message));
 
 $resp = sendSiteEmail($to, $subject, $message);
 
