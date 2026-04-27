@@ -9,8 +9,8 @@ header('Content-Type: application/json');
 $row = Plugin::getAll();
 if (!User::isAdmin()) {
     foreach ($row as $key => $value) {
-        if (!empty($row[$key]->installedPlugin['object_data'])) {
-            $row[$key]->installedPlugin['object_data'] = '';
+        if (isset($row[$key]['object_data'])) {
+            $row[$key]['object_data'] = '';
         }
     }
 }
