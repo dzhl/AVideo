@@ -16,8 +16,8 @@ if (empty($_REQUEST['agreement'])) {
     die(json_encode($obj));
 }
 
-if (!User::isLogged()) {
-    $obj->msg = "Please login first";
+if (!User::isAdmin() && !Subscription::isAgreementFromUser($_REQUEST['agreement'], User::getId())) {
+    $obj->msg = "Only the owner can cancel this agreement";
     die(json_encode($obj));
 }
 
