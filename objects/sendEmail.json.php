@@ -11,6 +11,22 @@ $valid = Captcha::validation(@$_POST['captcha']);
 if(User::isAdmin()){
     $valid = true;
 }
+
+// Reject the arbitrary-recipient (share) path for unauthenticated callers.
+// Without this guard an unauthenticated attacker can force the site's own
+// SMTP infrastructure to send attacker-composed mail to any recipient:
+// User::getEmail_() returns '' when not logged in, so $replyTo falls back
+// to $config->getContactEmail(), and $mail->setFrom($replyTo) makes the
+// message appear to originate From the site's own legitimate address --
+// passing SPF/DKIM/DMARC and enabling targeted phishing / brand impersonation.
+if (empty($_POST['contactForm']) && !User::isLogged()) {
+    $obj = new stdClass();
+    $obj->error = __('Authentication required');
+    header('Content-Type: application/json');
+    echo json_encode($obj);
+    exit;
+}
+
 $obj = new stdClass();
 $obj->error = '';
 if ($valid) {
@@ -42,7 +58,13 @@ if ($valid) {
 
     if (filter_var($sendTo, FILTER_VALIDATE_EMAIL)) {
         $mail->AddReplyTo($replyTo);
-        $mail->setFrom($replyTo);
+        // For the share (non-contactForm) path always send From the site's own
+        // address so the site's SPF/DKIM/DMARC record is never overridden by a
+        // user-supplied address. The caller's email remains reachable via
+        // Reply-To. For the contact-form path the submitter's address stays in
+        // From so the site owner can reply directly to the enquirer.
+        $siteFrom = empty($_POST['contactForm']) ? $config->getContactEmail() : $replyTo;
+        $mail->setFrom($siteFrom);
         //Set who the message is to be sent to
         $mail->addAddress($sendTo);
         //Set the subject line
