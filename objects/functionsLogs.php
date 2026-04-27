@@ -40,7 +40,7 @@ function TimeLogEnd($name, $line, $TimeLogLimit = 0.7)
         }
         if ($total_time > 2) {
             $type = AVideoLog::$ERROR;
-            $backtrace = ' backtrace=' . json_encode(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS));
+            $backtrace = ' backtrace=' . json_encode(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 20));
         }
 
         if (!empty($_SERVER['HTTP_USER_AGENT'])) {
