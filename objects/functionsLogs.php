@@ -40,7 +40,7 @@ function TimeLogEnd($name, $line, $TimeLogLimit = 0.7)
         }
         if ($total_time > 2) {
             $type = AVideoLog::$ERROR;
-            $backtrace = ' backtrace=' . json_encode(debug_backtrace());
+            $backtrace = ' backtrace=' . json_encode(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS));
         }
 
         if (!empty($_SERVER['HTTP_USER_AGENT'])) {
@@ -84,11 +84,21 @@ function _error_log_debug($message, $show_args = false)
     _error_log(PHP_EOL . '***' . PHP_EOL . $message . '***');
 }
 
-function _error_log_build_message($message, $type = 0)
+function _error_log_stringify_message($message)
 {
     if (!is_string($message)) {
+        $originalMessage = $message;
         $message = json_encode($message);
+        if (!is_string($message)) {
+            $message = print_r($originalMessage, true);
+        }
     }
+    return $message;
+}
+
+function _error_log_build_message($message, $type = 0)
+{
+    $message = _error_log_stringify_message($message);
     $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
     $prefix = "AVideoLog::";
     switch ($type) {
@@ -117,14 +127,32 @@ function _error_log_build_message($message, $type = 0)
     return $prefix . $message . " SCRIPT_NAME: {$scriptName}";
 }
 
+function _error_log_truncate_message($message)
+{
+    global $global;
+
+    $message = _error_log_stringify_message($message);
+
+    $maxLength = isset($global['maxLogLineLength']) ? intval($global['maxLogLineLength']) : 8192;
+    if ($maxLength <= 0 || strlen($message) <= $maxLength) {
+        return $message;
+    }
+
+    $suffix = '... [log truncated, original length=' . strlen($message) . ' bytes]';
+    $maxMessageLength = $maxLength - strlen($suffix);
+    if ($maxMessageLength < 1) {
+        return substr($message, 0, $maxLength);
+    }
+
+    return substr($message, 0, $maxMessageLength) . $suffix;
+}
+
 function _error_log($message, $type = 0, $doNotRepeat = null)
 {
     global $global;
-    if (!is_string($message)) {
-        $message = json_encode($message);
-    }
+    $message = _error_log_stringify_message($message);
     if (!empty($global['printLogs'])) {
-        echo $message . PHP_EOL;
+        echo _error_log_truncate_message($message) . PHP_EOL;
         return false;
     }
 
@@ -149,28 +177,27 @@ function _error_log($message, $type = 0, $doNotRepeat = null)
         }
     }
     $str = _error_log_build_message($message, $type);
+    $logMessage = _error_log_truncate_message($str);
     if ($doNotRepeat) {
         return rateLimitedLog(
             '_error_log_' . md5($str),
-            $str
+            $logMessage
         );
     }
-    error_log($str);
+    error_log($logMessage);
 }
 
 function rateLimitedLog($key, $message, $ttl = 300, $type = null)
 {
     global $global;
 
-    if (!is_string($message)) {
-        $message = json_encode($message);
-    }
+    $message = _error_log_stringify_message($message);
 
     if (!empty($global['printLogs'])) {
         if ($type === null) {
-            echo $message . PHP_EOL;
+            echo _error_log_truncate_message($message) . PHP_EOL;
         } else {
-            echo _error_log_build_message($message, $type) . PHP_EOL;
+            echo _error_log_truncate_message(_error_log_build_message($message, $type)) . PHP_EOL;
         }
         return false;
     }
@@ -205,9 +232,9 @@ function rateLimitedLog($key, $message, $ttl = 300, $type = null)
     @_file_put_contents($rateFile, $now);
 
     if ($type === null) {
-        error_log($message);
+        error_log(_error_log_truncate_message($message));
     } else {
-        error_log(_error_log_build_message($message, $type));
+        error_log(_error_log_truncate_message(_error_log_build_message($message, $type)));
     }
 
     return true;
