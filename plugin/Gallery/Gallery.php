@@ -15,32 +15,32 @@ class Gallery extends PluginAbstract
 
     public function getTags()
     {
-        return array(
+        return [
             PluginTags::$RECOMMENDED,
             PluginTags::$FREE,
             PluginTags::$GALLERY,
             PluginTags::$LAYOUT,
-        );
+        ];
     }
 
     public function getDescription()
     {
-        return "Make the first page works as a gallery";
+        return 'Make the first page works as a gallery';
     }
 
     public function getName()
     {
-        return "Gallery";
+        return 'Gallery';
     }
 
     public function getUUID()
     {
-        return "a06505bf-3570-4b1f-977a-fd0e5cab205d";
+        return 'a06505bf-3570-4b1f-977a-fd0e5cab205d';
     }
 
     public function getPluginVersion()
     {
-        return "1.0";
+        return '1.0';
     }
 
     public function getHeadCode()
@@ -178,9 +178,9 @@ class Gallery extends PluginAbstract
         $themes = getThemes();
         foreach ($themes as $value) {
             $name = ucfirst($value);
-            eval('$obj->SwitchThemeShow' . $name . ' = true;');
+            $obj->{'SwitchThemeShow' . $name} = true;
             self::addDataObjectHelper('SwitchThemeShow' . $name, 'Show ' . $name . ' Option', 'Uncheck this button to not show the ' . $name . ' in your themes list');
-            eval('$obj->SwitchThemeLabel' . $name . ' = "' . $name . '";');
+            $obj->{'SwitchThemeLabel' . $name} = $name;
             self::addDataObjectHelper('SwitchThemeLabel' . $name, $name . ' Theme Label', 'Change the label name to the theme ' . $name . ' in your themes list');
         }
 
@@ -254,14 +254,14 @@ class Gallery extends PluginAbstract
             return false;
         }
         $themes = getThemes();
-        $selectedThemes = array();
+        $selectedThemes = [];
         foreach ($themes as $value) {
             $name = ucfirst($value);
-            eval('$t = $obj->SwitchThemeShow' . $name . ';');
+            $t = $obj->{'SwitchThemeShow' . $name};
             if (!empty($t)) {
                 $l = '';
-                eval('$l = $obj->SwitchThemeLabel' . $name . ';');
-                $selectedThemes[] = array('name' => $value, 'label' => $l);
+                $l = $obj->{'SwitchThemeLabel' . $name};
+                $selectedThemes[] = ['name' => $value, 'label' => $l];
             }
         }
         return $selectedThemes;
@@ -270,15 +270,15 @@ class Gallery extends PluginAbstract
     static function getSectionsOrder()
     {
         $obj = AVideoPlugin::getObjectData('Gallery');
-        $sections = array();
+        $sections = [];
         foreach ($obj as $key => $value) {
             if (preg_match('/(.*)Order$/', $key, $matches)) {
                 $index = intval($value);
-                $sections[] = array(
+                $sections[] = [
                     'name' => $matches[1],
                     'active' => $obj->{$matches[1]},
                     'order' => $index
-                );
+                ];
             }
         }
 
@@ -299,7 +299,7 @@ class Gallery extends PluginAbstract
     {
         global $global, $config;
         $filePath = $global['systemRootPath'] . 'plugin/Gallery/buttonChannelToGallery.php';
-        $varsArray = array('users_id' => $users_id);
+        $varsArray = ['users_id' => $users_id];
         $button = getIncludeFileContent($filePath, $varsArray);
         return $button;
     }
@@ -340,7 +340,7 @@ class Gallery extends PluginAbstract
     static function getVideoDropdownMenu($videos_id)
     {
         global $global;
-        $varsArray = array('videos_id' => $videos_id);
+        $varsArray = ['videos_id' => $videos_id];
         $filePath = $global['systemRootPath'] . 'plugin/Gallery/view/videoDropDownMenu.php';
         return getIncludeFileContent($filePath, $varsArray);
     }
@@ -429,7 +429,7 @@ class Gallery extends PluginAbstract
             $sections = Gallery::getSectionsOrder();
             $response = new stdClass();
             $response->type = 'Gallery';
-            $response->sections = array();
+            $response->sections = [];
             $countSections = 0;
             $countVideos = 0;
             foreach ($sections as $value) {
