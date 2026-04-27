@@ -35,6 +35,15 @@ if (empty($obj->live_restreams_logs_id)) {
 }
 
 $obj->url = Live_restreams_logs::getURLFromTransmitionAndRestream($obj->live_transmitions_history_id, $obj->live_restreams_id, $obj->action);
+
+if (!User::isAdmin()) {
+    require_once $global['systemRootPath'] . 'plugin/Live/Objects/Live_restreams.php';
+    $lr = new Live_restreams($obj->live_restreams_id);
+    if ($lr->getUsers_id() !== User::getId()) {
+        forbiddenPage(__("You have no access to this restream"));
+    }
+}
+
 $obj->response = url_get_contents($obj->url);
 $obj->json = json_decode($obj->response);
 if (empty($obj->json)) {
