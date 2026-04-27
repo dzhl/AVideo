@@ -24,7 +24,7 @@ $obj->action = @$_REQUEST['action'];
 
 if (empty($obj->live_restreams_logs_id)) {
     if (!empty($obj->live_transmitions_history_id) && !empty($obj->live_restreams_id)) {
-        
+
     } else {
         forbiddenPage(__("ids are empty"));
     }
