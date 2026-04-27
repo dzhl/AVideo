@@ -355,13 +355,15 @@ class EpgParser {
             throw new \RuntimeException('Url invalid: ' . $this->url);
         }
 
-        if (!isSSRFSafeURL($this->url)) {
-            throw new \RuntimeException('URL blocked by SSRF protection: ' . $this->url);
+        // url_get_contents() validates the URL and every redirect hop via isSSRFSafeURL()
+        // with follow_location=0, preventing redirect-based SSRF bypass.
+        $this->content = url_get_contents($this->url);
+
+        if ($this->content === false) {
+            throw new \RuntimeException('URL blocked by SSRF protection or fetch failed: ' . $this->url);
         }
 
-        $this->content = @\file_get_contents($this->url);
-
-        if (!strpos($http_response_header[0], "200")) {
+        if (!isset($http_response_header[0]) || !strpos($http_response_header[0], "200")) {
             throw new \RuntimeException("Invalid response headers: " . $http_response_header[0], 1);
         }
 

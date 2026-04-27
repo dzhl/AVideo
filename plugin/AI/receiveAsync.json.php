@@ -158,11 +158,12 @@ switch ($_REQUEST['type']) {
             $o->setAi_responses_id($token->ai_responses_id);
             if (!empty($_REQUEST['response']['data'][0]['url'])) {
                 $imageUrl = $_REQUEST['response']['data'][0]['url'];
-                // SSRF Protection: Validate URL before fetching
-                if (!isSSRFSafeURL($imageUrl)) {
-                    rateLimitedLog('AI-receiveAsync-image-ssrf-' . md5($imageUrl), 'AI: ' . basename(__FILE__) . ' line=' . __LINE__ . ' SSRF protection blocked URL: ' . $imageUrl);
+                // SSRF Protection: url_get_contents() validates the URL and all redirect
+                // hops via isSSRFSafeURL() with follow_location=0, preventing redirect-based bypass.
+                $imageContent = url_get_contents($imageUrl);
+                if ($imageContent === false) {
+                    rateLimitedLog('AI-receiveAsync-image-ssrf-' . md5($imageUrl), 'AI: ' . basename(__FILE__) . ' line=' . __LINE__ . ' SSRF protection blocked URL or fetch failed: ' . $imageUrl);
                 } else {
-                    $imageContent = file_get_contents($imageUrl);
                     if (empty($imageContent)) {
                         rateLimitedLog('AI-receiveAsync-image-fetch-fail-' . md5($imageUrl), 'AI: ' . basename(__FILE__) . ' line=' . __LINE__ . ' Error fetching image content');
                     } else {
