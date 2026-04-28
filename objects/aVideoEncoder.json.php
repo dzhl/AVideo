@@ -95,7 +95,7 @@ useVideoHashOrLogin();
 _error_log("aVideoEncoder.json: after useVideoHashOrLogin - User::getId()=" . User::getId() . " isLogged=" . (User::isLogged() ? 'true' : 'false') . " videos_id=" . @$_REQUEST['videos_id'] . " video_id_hash=" . @$_REQUEST['video_id_hash']);
 if (!User::canUpload()) {
     $obj->msg = __("Permission denied to receive a file") . ': ' . json_encode($_REQUEST);
-    _error_log("aVideoEncoder.json: {$obj->msg}  canUploadMessage=[{$canUploadMessage}] " . json_encode(User::canNotUploadReason()));
+    _error_log("aVideoEncoder.json: {$obj->msg}  canNotUploadReason=" . json_encode(User::canNotUploadReason()));
     _error_log($obj->msg);
     dieJsonResponse($obj, 'permission-denied-upload');
 }
@@ -337,6 +337,8 @@ if(!empty($video->getId())){
     _error_log("Editing video ID {$video->getId()} ".$video->getExternalOptions());
 }
 
+deduplicateByEncoderQueueId($video, $obj);
+
 $video_id = $video->save();
 
 if (empty($video_id)) {
@@ -484,6 +486,73 @@ function isMetadataOnlyEncoderRequest()
         empty($_REQUEST['downloadURL']) &&
         empty($_REQUEST['chunkFile']) &&
         !empty($_REQUEST['first_request']);
+}
+
+/**
+ * Deduplication guard using the encoder queue ID.
+ *
+ * The encoder sends its unique queue row ID (encoder_queue_id) on every
+ * first_request=1 call.  We store it inside externalOptions the first time
+ * a video is created for that job, so any concurrent or retried call for the
+ * same job finds the already-created record instead of inserting a duplicate.
+ *
+ * - If a video already exists for this encoder_queue_id  → respond immediately
+ *   with that video_id and die (no duplicate INSERT).
+ * - If no video exists yet                               → stamp encoder_queue_id
+ *   onto the Video object's externalOptions before save() so the next
+ *   concurrent request will find it.
+ *
+ * @param Video    $video  The Video object about to be saved.
+ * @param stdClass $obj    The response object passed to dieJsonResponse().
+ */
+function deduplicateByEncoderQueueId(Video &$video, stdClass &$obj)
+{
+    global $global;
+
+    if (!isMetadataOnlyEncoderRequest()) {
+        _error_log("aVideoEncoder.json: deduplicateByEncoderQueueId — skipped: not a metadata-only request (file/downloadURL/chunkFile present or first_request missing)");
+        return;
+    }
+
+    if (empty($_REQUEST['encoder_queue_id'])) {
+        _error_log("aVideoEncoder.json: deduplicateByEncoderQueueId — skipped: encoder_queue_id not present in request");
+        return;
+    }
+
+    $encoder_queue_id = intval($_REQUEST['encoder_queue_id']);
+    if ($encoder_queue_id <= 0) {
+        _error_log("aVideoEncoder.json: deduplicateByEncoderQueueId — skipped: encoder_queue_id={$_REQUEST['encoder_queue_id']} is not a positive integer");
+        return;
+    }
+
+    // Look for a video that was already created for this encoder queue job.
+    $dedup_sql = "SELECT id FROM videos"
+        . " WHERE JSON_EXTRACT(externalOptions, '$.encoder_queue_id') = {$encoder_queue_id}"
+        . " LIMIT 1";
+    $dedup_res = $global['mysqli']->query($dedup_sql);
+    if ($dedup_res && ($dedup_row = $dedup_res->fetch_assoc())) {
+        $existing_id = intval($dedup_row['id']);
+        _error_log("aVideoEncoder.json: deduplicateByEncoderQueueId — returning existing video_id={$existing_id} for encoder_queue_id={$encoder_queue_id}; skipping duplicate INSERT");
+        $obj->error         = false;
+        $obj->video_id      = $existing_id;
+        $v                  = new Video('', '', $existing_id, true);
+        $obj->video_id_hash = $v->getVideoIdHash();
+        $obj->releaseDate   = @$_REQUEST['releaseDate'];
+        $obj->releaseTime   = @$_REQUEST['releaseTime'];
+        $obj->lines[]       = __LINE__;
+        dieJsonResponse($obj, 'deduplicated');
+    }
+
+    // No existing video yet — embed encoder_queue_id in externalOptions
+    // before the INSERT so the next concurrent request finds it.
+    if (empty($video->getId())) {
+        $extOpts = _json_decode($video->getExternalOptions());
+        if (!is_object($extOpts)) {
+            $extOpts = new stdClass();
+        }
+        $extOpts->encoder_queue_id = $encoder_queue_id;
+        $video->setExternalOptions(_json_encode($extOpts));
+    }
 }
 
 function logIncomingMediaState($message, $type = 0)
