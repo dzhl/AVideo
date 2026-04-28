@@ -138,13 +138,28 @@ if (!empty($evideo)) {
         TimeLogEnd($timeLogNameMY, __LINE__, $TimeLogLimitMY);
         // add this because if you change the video category the video was not loading anymore
         $catName = @$_REQUEST['catName'];
+        $attemptLog = []; // Initialize the log tracker
+        $lastGetVideoSQL = empty($lastGetVideoSQL) ? '' : $lastGetVideoSQL;
+        $videoLookupStart = microtime(true);
+        $videoLookupSteps = [];
+        $logVideoLookupStep = function ($label, $startTime, $loadedVideo = null) use (&$videoLookupSteps, &$lastGetVideoSQL) {
+            $videoLookupSteps[] = [
+                'label' => $label,
+                'seconds' => round(microtime(true) - $startTime, 4),
+                'found' => !empty($loadedVideo['id']),
+                'videos_id' => empty($loadedVideo['id']) ? 0 : intval($loadedVideo['id']),
+                'sql' => empty($lastGetVideoSQL) ? '' : substr(preg_replace('/\s+/', ' ', $lastGetVideoSQL), 0, 2000),
+            ];
+        };
 
         if (empty($_GET['clean_title']) && (isset($advancedCustom->forceCategory) && $advancedCustom->forceCategory === false)) {
             $_REQUEST['catName'] = '';
         }
 
         if (empty($video) && !empty($videos_id)) {
+            $stepStart = microtime(true);
             $video = Video::getVideo($videos_id, Video::SORT_TYPE_VIEWABLE, false, false, false, true);
+            $logVideoLookupStep("Video::getVideo by videos_id={$videos_id}", $stepStart, $video);
             if (!empty($video)) {
                 $attemptLog[] = "Video loaded successfully line=" . __LINE__;
             } else {
@@ -153,11 +168,12 @@ if (!empty($evideo)) {
             //var_dump($_GET, $video);exit;
             //var_dump('Line: '.__LINE__, $_REQUEST['v'], $video);exit;
         }
-        $attemptLog = []; // Initialize the log tracker
 
         // Add log details as you attempt to load the video
         if (empty($video)) {
+            $stepStart = microtime(true);
             $video = Video::getVideo("", Video::SORT_TYPE_VIEWABLE, false, false, true, true);
+            $logVideoLookupStep("Video::getVideo suggested fallback", $stepStart, $video);
             if (!empty($video)) {
                 $attemptLog[] = "Video loaded successfully line=" . __LINE__;
             } else {
@@ -166,7 +182,9 @@ if (!empty($evideo)) {
         }
 
         if (empty($video)) {
+            $stepStart = microtime(true);
             $video = Video::getVideo("", Video::SORT_TYPE_VIEWABLE, false, false, false, true);
+            $logVideoLookupStep("Video::getVideo any video fallback", $stepStart, $video);
             if (!empty($video)) {
                 $attemptLog[] = "Video loaded successfully line=" . __LINE__;
             } else {
@@ -175,12 +193,35 @@ if (!empty($evideo)) {
         }
 
         if (empty($video)) {
+            $stepStart = microtime(true);
             $video = AVideoPlugin::getVideo();
+            $logVideoLookupStep("AVideoPlugin::getVideo fallback", $stepStart, $video);
             if (!empty($video)) {
                 $attemptLog[] = "Video loaded successfully line=" . __LINE__;
             } else {
                 $attemptLog[] = "Not found attempt with AVideoPlugin::getVideo failed.  $lastGetVideoSQL";
             }
+        }
+
+        $videoLookupTotal = microtime(true) - $videoLookupStart;
+        if ($videoLookupTotal > $TimeLogLimitMY) {
+            _error_log("modeYoutube.php slow video lookup total=" . round($videoLookupTotal, 4)
+                . " videos_id=" . json_encode($videos_id)
+                . " found_id=" . json_encode(empty($video['id']) ? 0 : intval($video['id']))
+                . " request=" . json_encode([
+                    'v' => @$_GET['v'],
+                    'videos_id' => @$_REQUEST['videos_id'],
+                    'videoName' => @$_REQUEST['videoName'],
+                    'clean_title' => @$_GET['clean_title'],
+                    'playlist_id' => @$_GET['playlist_id'],
+                    'catName' => @$_REQUEST['catName'],
+                    'channelName' => @$_GET['channelName'],
+                    'tags_id' => @$_REQUEST['tags_id'],
+                    'search' => @$_GET['search'],
+                    'videoType' => @$_REQUEST['videoType'],
+                ])
+                . " steps=" . json_encode($videoLookupSteps),
+                AVideoLog::$WARNING);
         }
 
         TimeLogEnd($timeLogNameMY, __LINE__, $TimeLogLimitMY);
