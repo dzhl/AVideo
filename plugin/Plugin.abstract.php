@@ -887,7 +887,9 @@ abstract class PluginAbstract {
       'type' => $type,
       'format' => strtolower($parts['extension']),
       ]
-     * @return $file
+     * @param array|string|null $file
+     * @param int $videos_id
+     * @return array|string|null
      */
     function modifyURL($file, $videos_id=0) {
         return $file;

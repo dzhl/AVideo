@@ -1,4 +1,5 @@
 <?php
+/** @var array $global */
 require_once $global['systemRootPath'] . 'objects/plugin.php';
 
 class AVideoPlugin
@@ -3006,15 +3007,9 @@ class AVideoPlugin
     }
 
     /**
-     * @param type $file = [
-                'filename' => "{$parts['filename']}.{$parts['extension']}",
-                'path' => $file,
-                'url' => $source['url'],
-                'url_noCDN' => @$source['url_noCDN'],
-                'type' => $type,
-                'format' => strtolower($parts['extension']),
-            ]
-     * @return $file
+     * @param array|string|null $file
+     * @param int $videos_id
+     * @return array|string|null
      */
     public static function modifyURL($file, $videos_id = 0)
     {

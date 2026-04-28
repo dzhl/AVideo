@@ -4318,7 +4318,9 @@ if (!class_exists('Video')) {
          *
          * @param string $filename
          * @param string $type
-         * @return string .jpg .gif .webp _thumbs.jpg _Low.mp4 _SD.mp4 _HD.mp4
+         * @param bool $includeS3
+         * @param bool $includePath
+         * @return array{url:string|false,url_noCDN?:string|false,path?:string|false,line?:int}|false
          */
         public static function getSourceFile($filename, $type = ".jpg", $includeS3 = false, $includePath = false)
         {
@@ -4575,6 +4577,7 @@ if (!class_exists('Video')) {
             }
             */
             $source = AVideoPlugin::modifyURL($source);
+            /** @var array{url:string|false,url_noCDN?:string|false,path?:string|false,line?:int} $source */
 
             $secure = AVideoPlugin::loadPluginIfEnabled('SecureVideosDirectory');
             TimeLogEnd($timeLog1, __LINE__, $timeLog1Limit);
@@ -6725,6 +6728,7 @@ if (!class_exists('Video')) {
         public static function showYoutubeModeOptions()
         {
             global $video;
+            /** @var array<string, mixed>|null $video */
             if (!empty($_GET['evideo'])) {
                 $v = self::decodeEvideo();
                 if (empty($v['video']['views_count'])) {
@@ -6733,7 +6737,7 @@ if (!class_exists('Video')) {
                     return true;
                 }
             }
-            if (empty($video) || $video['type'] === 'notfound') {
+            if (empty($video) || $video['type'] === Video::$videoTypeNotfound) {
                 return false;
             }
             return true;

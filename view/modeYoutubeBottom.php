@@ -1,4 +1,7 @@
 <?php
+/** @var array $global */
+/** @var array<string, mixed>|null $video */
+/** @var stdClass|null $advancedCustom */
 if (empty($global['systemRootPath'])) {
     require_once '../videos/configuration.php';
 }
@@ -327,7 +330,7 @@ $description = getSEODescription(emptyHTML($video['description']) ? $video['titl
         <?php
         }
 
-        if ($video['type'] !== 'notfound' && CustomizeUser::canShareVideosFromVideo($video['id'])) {
+        if ($video['type'] !== Video::$videoTypeNotfound && CustomizeUser::canShareVideosFromVideo($video['id'])) {
             $bitLyLink = false;
             if (AVideoPlugin::isEnabledByName('BitLy')) {
                 $bitLyLink = BitLy::getLink($video['id']);
@@ -392,7 +395,7 @@ $description = getSEODescription(emptyHTML($video['description']) ? $video['titl
                 <?php
                 }
             }
-            if ($video['type'] !== 'notfound' && $video['type'] !== 'article' && !isHTMLEmpty($video['description'])) {
+            if ($video['type'] !== Video::$videoTypeNotfound && $video['type'] !== Video::$videoTypeArticle && !isHTMLEmpty($video['description'])) {
                 ?>
                 <div class="clearfix"></div>
                 <div class="col-xs-4 col-sm-2 col-lg-2 text-right"><strong><?php echo __("Description"); ?>:</strong></div>

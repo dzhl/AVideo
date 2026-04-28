@@ -12,7 +12,7 @@ unset($_SESSION['type']);
 _session_write_close();
 $video = [];
 $video['id'] = 0;
-$video['type'] = 'notfound';
+$video['type'] = Video::$videoTypeNotfound;
 $video['rotation'] = 0;
 $video['videoLink'] = '';
 $video['title'] = __("Video Not Available");
