@@ -60,7 +60,31 @@ function dieJsonResponse($obj, $context = '')
             $json = '{"error":true,"msg":"json_encode failed with unrecoverable error"}';
         }
     }
-    die($json);
+    $buffersCleared = true;
+    while (ob_get_level() > 0) {
+        $status = ob_get_status();
+        if (isset($status['del']) && !$status['del']) {
+            $buffersCleared = false;
+            break;
+        }
+        if (!@ob_end_clean()) {
+            $buffersCleared = false;
+            break;
+        }
+    }
+
+    if ($buffersCleared) {
+        header_remove('Content-Encoding');
+        header('Content-Length: ' . strlen($json));
+    }
+    header('Content-Type: application/json');
+    echo $json;
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    } else {
+        flush();
+    }
+    exit;
 }
 
 $global['bypassSameDomainCheck'] = 1;
@@ -361,6 +385,7 @@ if (!empty($_REQUEST['usergroups_id'])) {
 
 $obj->error = false;
 $obj->video_id = $video_id;
+$obj->videos_id = $video_id;
 
 $v = new Video('', '', $video_id, true);
 $obj->video_id_hash = $v->getVideoIdHash();
@@ -535,6 +560,7 @@ function deduplicateByEncoderQueueId(Video &$video, stdClass &$obj)
         _error_log("aVideoEncoder.json: deduplicateByEncoderQueueId — returning existing video_id={$existing_id} for encoder_queue_id={$encoder_queue_id}; skipping duplicate INSERT");
         $obj->error         = false;
         $obj->video_id      = $existing_id;
+        $obj->videos_id     = $existing_id;
         $v                  = new Video('', '', $existing_id, true);
         $obj->video_id_hash = $v->getVideoIdHash();
         $obj->releaseDate   = @$_REQUEST['releaseDate'];
