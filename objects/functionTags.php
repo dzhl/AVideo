@@ -239,9 +239,18 @@ function getVideosTagsRating($video)
 
 function getVideoTags($videos_id, $type = '')
 {
-    global $advancedCustom, $advancedCustomUser, $getTags_;
+    global $advancedCustom, $advancedCustomUser, $getTags_, $_getVideoTagsFunctionInProgress;
     $tolerance = 0.1;
     $tags = [];
+
+    if (empty($_getVideoTagsFunctionInProgress)) {
+        $_getVideoTagsFunctionInProgress = [];
+    }
+    $inProgressKey = "{$videos_id}_{$type}";
+    if (!empty($_getVideoTagsFunctionInProgress[$inProgressKey])) {
+        _error_log("getVideoTags($videos_id, $type) reentry detected, returning empty tags", AVideoLog::$WARNING, true);
+        return [];
+    }
 
     $cacheSuffix = "getTags_{$type}";
     $videoCache = new VideoCacheHandler('', $videos_id);
@@ -254,60 +263,71 @@ function getVideoTags($videos_id, $type = '')
         return $getTags_;
     }
 
-    $timeName1 = TimeLogStart("getVideoTags {$videos_id}, $type");
-    if (empty($advancedCustomUser)) {
-        $advancedCustomUser = AVideoPlugin::getObjectData("CustomizeUser");
-    }
-    if (empty($advancedCustom)) {
-        $advancedCustom = AVideoPlugin::getObjectData("CustomizeAdvanced");
-    }
-    $currentPage = getCurrentPage();
-    $rowCount = getRowCount();
-    unsetCurrentPage();
-    $_REQUEST['rowCount'] = 1000;
+    $_getVideoTagsFunctionInProgress[$inProgressKey] = 1;
+    $currentPage = null;
+    $rowCount = null;
+    $requestChanged = false;
+    try {
+        $timeName1 = TimeLogStart("getVideoTags {$videos_id}, $type");
+        if (empty($advancedCustomUser)) {
+            $advancedCustomUser = AVideoPlugin::getObjectData("CustomizeUser");
+        }
+        if (empty($advancedCustom)) {
+            $advancedCustom = AVideoPlugin::getObjectData("CustomizeAdvanced");
+        }
+        $currentPage = getCurrentPage();
+        $rowCount = getRowCount();
+        unsetCurrentPage();
+        $_REQUEST['rowCount'] = 1000;
+        $requestChanged = true;
 
-    $video = new Video("", "", $videos_id);
+        $video = new Video("", "", $videos_id);
 
-    $timeName2 = TimeLogStart("getVideoTagsFromVideo {$videos_id}, $type");
-    $newTags = getVideoTagsFromVideo($video, $type);
-    $tags = array_merge($tags, $newTags);
-    TimeLogEnd($timeName2, __LINE__, $tolerance);
-
-    $timeName2 = TimeLogStart("getVideoTagVideoStatus {$videos_id}, $type");
-    $newTags = getVideoTagVideoStatus($video, $type);
-    $tags = array_merge($tags, $newTags);
-    TimeLogEnd($timeName2, __LINE__, $tolerance);
-
-    $timeName2 = TimeLogStart("getVideoTagsGroups {$videos_id}, $type");
-    $newTags = getVideoTagsGroups($video, $type);
-    $tags = array_merge($tags, $newTags);
-    TimeLogEnd($timeName2, __LINE__, $tolerance);
-
-    $timeName2 = TimeLogStart("getVideosTagsCategory {$videos_id}, $type");
-    $newTags = getVideosTagsCategory($video, $type);
-    $tags = array_merge($tags, $newTags);
-    TimeLogEnd($timeName2, __LINE__, $tolerance);
-
-    $timeName2 = TimeLogStart("getVideoTagsSource {$videos_id}, $type");
-    $newTags = getVideoTagsSource($video, $type);
-    $tags = array_merge($tags, $newTags);
-    TimeLogEnd($timeName2, __LINE__, $tolerance);
-
-    $timeName2 = TimeLogStart("getVideosTagsRating {$videos_id}");
-    $newTags = getVideosTagsRating($video);
-    $tags = array_merge($tags, $newTags);
-    TimeLogEnd($timeName2, __LINE__, $tolerance);
-
-    $timeName2 = TimeLogStart("AVideoPlugin::getVideoTags {$videos_id}");
-    $newTags = AVideoPlugin::getVideoTags($videos_id);
-    if (is_array($newTags)) {
+        $timeName2 = TimeLogStart("getVideoTagsFromVideo {$videos_id}, $type");
+        $newTags = getVideoTagsFromVideo($video, $type);
         $tags = array_merge($tags, $newTags);
-    }
-    TimeLogEnd($timeName2, __LINE__, $tolerance);
+        TimeLogEnd($timeName2, __LINE__, $tolerance);
 
-    TimeLogEnd($timeName1, __LINE__, $tolerance * 2);
-    $_REQUEST['current'] = $currentPage;
-    $_REQUEST['rowCount'] = $rowCount;
+        $timeName2 = TimeLogStart("getVideoTagVideoStatus {$videos_id}, $type");
+        $newTags = getVideoTagVideoStatus($video, $type);
+        $tags = array_merge($tags, $newTags);
+        TimeLogEnd($timeName2, __LINE__, $tolerance);
+
+        $timeName2 = TimeLogStart("getVideoTagsGroups {$videos_id}, $type");
+        $newTags = getVideoTagsGroups($video, $type);
+        $tags = array_merge($tags, $newTags);
+        TimeLogEnd($timeName2, __LINE__, $tolerance);
+
+        $timeName2 = TimeLogStart("getVideosTagsCategory {$videos_id}, $type");
+        $newTags = getVideosTagsCategory($video, $type);
+        $tags = array_merge($tags, $newTags);
+        TimeLogEnd($timeName2, __LINE__, $tolerance);
+
+        $timeName2 = TimeLogStart("getVideoTagsSource {$videos_id}, $type");
+        $newTags = getVideoTagsSource($video, $type);
+        $tags = array_merge($tags, $newTags);
+        TimeLogEnd($timeName2, __LINE__, $tolerance);
+
+        $timeName2 = TimeLogStart("getVideosTagsRating {$videos_id}");
+        $newTags = getVideosTagsRating($video);
+        $tags = array_merge($tags, $newTags);
+        TimeLogEnd($timeName2, __LINE__, $tolerance);
+
+        $timeName2 = TimeLogStart("AVideoPlugin::getVideoTags {$videos_id}");
+        $newTags = AVideoPlugin::getVideoTags($videos_id);
+        if (is_array($newTags)) {
+            $tags = array_merge($tags, $newTags);
+        }
+        TimeLogEnd($timeName2, __LINE__, $tolerance);
+
+        TimeLogEnd($timeName1, __LINE__, $tolerance * 2);
+    } finally {
+        if ($requestChanged) {
+            $_REQUEST['current'] = $currentPage;
+            $_REQUEST['rowCount'] = $rowCount;
+        }
+        unset($_getVideoTagsFunctionInProgress[$inProgressKey]);
+    }
 
     $videoCache->setCache($tags);
     //ObjectYPT::setCache($index, $tags);

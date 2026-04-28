@@ -1981,40 +1981,53 @@ class AVideoPlugin
         if (empty($_getVideoTags)) {
             $_getVideoTags = [];
         }
+        global $_getVideoTagsInProgress;
+        if (empty($_getVideoTagsInProgress)) {
+            $_getVideoTagsInProgress = [];
+        }
 
         if (isset($_getVideoTags[$videos_id])) {
             $array = $_getVideoTags[$videos_id];
         } else {
+            if (!empty($_getVideoTagsInProgress[$videos_id])) {
+                _error_log("AVideoPlugin::getVideoTags($videos_id) reentry detected, returning empty tags", AVideoLog::$WARNING, true);
+                return [];
+            }
+            $_getVideoTagsInProgress[$videos_id] = 1;
 
-            $cacheSuffix = 'getVideoTags';
-            $videoCache = new VideoCacheHandler('', $videos_id);
-            $array = $videoCache->getCache($cacheSuffix, rand(86400, 864000));
+            try {
+                $cacheSuffix = 'getVideoTags';
+                $videoCache = new VideoCacheHandler('', $videos_id);
+                $array = $videoCache->getCache($cacheSuffix, rand(86400, 864000));
 
-            //$name = "getVideoTags{$videos_id}";
-            //$array = ObjectYPT::getCache($name, 86400);
-            //_error_log("getVideoTags $name ".(empty($array)?"new":"old"));
-            if (empty($array)) {
-                TimeLogStart("AVideoPlugin::getVideoTags($videos_id)");
-                $plugins = Plugin::getAllEnabled();
-                $array = [];
-                foreach ($plugins as $value) {
-                    $TimeLog = "AVideoPlugin::getVideoTags($videos_id) {$value['dirName']} ";
-                    TimeLogStart($TimeLog);
-                    $p = static::loadPlugin($value['dirName']);
-                    TimeLogEnd($TimeLog, __LINE__, $tolerance);
-                    if (is_object($p)) {
-                        $array = array_merge($array, $p->getVideoTags($videos_id));
+                //$name = "getVideoTags{$videos_id}";
+                //$array = ObjectYPT::getCache($name, 86400);
+                //_error_log("getVideoTags $name ".(empty($array)?"new":"old"));
+                if (empty($array)) {
+                    TimeLogStart("AVideoPlugin::getVideoTags($videos_id)");
+                    $plugins = Plugin::getAllEnabled();
+                    $array = [];
+                    foreach ($plugins as $value) {
+                        $TimeLog = "AVideoPlugin::getVideoTags($videos_id) {$value['dirName']} ";
+                        TimeLogStart($TimeLog);
+                        $p = static::loadPlugin($value['dirName']);
+                        TimeLogEnd($TimeLog, __LINE__, $tolerance);
+                        if (is_object($p)) {
+                            $array = array_merge($array, $p->getVideoTags($videos_id));
+                            TimeLogEnd($TimeLog, __LINE__, $tolerance);
+                        }
                         TimeLogEnd($TimeLog, __LINE__, $tolerance);
                     }
-                    TimeLogEnd($TimeLog, __LINE__, $tolerance);
-                }
-                TimeLogEnd("AVideoPlugin::getVideoTags($videos_id)", __LINE__, $tolerance * 2);
+                    TimeLogEnd("AVideoPlugin::getVideoTags($videos_id)", __LINE__, $tolerance * 2);
 
-                $videoCache->setCache($array);
-                //ObjectYPT::setCache($name, $array);
-                $_getVideoTags[$videos_id] = $array;
-            } else {
-                //$array = object_to_array($array);
+                    $videoCache->setCache($array);
+                    //ObjectYPT::setCache($name, $array);
+                    $_getVideoTags[$videos_id] = $array;
+                } else {
+                    //$array = object_to_array($array);
+                }
+            } finally {
+                unset($_getVideoTagsInProgress[$videos_id]);
             }
         }
         return $array;
