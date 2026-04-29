@@ -408,9 +408,18 @@ if (User::canSeeCommentTextarea()) {
             url = addQueryStringParameter(url, 'comments_id', comments_id);
             url = addQueryStringParameter(url, 'current', page);
             lastLoadedPage = page;
+            if (empty(comments_id) && page <= 1 && typeof avideoSetContainerLoading === 'function') {
+                avideoSetContainerLoading('commentsArea', true, {
+                    clear: true,
+                    items: 3
+                });
+            }
             $.ajax({
                 url: url,
                 success: function(response) {
+                    if (empty(comments_id) && typeof avideoSetContainerLoading === 'function') {
+                        avideoSetContainerLoading('commentsArea', false);
+                    }
                     if (response.error) {
                         avideoAlertError(response.msg);
                     } else {
@@ -436,6 +445,11 @@ if (User::canSeeCommentTextarea()) {
                             //console.log('getComments', comments_id, page, typeof row);
                             addComment(row, comments_id, true);
                         }
+                    }
+                },
+                error: function() {
+                    if (empty(comments_id) && typeof avideoSetContainerLoading === 'function') {
+                        avideoSetContainerLoading('commentsArea', false);
                     }
                 }
             });

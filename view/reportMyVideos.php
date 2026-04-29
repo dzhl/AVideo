@@ -61,22 +61,24 @@
         </button>
     </div>
 </div>
-<table id="dtMyVideosRep" class="table table-striped table-bordered" style="width:100%">
-    <thead>
-        <tr>
-            <th><?php echo __('Video'); ?></th>
-            <th><?php echo __('Total Views'); ?></th>
-            <th><?php echo __('Watching Time'); ?></th>
-        </tr>
-    </thead>
-    <tfoot>
-        <tr>
-            <th><?php echo __('Video'); ?></th>
-            <th><?php echo __('Total Views'); ?></th>
-            <th><?php echo __('Watching Time'); ?></th>
-        </tr>
-    </tfoot>
-</table>
+<div id="dtMyVideosRepContainer">
+    <table id="dtMyVideosRep" class="table table-striped table-bordered" style="width:100%">
+        <thead>
+            <tr>
+                <th><?php echo __('Video'); ?></th>
+                <th><?php echo __('Total Views'); ?></th>
+                <th><?php echo __('Watching Time'); ?></th>
+            </tr>
+        </thead>
+        <tfoot>
+            <tr>
+                <th><?php echo __('Video'); ?></th>
+                <th><?php echo __('Total Views'); ?></th>
+                <th><?php echo __('Watching Time'); ?></th>
+            </tr>
+        </tfoot>
+    </table>
+</div>
 <script type="text/javascript">
     function getDataFromVideoRep() {
         return {
@@ -103,6 +105,12 @@
         $("#datetoVideosRep").datepicker("setDate", "<?php echo date("m/d/Y"); ?>");
 
         $('#refreshMyVideosRep').click(function() {
+            if (typeof avideoSetContainerLoading === 'function') {
+                avideoSetContainerLoading('dtMyVideosRepContainer', true, {
+                    clear: false,
+                    items: 3
+                });
+            }
             $('#dtMyVideosRep').DataTable().ajax.reload();
         });
         loadReportMyVideos();
@@ -114,6 +122,13 @@
                 loadReportMyVideos();
             }, 3000);
             return false;
+        }
+
+        if (typeof avideoSetContainerLoading === 'function') {
+            avideoSetContainerLoading('dtMyVideosRepContainer', true, {
+                clear: false,
+                items: 3
+            });
         }
 
         $('#dtMyVideosRep').DataTable({
@@ -145,6 +160,16 @@
                 'type': 'POST',
                 'url': webSiteRootURL + "view/reportMyVideos.json.php",
                 'data': getDataFromVideoRep,
+                'error': function() {
+                    if (typeof avideoSetContainerLoading === 'function') {
+                        avideoSetContainerLoading('dtMyVideosRepContainer', false);
+                    }
+                }
+            },
+            "initComplete": function() {
+                if (typeof avideoSetContainerLoading === 'function') {
+                    avideoSetContainerLoading('dtMyVideosRepContainer', false);
+                }
             },
             "footerCallback": function(row, data, start, end, display) {
                 var api = this.api(),

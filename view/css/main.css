@@ -2140,3 +2140,59 @@ body.ypt-is-compressed #videoCol {
 body>div.jq-toast-wrap {
     z-index: 99999 !important;
 }
+
+/* Shared reusable helpers */
+.avideo-loading-container {
+    min-height: 120px;
+    position: relative;
+}
+
+.avideo-inline-loading {
+    border: 1px solid #e7e7e7;
+    border-radius: 8px;
+    background: #fff;
+    padding: 12px;
+}
+
+.avideo-inline-loading-row {
+    display: block;
+    margin-bottom: 10px;
+}
+
+.avideo-inline-loading-line {
+    height: 10px;
+    border-radius: 6px;
+    display: block;
+    margin: 6px 0;
+    background: linear-gradient(90deg, #efefef 25%, #e3e3e3 37%, #efefef 63%);
+    background-size: 400% 100%;
+    animation: avideoInlineShimmer 1.15s linear infinite;
+}
+
+.avideo-inline-loading-line-title {
+    width: 58%;
+}
+
+.avideo-inline-loading-line-subtitle {
+    width: 34%;
+}
+
+.avideo-inline-loading-line-content {
+    width: 100%;
+}
+
+.avideo-inline-loading-text {
+    text-align: center;
+    font-size: 12px;
+    color: #777;
+    margin-top: 5px;
+}
+
+@keyframes avideoInlineShimmer {
+    0% {
+        background-position: 100% 0;
+    }
+    100% {
+        background-position: 0 0;
+    }
+}

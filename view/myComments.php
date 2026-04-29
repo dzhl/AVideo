@@ -251,11 +251,17 @@ $commentTemplate = json_encode(file_get_contents($global['systemRootPath'] . 'vi
         url = addQueryStringParameter(url, 'comments_id', comments_id);
         url = addQueryStringParameter(url, 'current', page);
         lastPostedPage = page;
+        if (empty(comments_id) && page <= 1 && typeof avideoSetContainerLoading === 'function') {
+            avideoSetContainerLoading('postedCommentsArea', true, {clear: true, items: 4});
+        }
         modal.showPleaseWait();
         $.ajax({
             url: url,
             success: function(response) {
                 modal.hidePleaseWait();
+                if (empty(comments_id) && typeof avideoSetContainerLoading === 'function') {
+                    avideoSetContainerLoading('postedCommentsArea', false);
+                }
                 if (response.error) {
                     avideoAlertError(response.msg);
                 } else {
@@ -296,6 +302,9 @@ $commentTemplate = json_encode(file_get_contents($global['systemRootPath'] . 'vi
             },
             error: function() {
                 modal.hidePleaseWait();
+                if (empty(comments_id) && typeof avideoSetContainerLoading === 'function') {
+                    avideoSetContainerLoading('postedCommentsArea', false);
+                }
                 avideoAlertError(<?php printJSString('Error loading comments') ?>);
             }
         });
@@ -306,11 +315,17 @@ $commentTemplate = json_encode(file_get_contents($global['systemRootPath'] . 'vi
         url = addQueryStringParameter(url, 'comments_id', comments_id);
         url = addQueryStringParameter(url, 'current', page);
         lastReceivedPage = page;
+        if (empty(comments_id) && page <= 1 && typeof avideoSetContainerLoading === 'function') {
+            avideoSetContainerLoading('receivedCommentsArea', true, {clear: true, items: 4});
+        }
         modal.showPleaseWait();
         $.ajax({
             url: url,
             success: function(response) {
                 modal.hidePleaseWait();
+                if (empty(comments_id) && typeof avideoSetContainerLoading === 'function') {
+                    avideoSetContainerLoading('receivedCommentsArea', false);
+                }
                 if (response.error) {
                     avideoAlertError(response.msg);
                 } else {
@@ -351,6 +366,9 @@ $commentTemplate = json_encode(file_get_contents($global['systemRootPath'] . 'vi
             },
             error: function() {
                 modal.hidePleaseWait();
+                if (empty(comments_id) && typeof avideoSetContainerLoading === 'function') {
+                    avideoSetContainerLoading('receivedCommentsArea', false);
+                }
                 avideoAlertError(<?php printJSString('Error loading comments') ?>);
             }
         });

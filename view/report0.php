@@ -180,7 +180,7 @@
             </a>
         </div>
     </div>
-    <div class="col-lg-10 col-md-9 col-sm-8 col-xs-12">
+    <div class="col-lg-10 col-md-9 col-sm-8 col-xs-12" id="report0ChartsContainer">
         <div class="row">
             <div class="col-md-4 col-sm-6 col-xs-12 <?php echo getCSSAnimationClassAndStyle('animate__fadeInUp'); ?>">
                 <div class="panel panel-default">
@@ -338,6 +338,12 @@
     }
 
     $(document).ready(function() {
+        if (typeof avideoSetContainerLoading === 'function') {
+            avideoSetContainerLoading('report0ChartsContainer', true, {
+                clear: false,
+                items: 5
+            });
+        }
         $.ajax({
             url: webSiteRootURL + 'view/report.json.php?isAdminPanel=<?php echo !empty($isAdminPanel) ? 1 : 0; ?>',
             success: function(response) {
@@ -357,6 +363,11 @@
                     countTo('#totalVideosDislikes', response.totalDislikes);
                     countTo('#totalVideosViews', response.totalVideosViews);
                     countTo('#totalDurationVideos', response.totalDurationVideos);
+                }
+            },
+            complete: function() {
+                if (typeof avideoSetContainerLoading === 'function') {
+                    avideoSetContainerLoading('report0ChartsContainer', false);
                 }
             }
         });

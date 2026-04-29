@@ -460,6 +460,12 @@ foreach ($userGroups as $value) {
         $('.tooltip').tooltip('hide');
         var selector = '#userGroupGrid' + user_groups_id;
         if ($(selector).hasClass('bootgrid-table')) {
+            if (typeof avideoSetContainerLoading === 'function') {
+                avideoSetContainerLoading(selector + 'Tab', true, {
+                    clear: false,
+                    items: 4
+                });
+            }
             $(selector).bootgrid('reload');
         }
     }
@@ -478,6 +484,12 @@ foreach ($userGroups as $value) {
         if ($(selector).hasClass('bootgrid-table')) {
             console.log(selector, 'already loaded');
             return false;
+        }
+        if (typeof avideoSetContainerLoading === 'function') {
+            avideoSetContainerLoading(selector + 'Tab', true, {
+                clear: false,
+                items: 4
+            });
         }
         var grid = $(selector).bootgrid({
             labels: {
@@ -522,6 +534,9 @@ foreach ($userGroups as $value) {
                 }
             }
         }).on("loaded.rs.jquery.bootgrid", function() {
+            if (typeof avideoSetContainerLoading === 'function') {
+                avideoSetContainerLoading(selector + 'Tab', false);
+            }
             /* Executes after data is loaded and rendered */
             grid.find(".command-edit").on("click", function(e) {
                 var row_index = $(this).closest('tr').index();

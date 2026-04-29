@@ -7,7 +7,7 @@
                 <i class="fa-solid fa-plus"></i></span> <?php echo __("New Category"); ?>
             </button>
         </div>
-        <div class="panel-body">
+        <div class="panel-body" id="categoryGridContainer">
             <table id="grid" class="table table-condensed table-hover table-striped">
                 <thead>
                     <tr>
@@ -276,6 +276,13 @@
 
         refreshSubCategoryList();
 
+        if (typeof avideoSetContainerLoading === 'function') {
+            avideoSetContainerLoading('categoryGridContainer', true, {
+                clear: false,
+                items: 4
+            });
+        }
+
         var grid = $("#grid").bootgrid({
             labels: {
                 noResults: "<?php echo __("No results found!"); ?>",
@@ -342,6 +349,9 @@
                 }
             }
         }).on("loaded.rs.jquery.bootgrid", function() {
+            if (typeof avideoSetContainerLoading === 'function') {
+                avideoSetContainerLoading('categoryGridContainer', false);
+            }
             grid.find(".command-edit").on("click", function(e) {
                 var row_index = $(this).closest('tr').index();
                 var row = $("#grid").bootgrid("getCurrentRows")[row_index];

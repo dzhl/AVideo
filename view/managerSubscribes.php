@@ -28,7 +28,7 @@ $_page = new Page(array('Subscribes'));
                 <i class="fas fa-envelope-square"></i> <?php echo __("Notify Subscribers"); ?>
             </button>
         </div>
-        <div class="panel-footer">
+        <div class="panel-footer" id="subscribesGridContainer">
             <table id="grid" class="table table-condensed table-hover table-striped">
                 <thead>
                     <tr>
@@ -89,6 +89,13 @@ $_page = new Page(array('Subscribes'));
         });
     }
     $(document).ready(function() {
+        if (typeof avideoSetContainerLoading === 'function') {
+            avideoSetContainerLoading('subscribesGridContainer', true, {
+                clear: false,
+                items: 3
+            });
+        }
+        var subscribesGridLoaded = false;
         var grid = $("#grid").bootgrid({
             labels: {
                 noResults: "<?php echo __("No results found!"); ?>",
@@ -110,6 +117,10 @@ $_page = new Page(array('Subscribes'));
                 }
             }
         }).on("loaded.rs.jquery.bootgrid", function() {
+            if (!subscribesGridLoaded && typeof avideoSetContainerLoading === 'function') {
+                avideoSetContainerLoading('subscribesGridContainer', false);
+                subscribesGridLoaded = true;
+            }
             /* Executes after data is loaded and rendered */
             grid.find(".command-status").on("click", function(e) {
                 var row_index = $(this).closest('tr').index();

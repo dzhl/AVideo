@@ -2868,6 +2868,65 @@ function empty(data) {
     return true;
 }
 
+function avideoSetContainerLoading(containerId, isLoading, options) {
+    if (typeof isLoading === 'undefined') {
+        isLoading = true;
+    }
+    if (typeof options !== 'object' || options === null) {
+        options = {};
+    }
+    var selector = containerId;
+    if (typeof selector !== 'string') {
+        return false;
+    }
+    if (selector.charAt(0) !== '#' && selector.charAt(0) !== '.') {
+        selector = '#' + selector;
+    }
+    var $container = $(selector);
+    if (!$container.length) {
+        return false;
+    }
+
+    var directLoaderSelector = '> .avideo-inline-loading';
+
+    if (!isLoading) {
+        $container.removeClass('avideo-loading-container').removeAttr('aria-busy');
+        $container.find(directLoaderSelector).remove();
+        return true;
+    }
+
+    var itemCount = parseInt(options.items);
+    if (isNaN(itemCount) || itemCount < 1) {
+        itemCount = 3;
+    }
+    var loadingText = 'Loading...';
+    if (typeof options.message === 'string' && !empty(options.message)) {
+        loadingText = options.message;
+    } else if (typeof __ === 'function') {
+        loadingText = __('Loading...', true);
+    }
+
+    var loaderHtml = '<div class="avideo-inline-loading" role="status" aria-live="polite">';
+    for (var i = 0; i < itemCount; i++) {
+        loaderHtml += '<div class="avideo-inline-loading-row">'
+                + '<span class="avideo-inline-loading-line avideo-inline-loading-line-title"></span>'
+                + '<span class="avideo-inline-loading-line avideo-inline-loading-line-subtitle"></span>'
+                + '<span class="avideo-inline-loading-line avideo-inline-loading-line-content"></span>'
+                + '</div>';
+    }
+    loaderHtml += '<div class="avideo-inline-loading-text">' + loadingText + '</div>';
+    loaderHtml += '</div>';
+
+    $container.addClass('avideo-loading-container').attr('aria-busy', 'true');
+    if (!empty(options.clear)) {
+        $container.html(loaderHtml);
+    } else {
+        $container.find(directLoaderSelector).remove();
+        $container.prepend(loaderHtml);
+    }
+    return true;
+}
+
 function in_array(needle, haystack) {
     var length = haystack.length;
     for (var i = 0; i < length; i++) {
