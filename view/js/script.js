@@ -1130,6 +1130,9 @@ async function reloadVideoJS() {
         if (typeof replaceVideoSourcesPerOfflineVersion === 'function') {
             replaceVideoSourcesPerOfflineVersion();
         }
+        if (typeof reloadAds === 'function') {
+            reloadAds();
+        }
     }
 }
 
@@ -4223,6 +4226,22 @@ function updateVideoPlayer(videos_id, autoPlayTime) {
                         $('.videoTitle').text(video.title);
                         $('.videoDescription').text(video.description);
                         player.load();
+                        // The VMAP/VAST ad tag is generated server-side per
+                        // videos_id, so when we swap the source we must update
+                        // _adTagUrl and re-request ads, otherwise IMA keeps the
+                        // schedule for the previous video and only the preroll
+                        // (timeOffset=start/0) ever triggers.
+                        if (typeof _adTagUrl !== 'undefined' && _adTagUrl && typeof addQueryStringParameter === 'function') {
+                            try {
+                                _adTagUrl = addQueryStringParameter(_adTagUrl, 'videos_id', videos_id);
+                            } catch (e) {
+                                console.log('updateVideoPlayer: addQueryStringParameter failed', e);
+                            }
+                        }
+                        _adWasPlayed = 0;
+                        if (typeof reloadAds === 'function') {
+                            reloadAds();
+                        }
                         if (autoPlayTime !== false) {
                             if (autoPlayTime === -1) {
                                 currentTime = 0;

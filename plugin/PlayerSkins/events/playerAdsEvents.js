@@ -23,21 +23,11 @@ async function logAdEvent(eventType) {
 player.on('adsready', function () {
     console.log('ADS: adsready');
 
-    // Set listener for ad break ready
-    player.ima.setAdBreakReadyListener(function (e) {
-        if (!_adWasPlayed) {
-            console.log('ADS: !_adWasPlayed player.ima.playAdBreak();', e);
-            player.on('play', function () {
-                if (!_adWasPlayed) {
-                    player.ima.playAdBreak();
-                    _adWasPlayed = 1;
-                }
-            });
-        } else {
-            console.log('ADS: _adWasPlayed player.ima.playAdBreak();', e);
-            player.ima.playAdBreak();
-        }
-    });
+    // NOTE: setAdBreakReadyListener is intentionally NOT registered here.
+    // PlayerSkins initializes IMA with autoPlayAdBreaks: true, so the IMA SDK
+    // schedules and plays each VMAP AdBreak automatically. Registering
+    // setAdBreakReadyListener while autoPlayAdBreaks is true causes only the
+    // first break (preroll) to play and silently breaks all mid/post rolls.
 
     // Listen to IMA SDK ad events
     var adsManager = player.ima.getAdsManager();
