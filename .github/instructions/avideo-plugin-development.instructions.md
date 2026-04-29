@@ -124,33 +124,36 @@ Use `admin/functions.php` helpers to render settings forms:
 
 ```php
 // In index.php (plugin admin page)
-$obj = $pluginObject->getObjectData(); // returns decoded JSON object
+require_once dirname(__FILE__) . '/../../videos/configuration.php';
+require_once $global['systemRootPath'] . 'admin/functions.php';
 
-// Render form using admin helper
-echo createTable($obj, 'PluginName');
+// Render the plugin object_data form using the admin helper
+createTable('PluginName');
 ```
 
-Define fields in the plugin's `object_data` as a JSON structure:
-```json
+Define settings defaults in the main plugin class using the existing helper pattern:
+
+```php
+public function getEmptyDataObject()
 {
-  "apiKey": {
-    "type": "text",
-    "value": "",
-    "label": "API Key"
-  },
-  "isEnabled": {
-    "type": "checkbox",
-    "value": "1",
-    "label": "Enable Feature"
-  }
+    $obj = new stdClass();
+    $obj->apiKey = '';
+    $obj->isEnabled = false;
+
+    self::addDataObjectHelper('apiKey', 'API Key', 'Keep this value private.');
+    self::addDataObjectHelper('isEnabled', 'Enable Feature', 'Turn this feature on or off.');
+
+    return $obj;
 }
 ```
 
 Access settings in plugin code:
 ```php
 $data = $this->getObjectData();
-$apiKey = $data->apiKey->value ?? '';
+$apiKey = $data->apiKey ?? '';
 ```
+
+`createTable($pluginName, $filter = [])` reads `AVideoPlugin::getObjectData($pluginName)` internally. Do not pass the object as the first argument.
 
 ---
 
@@ -240,16 +243,24 @@ if (!User::isLogged()) {
 $response = ['error' => false, 'msg' => ''];
 
 try {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        throw new Exception('Invalid request method');
+    }
+    if (!isGlobalTokenValid()) {
+        forbiddenPage('Invalid or missing CSRF token', true);
+    }
     // ...
     $response['msg'] = 'Done';
 } catch (\Throwable $th) {
     $response['error'] = true;
-    $response['msg'] = $th->getMessage();
-    _error_log($th->getMessage());
+    $response['msg'] = 'An error occurred';
+    _error_log($th->getMessage(), AVideoLog::$ERROR);
 }
 
 echo json_encode($response);
 ```
+
+For read-only JSON endpoints, keep the auth/authorization checks and input validation, but CSRF is required only when the endpoint changes state or returns private/sensitive data.
 
 ---
 

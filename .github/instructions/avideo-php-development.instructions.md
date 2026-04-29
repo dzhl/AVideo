@@ -118,12 +118,18 @@ $response = ['error' => false, 'msg' => ''];
 
 try {
     // validate inputs
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        throw new Exception('Invalid request method');
+    }
+    if (!isGlobalTokenValid()) {
+        forbiddenPage('Invalid or missing CSRF token', true);
+    }
     // do work
     $response['msg'] = 'Success';
 } catch (\Throwable $th) {
     $response['error'] = true;
-    $response['msg'] = $th->getMessage();
-    _error_log($th->getMessage());
+    $response['msg'] = 'An error occurred';
+    _error_log($th->getMessage(), AVideoLog::$ERROR);
 }
 
 echo json_encode($response);
@@ -132,6 +138,9 @@ echo json_encode($response);
 - Use `*.edit.json.php` for edit/save operations that modify data.
 - Never mix HTML output with JSON output in the same endpoint.
 - Set `header('Content-Type: application/json')` immediately after `require_once` — before any conditional logic or output.
+- For state-changing POST endpoints, include a `globalToken` value in the request and validate it with `isGlobalTokenValid()`.
+- For read-only JSON endpoints, keep auth/authorization checks and input validation; CSRF is required when the endpoint changes state or returns private/sensitive data.
+- Return specific user-facing validation messages only for expected validation failures. Log unexpected exceptions internally and return a generic message.
 
 ---
 

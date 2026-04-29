@@ -442,6 +442,8 @@ Options All -Indexes
 
     #comment
     RewriteRule    ^comments$ view/managerComments.php    [NC,L]
+    RewriteRule    ^myComments$ view/myComments.php    [NC,L]
+    RewriteRule    ^myComments.json$ objects/myComments.json.php    [NC,L,QSA]
     RewriteRule    ^saveComment$ objects/commentAddNew.json.php    [NC,L]
     RewriteRule    ^comments.json/([0-9]+)$ objects/comments.json.php?video_id=$1    [NC,L]
 

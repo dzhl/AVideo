@@ -139,14 +139,16 @@ if (empty($advancedCustomUser->doNotShowRightProfile) && (User::isLogged() || em
                                     </li>
                                 <?php }
                                 ?>
-                                <li>
-                                    <a href="#" onclick="avideoModalIframeFull(webSiteRootURL + 'comments');return false;">
-                                        <span class="fa fa-comment"></span>
-                                        <?php echo __("Comments"); ?>
-                                    </a>
-                                </li>
                             <?php }
                             ?>
+                            <?php if (User::isLogged()) { ?>
+                                <li>
+                                    <a href="#" onclick="avideoModalIframeFull(webSiteRootURL + 'myComments');return false;">
+                                        <i class="fas fa-comments"></i>
+                                        <?php echo __("My Comments"); ?>
+                                    </a>
+                                </li>
+                            <?php } ?>
 
                         </ul>
                         <?php

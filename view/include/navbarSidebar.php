@@ -261,19 +261,21 @@ $tToleranceSide = 0.2;
                             </li>
                         <?php }
                         ?>
+                    <?php }
+                    ?>
+                    <?php if (User::isLogged()) { ?>
                         <li>
                             <div>
-                                <a href="#" onclick="avideoModalIframeFull(webSiteRootURL + 'comments');
+                                <a href="#" onclick="avideoModalIframeFull(webSiteRootURL + 'myComments');
                                                     return false;" class="btn btn-default btn-block" style="border-radius: 0 0 4px 4px;">
-                                    <span class="fa fa-comment"></span>
+                                    <i class="fas fa-comments"></i>
                                     <span class="menuLabel">
-                                        <?php echo __("Comments"); ?>
+                                        <?php echo __("My Comments"); ?>
                                     </span>
                                 </a>
                             </div>
                         </li>
-                    <?php }
-                    ?>
+                    <?php } ?>
                 <?php
                 } else {
                 ?>

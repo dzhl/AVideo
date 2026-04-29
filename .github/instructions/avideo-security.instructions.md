@@ -38,7 +38,7 @@ if (!User::getInstance()->getCanUpload()) {
     forbiddenPage('Upload not allowed');
 }
 
-// With audit logging (second parameter = true)
+// With internal logging (second parameter = true)
 if (!User::isAdmin()) {
     forbiddenPage('Permission denied', true);
 }
@@ -48,7 +48,7 @@ if (!User::isAdmin()) {
 
 ```php
 // WRONG — the pattern found throughout the codebase
-// Problems: no HTTP 403, no audit log, no login redirect
+// Problems: no HTTP 403, no internal log, no login redirect
 if (!User::isAdmin()) {
     die(json_encode(['error' => true, 'msg' => "You can't do this"]));
 }
@@ -272,11 +272,11 @@ _error_log('Unauthorized access attempt by user ' . User::getId(), AVideoLog::$S
 
 ## CSRF Protection
 
-For forms and state-changing AJAX calls, use the existing token helpers from `objects/functionsSecurity.php`:
+For forms and state-changing AJAX calls, use the existing token helpers from `objects/functions.php`:
 
 ```php
 // PHP: embed token in the form (TTL in seconds)
-<input type="hidden" name="tokenGlobal" value="<?php echo getToken(300); ?>">
+<input type="hidden" name="globalToken" value="<?php echo getToken(300); ?>">
 
 // PHP: validate token before processing
 if (!isGlobalTokenValid()) {
@@ -284,8 +284,8 @@ if (!isGlobalTokenValid()) {
 }
 ```
 
-- `getToken($ttl)` — generates and stores a time-limited token in the session
-- `isGlobalTokenValid()` — validates the submitted `tokenGlobal` POST value
+- `getToken($ttl)` - generates a time-limited encrypted token
+- `isGlobalTokenValid()` - validates the submitted `globalToken` request value
 - Do not implement a custom CSRF mechanism — these functions are the established pattern
 - Only accept state-changing operations via POST — never via GET
 

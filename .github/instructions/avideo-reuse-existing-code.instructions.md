@@ -118,14 +118,14 @@ Before creating a new hook method, verify it does not already exist in `plugin/P
 From `admin/functions.php` — reuse before writing custom form HTML:
 
 ```php
-// Render a settings table from a JSON object
-echo createTable($objectData, 'PluginName');
+// Render a plugin settings table from object_data
+createTable('PluginName');
 
 // Convert JSON config to form elements
 echo jsonToFormElements($config);
 
 // Plugin on/off toggle switch
-echo getPluginSwitch($pluginName, $enabled);
+echo getPluginSwitch($pluginName);
 ```
 
 ---
