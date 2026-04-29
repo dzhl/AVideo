@@ -913,21 +913,7 @@ class Scheduler extends PluginAbstract
             _error_log("manageLogFile: Log file does not exist: $logFilePath");
         }
 
-        // Ensure a new empty logfile is created
-        if (!file_exists($logFilePath)) {
-            if (touch($logFilePath)) {
-                _error_log("manageLogFile: New log file created: $logFilePath");
-
-                // Ensure Apache/PHP can write to the new log file
-                if (chmod($logFilePath, 0666)) {
-                    _error_log("manageLogFile: Permissions set to 0666 for: $logFilePath");
-                } else {
-                    _error_log("manageLogFile: Failed to set permissions for: $logFilePath");
-                }
-            } else {
-                _error_log("manageLogFile: Failed to create new log file: $logFilePath");
-            }
-        }
+        ensureAVideoLogWritable(true);
 
         // Delete log files older than 30 days in the same directory
         $logDir = dirname($logFilePath);

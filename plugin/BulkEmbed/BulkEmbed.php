@@ -5,6 +5,7 @@ require_once $global['systemRootPath'] . 'plugin/Plugin.abstract.php';
 class BulkEmbed extends PluginAbstract {
 
     const PERMISSION_BULK_EMBED = 0;
+    const DEFAULT_DEPRECATED_API_KEY_SHA256 = '304b13b56b6d051b8b0d350d8b5915511e816aa6c6b9d84da22bcce626326c47';
     
     public function getTags() {
         return array(
@@ -13,12 +14,7 @@ class BulkEmbed extends PluginAbstract {
     }
 
     public function getDescription() {
-        global $global;
-        //$str = 'Set DEVELOPER_KEY to the "API key" value from the "Access" tab of the<br>Google Developers Console https://console.developers.google.com<br>Please ensure that you have enabled the YouTube Data API for your project.';
-        //$str.= '<br>Add the Redirect URI '.$global['webSiteRootURL'].'plugin/BulkEmbed/youtubeSearch.json.php';
-        $str = 'Create your API Key here https://console.developers.google.com/apis/credentials/key';
-        $str .= "<br> Also make sure you enable the API YouTube Data API v3";
-        return $str;
+        return self::getYouTubeAPIKeyHelp();
     }
 
     public function getName() {
@@ -30,18 +26,60 @@ class BulkEmbed extends PluginAbstract {
     }
 
     public function getPluginVersion() {
-        return "1.1";
+        return "1.2";
     }
 
     public function getEmptyDataObject() {
         global $global;
         $obj = new stdClass();
 
-        $obj->API_KEY = "AIzaSyCIqxE86BawU33Um2HEGtX4PcrUWeCh_6o";
+        $obj->API_KEY = "";
         $obj->onlyAdminCanBulkEmbed = true;
         $obj->useOriginalYoutubeDate = true;
         return $obj;
     }    
+
+    static function getAPIKey()
+    {
+        $obj = AVideoPlugin::getObjectData("BulkEmbed");
+        return trim(@$obj->API_KEY);
+    }
+
+    static function hasValidAPIKey()
+    {
+        $apiKey = self::getAPIKey();
+        return !empty($apiKey) && !self::isDeprecatedDefaultAPIKey($apiKey);
+    }
+
+    static function isDeprecatedDefaultAPIKey($apiKey)
+    {
+        return hash_equals(self::DEFAULT_DEPRECATED_API_KEY_SHA256, hash('sha256', trim($apiKey)));
+    }
+
+    static function getYouTubeAPIKeyHelp()
+    {
+        $credentialsURL = 'https://console.cloud.google.com/apis/credentials';
+        $youtubeAPIURL = 'https://console.cloud.google.com/apis/library/youtube.googleapis.com';
+        $docsURL = 'https://developers.google.com/youtube/v3/getting-started';
+
+        $str = '<p>Bulk Embed lets authorized users search YouTube and embed multiple videos into this site at once. It can also detect videos that have already been embedded, so you can avoid importing duplicates.</p>';
+        $str .= '<p><strong>You must configure your own YouTube Data API v3 key to use Bulk Embed.</strong></p>';
+        $str .= '<ol>';
+        $str .= '<li>Open the <a href="' . $credentialsURL . '" target="_blank" rel="noopener noreferrer">Google Cloud Credentials page</a> and select or create a Google Cloud project.</li>';
+        $str .= '<li>Open the <a href="' . $youtubeAPIURL . '" target="_blank" rel="noopener noreferrer">YouTube Data API v3 page</a> and click <strong>Enable</strong> for the selected project.</li>';
+        $str .= '<li>Go back to <strong>APIs & Services &gt; Credentials</strong>, click <strong>Create credentials</strong>, and choose <strong>API key</strong>.</li>';
+        $str .= '<li>Copy the generated API key and paste it into this plugin setting: <strong>API_KEY</strong>.</li>';
+        $str .= '<li>Recommended: restrict the key in Google Cloud to the <strong>YouTube Data API v3</strong>, and optionally restrict usage to your server/IP or HTTP referrer.</li>';
+        $str .= '</ol>';
+        $str .= '<p>Google documentation: <a href="' . $docsURL . '" target="_blank" rel="noopener noreferrer">YouTube Data API v3 Getting Started</a>.</p>';
+
+        return $str;
+    }
+
+    static function getMissingAPIKeyMessage()
+    {
+        return '<h3>Bulk Embed requires your own YouTube API key</h3>' . self::getYouTubeAPIKeyHelp();
+    }
     
     public function getPluginMenu() {
         global $global;

@@ -5,7 +5,7 @@ if(!BulkEmbed::canBulkEmbed()){
     forbiddenPage('You cannot do this');
 }
 
-$obj = AVideoPlugin::getObjectData("BulkEmbed");
+$hasAPIKey = BulkEmbed::hasValidAPIKey();
 
 $_page = new Page(array('Search'));
 ?>
@@ -94,14 +94,24 @@ $_page = new Page(array('Search'));
 </style>
 <div class="container">
 
+    <?php
+    if (!$hasAPIKey) {
+        ?>
+        <div class="alert alert-warning">
+            <?php echo BulkEmbed::getMissingAPIKeyMessage(); ?>
+        </div>
+        <?php
+    }
+    ?>
+
     <div class="panel panel-default">
         <div class="panel-heading">
             <form id="search-form" name="search-form">
                 <div id="custom-search-input">
                     <div class="input-group col-md-12">
-                        <input type="search" id="query" class="form-control input-lg" placeholder="Search YouTube / PlayList URL" />
+                        <input type="search" id="query" class="form-control input-lg" placeholder="Search YouTube / PlayList URL" <?php echo $hasAPIKey ? '' : 'disabled="disabled"'; ?> />
                         <span class="input-group-btn">
-                            <button class="btn btn-info btn-lg" type="submit">
+                            <button class="btn btn-info btn-lg" type="submit" <?php echo $hasAPIKey ? '' : 'disabled="disabled"'; ?>>
                                 <i class="glyphicon glyphicon-search"></i>
                             </button>
                         </span>
@@ -111,10 +121,10 @@ $_page = new Page(array('Search'));
             <br>
             <div class="row">
                 <div class="col-sm-6">
-                    <button class="btn btn-info btn-block" id="getAll"><?php echo __('Embed All'); ?></button>
+                    <button class="btn btn-info btn-block" id="getAll" <?php echo $hasAPIKey ? '' : 'disabled="disabled"'; ?>><?php echo __('Embed All'); ?></button>
                 </div>
                 <div class="col-sm-6">
-                    <button class="btn btn-success btn-block" id="getSelected"><?php echo __('Embed Selected'); ?></button>
+                    <button class="btn btn-success btn-block" id="getSelected" <?php echo $hasAPIKey ? '' : 'disabled="disabled"'; ?>><?php echo __('Embed Selected'); ?></button>
                 </div>
             </div>
         </div>

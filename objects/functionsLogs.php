@@ -240,6 +240,111 @@ function rateLimitedLog($key, $message, $ttl = 300, $type = null)
     return true;
 }
 
+function getAVideoLogPermissionCheckFile($logfile)
+{
+    return rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'avideo_log_permission_check_' . md5($logfile) . '.cache';
+}
+
+function getAVideoWebServerUser()
+{
+    global $global;
+
+    if (!empty($global['webserverUser'])) {
+        return $global['webserverUser'];
+    }
+
+    if (!empty($_SERVER['APACHE_RUN_USER'])) {
+        return $_SERVER['APACHE_RUN_USER'];
+    }
+
+    if (function_exists('posix_getpwnam')) {
+        foreach (['www-data', 'apache', 'nginx'] as $user) {
+            if (posix_getpwnam($user) !== false) {
+                return $user;
+            }
+        }
+    }
+
+    return 'www-data';
+}
+
+function canCurrentProcessChown()
+{
+    return isCommandLineInterface() && function_exists('posix_geteuid') && posix_geteuid() === 0;
+}
+
+function ensureAVideoLogWritable($force = false, $ttl = 300)
+{
+    global $global;
+
+    if (empty($global['logfile'])) {
+        return false;
+    }
+
+    $logfile = $global['logfile'];
+    if (strpos($logfile, '/dev/') === 0 || strpos($logfile, 'php://') === 0) {
+        return true;
+    }
+
+    $checkFile = getAVideoLogPermissionCheckFile($logfile);
+    if (
+        empty($force) &&
+        !empty($ttl) &&
+        file_exists($checkFile) &&
+        filemtime($checkFile) >= (time() - intval($ttl))
+    ) {
+        $lastCheck = json_decode(@file_get_contents($checkFile));
+        if (!empty($lastCheck) && !empty($lastCheck->result)) {
+            return true;
+        }
+    }
+
+    $result = true;
+    $dir = dirname($logfile);
+    if (!is_dir($dir) && function_exists('make_path')) {
+        $result = make_path($dir) && $result;
+    }
+
+    if (!file_exists($logfile)) {
+        $created = @file_put_contents($logfile, '');
+        if ($created === false) {
+            _error_log("ensureAVideoLogWritable: failed to create log file {$logfile}", AVideoLog::$WARNING);
+            $result = false;
+        }
+    }
+
+    if (file_exists($logfile)) {
+        $webServerUser = getAVideoWebServerUser();
+        if (canCurrentProcessChown() && function_exists('posix_getpwnam')) {
+            $userInfo = posix_getpwnam($webServerUser);
+            if (!empty($userInfo) && fileowner($logfile) !== intval($userInfo['uid'])) {
+                if (!@chown($logfile, $webServerUser)) {
+                    _error_log("ensureAVideoLogWritable: failed to chown {$logfile} to {$webServerUser}", AVideoLog::$WARNING);
+                    $result = false;
+                }
+            }
+        }
+
+        if (!@chmod($logfile, 0664)) {
+            _error_log("ensureAVideoLogWritable: failed to chmod 0664 {$logfile}", AVideoLog::$WARNING);
+            $result = false;
+        }
+
+        if (!is_writable($logfile)) {
+            _error_log("ensureAVideoLogWritable: log file is not writable by current process {$logfile}", AVideoLog::$WARNING);
+            $result = false;
+        }
+    }
+
+    @file_put_contents($checkFile, json_encode([
+        'time' => time(),
+        'result' => $result,
+        'logfile' => $logfile,
+    ]));
+
+    return $result;
+}
+
 function isSchedulerRun()
 {
     return preg_match('/Scheduler\/run\.php$/', $_SERVER['SCRIPT_NAME']);
@@ -281,6 +386,7 @@ function rotateAVideoLog()
             // Create a fresh empty log
             file_put_contents($logfile, '');
             ini_set('error_log', $logfile);
+            ensureAVideoLogWritable(true);
             _error_log("rotateAVideoLog: rotated to {$rotatedFile}, keeping {$daysToKeep} days");
         } else {
             _error_log("rotateAVideoLog: failed to rotate {$logfile}", AVideoLog::$ERROR);

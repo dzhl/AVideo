@@ -13,8 +13,11 @@ if (empty($query)) {
     die(json_encode(['error' => true, 'msg'=>'Search query cannot be empty']));
 }
 
-$obj = AVideoPlugin::getObjectData("BulkEmbed");
-$apiKey = $obj->API_KEY;
+$apiKey = BulkEmbed::getAPIKey();
+
+if (!BulkEmbed::hasValidAPIKey()) {
+    die(json_encode(['error' => true, 'msg'=>BulkEmbed::getMissingAPIKeyMessage()]));
+}
 
 // Construct the YouTube API URL with pagination (if pageToken is provided)
 $youtubeApiUrl = "https://www.googleapis.com/youtube/v3/search?part=snippet&q=" . urlencode($query) . "&type=video&maxResults=50&videoEmbeddable=true&key=" . $apiKey;
@@ -27,7 +30,7 @@ $response = url_get_contents($youtubeApiUrl);
 $responseData = json_decode($response, true);
 
 if (empty($responseData) || !isset($responseData['items'])) {
-    _error_log('Failed to retrieve data from YouTube ' . $youtubeApiUrl);
+    _error_log('Failed to retrieve data from YouTube ' . str_replace($apiKey, 'API_KEY_REDACTED', $youtubeApiUrl));
     $msg = 'Failed to retrieve data from YouTube';
     if(!empty($responseData['error']) && !empty($responseData['error']['message'])){
         $msg .= '<br>'.$responseData['error']['message'];

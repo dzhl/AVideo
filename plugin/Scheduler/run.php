@@ -7,22 +7,8 @@ if (!isCommandLineInterface() && !User::isAdmin()) {
     return die('Command Line only');
 }
 
-// Ensure avideo.log exists and belongs to www-data so Apache can always write to it.
-// This cron script runs as root, so it can fix ownership every minute if needed.
-if (
-    !empty($global['logfile']) &&
-    strpos($global['logfile'], '/dev/') === false &&
-    strpos($global['logfile'], 'php://') === false
-) {
-    $logFile = $global['logfile'];
-    if (!file_exists($logFile)) {
-        @file_put_contents($logFile, '');
-    }
-    if (fileowner($logFile) !== 33) { // 33 = www-data UID on most Debian/Ubuntu systems
-        @chown($logFile, 'www-data');
-        @chmod($logFile, 0664);
-    }
-}
+// Keep avideo.log writable without checking on every request.
+ensureAVideoLogWritable(false, 300);
 
 if (!AVideoPlugin::isEnabledByName('Scheduler')) {
     return die('Scheduler is disabled');
