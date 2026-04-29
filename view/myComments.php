@@ -232,10 +232,10 @@ $commentTemplate = json_encode(file_get_contents($global['systemRootPath'] . 'vi
             selector = '#comment_' + comments_id + ' > div.media-body > div.repliesArea ';
         }
         var element = '#comment_' + itemsArray.id;
-        if ($(element).length) {
+        if ($(selector + element).length) {
             var object = $('<div/>').append(template);
             var html = $(object).find(element).html();
-            $(element).html(html);
+            $(selector + element).html(html);
         } else {
             if (append) {
                 $(selector).append(template);
