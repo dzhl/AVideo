@@ -3564,17 +3564,23 @@ Click <a href=\"{link}\">here</a> to join our live.";
         $users_id = $lt->getUsers_id();
         $live_servers_id = $lt->getLive_servers_id();
         $key = $lt->getKey();
+        _error_log("on_publish: automatic restream check start liveTransmitionHistory_id={$liveTransmitionHistory_id} users_id={$users_id} live_servers_id={$live_servers_id} key={$key} isReconnection=" . json_encode($isReconnection) . " disableRestream=" . json_encode(@$obj->disableRestream));
         $reconnectState = self::registerRestreamReconnectEvent($key, $live_servers_id, $liveTransmitionHistory_id, $isReconnection);
 
         if (!empty($reconnectState['has_suspicious_reconnections'])) {
             _error_log("on_publish: suspicious reconnections detected key={$key} live_servers_id={$live_servers_id} liveTransmitionHistory_id={$liveTransmitionHistory_id} count={$reconnectState['recent_reconnections_count']} window=600");
         }
 
-        if (empty($obj->disableRestream) && empty($isReconnection)) {
-            self::restream($liveTransmitionHistory_id);
-        } elseif (empty($obj->disableRestream) && self::canAutoRestreamOnReconnection($key, $live_servers_id)) {
+        if (!empty($obj->disableRestream)) {
+            _error_log("on_publish: automatic restream skipped because disableRestream is enabled liveTransmitionHistory_id={$liveTransmitionHistory_id}");
+        } elseif (empty($isReconnection)) {
+            _error_log("on_publish: automatic restream starting for first publish liveTransmitionHistory_id={$liveTransmitionHistory_id}");
+            $restreamResult = self::restream($liveTransmitionHistory_id);
+            _error_log("on_publish: automatic restream finished for first publish liveTransmitionHistory_id={$liveTransmitionHistory_id} result=" . json_encode($restreamResult));
+        } elseif (self::canAutoRestreamOnReconnection($key, $live_servers_id)) {
             _error_log("on_publish: auto restream restart on reconnection after cooldown key={$key} live_servers_id={$live_servers_id} liveTransmitionHistory_id={$liveTransmitionHistory_id}");
-            self::restream($liveTransmitionHistory_id);
+            $restreamResult = self::restream($liveTransmitionHistory_id);
+            _error_log("on_publish: automatic restream restart finished liveTransmitionHistory_id={$liveTransmitionHistory_id} result=" . json_encode($restreamResult));
             self::markAutoRestreamOnReconnection($key, $live_servers_id);
         } elseif (!empty($isReconnection)) {
             _error_log("on_publish: skipping automatic restream restart on reconnection due cooldown key={$key} live_servers_id={$live_servers_id} liveTransmitionHistory_id={$liveTransmitionHistory_id}");
@@ -3626,14 +3632,17 @@ Click <a href=\"{link}\">here</a> to join our live.";
     public static function getRestreamObject($liveTransmitionHistory_id)
     {
         if (empty($liveTransmitionHistory_id)) {
+            _error_log("Live:getRestreamObject failed: liveTransmitionHistory_id is empty");
             return false;
         }
         $lth = new LiveTransmitionHistory($liveTransmitionHistory_id);
         if (empty($lth->getKey())) {
+            _error_log("Live:getRestreamObject failed: live key is empty liveTransmitionHistory_id={$liveTransmitionHistory_id}");
             return false;
         }
 
         $rows = Live_restreams::getAllFromUser($lth->getUsers_id());
+        _error_log("Live:getRestreamObject rows found liveTransmitionHistory_id={$liveTransmitionHistory_id} users_id={$lth->getUsers_id()} count=" . count($rows));
         $restreamRowItems = array();
         foreach ($rows as $value) {
             $value['stream_url'] = addLastSlash($value['stream_url']);
@@ -3650,10 +3659,12 @@ Click <a href=\"{link}\">here</a> to join our live.";
     public static function _getRestreamObject($liveTransmitionHistory_id, $restreamRowItems)
     {
         if (empty($liveTransmitionHistory_id)) {
+            _error_log("Live:_getRestreamObject failed: liveTransmitionHistory_id is empty");
             return false;
         }
         $lth = new LiveTransmitionHistory($liveTransmitionHistory_id);
         if (empty($lth->getKey())) {
+            _error_log("Live:_getRestreamObject failed: live key is empty liveTransmitionHistory_id={$liveTransmitionHistory_id}");
             return false;
         }
         $_REQUEST['live_servers_id'] = $lth->getLive_servers_id();
@@ -3677,6 +3688,7 @@ Click <a href=\"{link}\">here</a> to join our live.";
                 $obj->live_url[$key] = $value['live_url'];
             }
         }
+        _error_log("Live:_getRestreamObject built " . json_encode(self::getRestreamLogSummary($obj)));
         return $obj;
     }
 
@@ -3698,14 +3710,21 @@ Click <a href=\"{link}\">here</a> to join our live.";
 
     public static function restream($liveTransmitionHistory_id, $live_restreams_id = 0, $test = false)
     {
+        _error_log("Live:restream requested liveTransmitionHistory_id={$liveTransmitionHistory_id} live_restreams_id={$live_restreams_id} test=" . json_encode($test));
         if (empty($test)) {
+            _error_log("Live:restream sending response before background execution liveTransmitionHistory_id={$liveTransmitionHistory_id}");
             outputAndContinueInBackground();
         }
         $obj = self::getRestreamObject($liveTransmitionHistory_id);
+        if (empty($obj)) {
+            _error_log("Live:restream failed: could not build restream object liveTransmitionHistory_id={$liveTransmitionHistory_id}");
+            return false;
+        }
         $obj->live_restreams_id = $live_restreams_id;
         if ($test) {
             $obj->test = 1;
         }
+        _error_log("Live:restream sending object " . json_encode(self::getRestreamLogSummary($obj)));
         return self::sendRestream($obj);
     }
 
@@ -3725,6 +3744,28 @@ Click <a href=\"{link}\">here</a> to join our live.";
         return self::sendRestream($obj);
     }
 
+    private static function getRestreamLogSummary($obj)
+    {
+        $summary = new stdClass();
+        $summary->emptyObject = empty($obj);
+        if (empty($obj)) {
+            return $summary;
+        }
+        $summary->liveTransmitionHistory_id = intval(@$obj->liveTransmitionHistory_id);
+        $summary->users_id = intval(@$obj->users_id);
+        $summary->key = @$obj->key;
+        $summary->m3u8 = @$obj->m3u8;
+        $summary->m3u8IsValidURL = isValidURL(@$obj->m3u8);
+        $summary->restreamerURL = @$obj->restreamerURL;
+        $summary->restreamerURLIsValidURL = isValidURL(@$obj->restreamerURL);
+        $summary->destinationsCount = empty($obj->restreamsDestinations) || !is_array($obj->restreamsDestinations) ? 0 : count($obj->restreamsDestinations);
+        $summary->destinationIds = empty($obj->restreamsDestinations) || !is_array($obj->restreamsDestinations) ? [] : array_keys($obj->restreamsDestinations);
+        $summary->hasTokens = !empty($obj->restreamsToken);
+        $summary->live_restreams_id = intval(@$obj->live_restreams_id);
+        $summary->test = !empty($obj->test);
+        return $summary;
+    }
+
     private static function sendRestream($obj, $doNotNotifyStreamer = false)
     {
         _error_log("Live:sendRestream start");
@@ -3733,17 +3774,28 @@ Click <a href=\"{link}\">here</a> to join our live.";
                 _error_log("Live:sendRestream object is empty");
                 return false;
             }
-            set_time_limit(30);
+            $summary = self::getRestreamLogSummary($obj);
+            _error_log("Live:sendRestream summary " . json_encode($summary));
+            if (empty($obj->restreamerURL) || !isValidURL($obj->restreamerURL)) {
+                _error_log("Live:sendRestream failed: invalid restreamerURL " . json_encode($summary));
+                return false;
+            }
+            if (empty($obj->restreamsDestinations) || !is_array($obj->restreamsDestinations)) {
+                _error_log("Live:sendRestream failed: empty restreamsDestinations " . json_encode($summary));
+                return false;
+            }
+            $curlTimeout = empty($obj->test) ? 300 : 10;
+            set_time_limit($curlTimeout + 30);
 
             $obj->responseToken = encryptString(array('users_id' => $obj->users_id, 'time' => time(), 'liveTransmitionHistory_id' => $obj->liveTransmitionHistory_id));
             $obj->doNotNotifyStreamer = $doNotNotifyStreamer;
 
             $data_string = json_encode($obj);
-            _error_log("Live:sendRestream ({$obj->restreamerURL}) {$data_string} " . json_encode(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 5)));
+            _error_log("Live:sendRestream ({$obj->restreamerURL}) timeout={$curlTimeout} {$data_string} " . json_encode(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 5)));
             //open connection
             $ch = curl_init();
             curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 30);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 10); //timeout in seconds
+            curl_setopt($ch, CURLOPT_TIMEOUT, $curlTimeout); //timeout in seconds
             //set the url, number of POST vars, POST data
             curl_setopt($ch, CURLOPT_URL, $obj->restreamerURL);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
@@ -3766,10 +3818,21 @@ Click <a href=\"{link}\">here</a> to join our live.";
                     'Content-Length: ' . strlen($data_string),
                 ]
             );
-            $info = curl_getinfo($ch);
             $output = curl_exec($ch);
+            $curlError = curl_error($ch);
+            $curlErrno = curl_errno($ch);
+            $info = curl_getinfo($ch);
             curl_close($ch);
-            _error_log("Live:sendRestream complete " . json_encode(array($output)));
+            _error_log("Live:sendRestream complete " . json_encode(array('http_code' => @$info['http_code'], 'curl_errno' => $curlErrno, 'curl_error' => $curlError, 'output' => $output)));
+            if ($output === false || !empty($curlErrno)) {
+                _error_log("Live:sendRestream failed curl execution " . json_encode(array('summary' => $summary, 'http_code' => @$info['http_code'], 'curl_errno' => $curlErrno, 'curl_error' => $curlError)));
+                return false;
+            }
+            $response = json_decode($output);
+            if (!empty($response) && !empty($response->error)) {
+                _error_log("Live:sendRestream restreamer returned error " . json_encode(array('summary' => $summary, 'response' => $response)));
+                return false;
+            }
             return true;
         } catch (Exception $exc) {
             _error_log("Live:sendRestream " . $exc->getTraceAsString());
