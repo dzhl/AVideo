@@ -676,6 +676,14 @@ class PlayerSkins extends PluginAbstract
                 // surfaces as VIDEOJS "ads-before-preroll-error" when the ad
                 // server is slow or the network round-trip is high.
                 'vastLoadTimeout' => 20000,
+                // videojs-ima default prerollTimeout is only 1000ms. When the
+                // VMAP response is slow it fires, the AdsRequest is aborted
+                // ("signal is aborted without reason") and videojs-ads jumps
+                // BeforePreroll -> Preroll -> ContentPlayback before any ad
+                // can play. Extending it gives the SDK (and the JS retry via
+                // preloadVmapAndUpdateAdTag) time to deliver the full VMAP.
+                'prerollTimeout' => 20000,
+                'postrollTimeout' => 20000,
             );
             $js .= PHP_EOL . "adTagOptions = " . json_encode($adTagOptions) . ";" . PHP_EOL;
             $js .= "console.log('IMA AdTag', adTagOptions);";
