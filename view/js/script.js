@@ -4474,45 +4474,58 @@ function preloadVmapAndUpdateAdTag(adTagUrl) {
             const parseError = xmlDoc.querySelector('parsererror');
             if (parseError) {
                 console.debug('ADS: preloadVmapAndUpdateAdTag: Invalid VMAP XML');
-                return Promise.resolve(null); // No ads available
+                return; // No ads available
             }
 
-            // Extracting the VAST URL from <vmap:AdTagURI>
-            const vastUrlElement = xmlDoc.querySelector('AdTagURI');
-            if (vastUrlElement && vastUrlElement.textContent.trim()) {
-                const vastUrl = vastUrlElement.textContent.trim();
-                console.debug('ADS: preloadVmapAndUpdateAdTag: VMAP vastUrl', vastUrl);
-                return fetch(vastUrl);
-            } else {
-                // No ads configured - this is normal, not an error
-                console.debug('ADS: preloadVmapAndUpdateAdTag: No ads configured in VMAP');
-                return Promise.resolve(null);
-            }
-        })
-        .then(response => {
-            // Handle case when no ads are configured (response is null)
-            if (!response) {
-                return null;
-            }
-            return response.text();
-        })
-        .then(vastXml => {
-            // Skip if no VAST content (no ads configured)
-            if (!vastXml) {
-                console.debug('ADS: preloadVmapAndUpdateAdTag: No VAST content available');
+            // Count AdBreak entries. A VMAP with multiple AdBreaks (preroll +
+            // mid/post rolls) MUST be passed to IMA in full, otherwise the
+            // schedule is lost and only a single break (preroll) will play.
+            const adBreaks = xmlDoc.getElementsByTagNameNS('*', 'AdBreak');
+            const adBreakCount = adBreaks ? adBreaks.length : 0;
+            console.debug('ADS: preloadVmapAndUpdateAdTag: AdBreak count', adBreakCount);
+
+            if (adBreakCount > 1) {
+                // Multi-break VMAP: hand the whole VMAP XML to IMA inline so
+                // the SDK keeps every <vmap:AdBreak timeOffset="..."> entry.
+                const inlineVmapTag = 'data:text/xml;charset=utf-8,' + encodeURIComponent(vmapXml);
+                player.ima.setContentWithAdTag(null, inlineVmapTag, false);
+                setTimeout(() => {
+                    console.debug('ADS: preloadVmapAndUpdateAdTag: Requesting Ads (full VMAP)');
+                    player.ima.requestAds();
+                }, 1000);
                 return;
             }
 
-            console.debug('ADS: preloadVmapAndUpdateAdTag: VAST Loaded');
+            // Single-break VMAP: optimize by pre-fetching the VAST and
+            // serving it inline (legacy behavior).
+            const vastUrlElement = xmlDoc.querySelector('AdTagURI');
+            if (!vastUrlElement || !vastUrlElement.textContent.trim()) {
+                console.debug('ADS: preloadVmapAndUpdateAdTag: No ads configured in VMAP');
+                return;
+            }
+            const vastUrl = vastUrlElement.textContent.trim();
+            console.debug('ADS: preloadVmapAndUpdateAdTag: VMAP vastUrl', vastUrl);
 
-            const inlineVmapTag = 'data:text/xml;charset=utf-8,' + encodeURIComponent(vastXml);
-
-            player.ima.setContentWithAdTag(null, inlineVmapTag, false);
-
-            setTimeout(() => {
-                console.debug('ADS: preloadVmapAndUpdateAdTag: Requesting Ads');
-                player.ima.requestAds();
-            }, 5000);
+            fetch(vastUrl)
+                .then(response => response.text())
+                .then(vastXml => {
+                    if (!vastXml) {
+                        console.debug('ADS: preloadVmapAndUpdateAdTag: No VAST content available');
+                        return;
+                    }
+                    console.debug('ADS: preloadVmapAndUpdateAdTag: VAST Loaded');
+                    const inlineVastTag = 'data:text/xml;charset=utf-8,' + encodeURIComponent(vastXml);
+                    player.ima.setContentWithAdTag(null, inlineVastTag, false);
+                    setTimeout(() => {
+                        console.debug('ADS: preloadVmapAndUpdateAdTag: Requesting Ads');
+                        player.ima.requestAds();
+                    }, 1000);
+                })
+                .catch(error => {
+                    if (error && error.message && !error.message.includes('No ads')) {
+                        console.debug('ADS: preloadVmapAndUpdateAdTag VAST fetch error:', error.message);
+                    }
+                });
         })
         .catch(error => {
             // Only log actual errors, not "no ads" situations
