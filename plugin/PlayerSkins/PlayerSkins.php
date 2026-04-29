@@ -671,6 +671,11 @@ class PlayerSkins extends PluginAbstract
                 'forceNonLinearFullSlot' => true,
                 'adLabel' => __('Advertisement'),
                 'autoPlayAdBreaks' => $autoPlayAdBreaks,
+                // Increase IMA SDK VAST/VMAP load timeout from the 5s default
+                // to avoid AdError 301 (Ad request reached a timeout) which
+                // surfaces as VIDEOJS "ads-before-preroll-error" when the ad
+                // server is slow or the network round-trip is high.
+                'vastLoadTimeout' => 20000,
             );
             $js .= PHP_EOL . "adTagOptions = " . json_encode($adTagOptions) . ";" . PHP_EOL;
             $js .= "console.log('IMA AdTag', adTagOptions);";
