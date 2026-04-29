@@ -580,16 +580,24 @@ function _isURL200($url, $forceRecheck = false)
     }
 
     $result = false;
-    foreach ($headers as $value) {
+    foreach ($headers as $key => $value) {
+        if (is_array($value)) {
+            $value = implode(' ', $value);
+        }
+
+        if (!is_string($value)) {
+            $value = json_encode($value);
+        }
+
         if (
-            strpos($value, '200') ||
-            strpos($value, '302') ||
-            strpos($value, '304')
+            strpos($value, '200') !== false ||
+            strpos($value, '302') !== false ||
+            strpos($value, '304') !== false
         ) {
             $result = true;
             break;
         } else {
-            error_log('_isURL200: ' . $value);
+            error_log("_isURL200 header {$key}: " . $value);
         }
     }
     error_log("_isURL200 result " . json_encode(array('url' => $url, 'result' => $result, 'headers' => $headers)));
@@ -876,22 +884,23 @@ function getProcess($robj)
     $live_restreams_id = intval($robj->live_restreams_id);
 
     $patternExtra = '';
+    $patternExtraRegex = '';
     if (!empty($live_restreams_id)) {
         $patternExtra .= "live_restreams_id={$live_restreams_id}";
+        $patternExtraRegex .= preg_quote("live_restreams_id={$live_restreams_id}", '/');
     }
     if (!empty($liveTransmitionHistory_id)) {
         $patternExtra .= ".*liveTransmitionHistory_id={$liveTransmitionHistory_id}";
+        $patternExtraRegex .= ".*" . preg_quote("liveTransmitionHistory_id={$liveTransmitionHistory_id}", '/');
     }
 
     // --------- First check using `pgrep` ----------
-    // Sanitize inputs to prevent command injection
-    $safeFfmpegBinary = escapeshellarg($ffmpegBinary);
-    $safeM3u8 = escapeshellarg($m3u8);
-    $safePatternExtra = escapeshellarg($patternExtra);
-
-    $pgrepPattern = "{$safeFfmpegBinary}.*{$safeM3u8}.*{$safePatternExtra}";
+    $pgrepPattern = preg_quote($ffmpegBinary, '/') . ".*" . preg_quote($m3u8, '/') . ".*{$patternExtraRegex}";
     exec("pgrep -af " . escapeshellarg($pgrepPattern), $pgrepOutput);
     foreach ($pgrepOutput as $line) {
+        if (preg_match('/\bpgrep\s+-af\b/i', $line)) {
+            continue;
+        }
         if (preg_match('/^(\d+)\s+(.*)$/', trim($line), $matches)) {
             error_log("Restreamer:getProcess [pgrep] found process: {$line}");
             return [$matches[1], $matches[2]];
@@ -900,8 +909,11 @@ function getProcess($robj)
 
     // --------- Fallback check using `ps` ----------
     exec("ps -ax 2>&1", $psOutput);
-    $pattern = "/^([0-9]+).*" . replaceSlashesForPregMatch($ffmpegBinary) . ".*" . replaceSlashesForPregMatch($m3u8) . ".*" . replaceSlashesForPregMatch($patternExtra) . "/i";
+    $pattern = "/^([0-9]+).*" . preg_quote($ffmpegBinary, '/') . ".*" . preg_quote($m3u8, '/') . ".*{$patternExtraRegex}/i";
     foreach ($psOutput as $line) {
+        if (preg_match('/\bpgrep\s+-af\b/i', $line)) {
+            continue;
+        }
         if (preg_match($pattern, trim($line), $matches)) {
             error_log("Restreamer:getProcess [ps] found process: {$line}");
             return [$matches[1], $line];

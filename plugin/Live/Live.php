@@ -3824,11 +3824,19 @@ Click <a href=\"{link}\">here</a> to join our live.";
             $info = curl_getinfo($ch);
             curl_close($ch);
             _error_log("Live:sendRestream complete " . json_encode(array('http_code' => @$info['http_code'], 'curl_errno' => $curlErrno, 'curl_error' => $curlError, 'output' => $output)));
+            if (intval(@$info['http_code']) >= 400) {
+                _error_log("Live:sendRestream failed http response " . json_encode(array('summary' => $summary, 'http_code' => @$info['http_code'], 'output' => $output)));
+                return false;
+            }
             if ($output === false || !empty($curlErrno)) {
                 _error_log("Live:sendRestream failed curl execution " . json_encode(array('summary' => $summary, 'http_code' => @$info['http_code'], 'curl_errno' => $curlErrno, 'curl_error' => $curlError)));
                 return false;
             }
             $response = json_decode($output);
+            if (!empty($output) && empty($response) && json_last_error() !== JSON_ERROR_NONE) {
+                _error_log("Live:sendRestream failed invalid json response " . json_encode(array('summary' => $summary, 'http_code' => @$info['http_code'], 'json_error' => json_last_error_msg(), 'output' => $output)));
+                return false;
+            }
             if (!empty($response) && !empty($response->error)) {
                 _error_log("Live:sendRestream restreamer returned error " . json_encode(array('summary' => $summary, 'response' => $response)));
                 return false;
