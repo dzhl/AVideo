@@ -94,6 +94,12 @@ class EpgParser {
         $this->epgdata_groupby = $group;
     }
 
+    private function logDebug(string $message): void {
+        if (function_exists('_error_log')) {
+            _error_log("EPG parser: {$message}");
+        }
+    }
+
     /**
      * Parse the date from string in posible formats.
      */
@@ -355,16 +361,22 @@ class EpgParser {
             throw new \RuntimeException('Url invalid: ' . $this->url);
         }
 
+        $this->logDebug("fetch start url={$this->url}");
+
         // url_get_contents() validates the URL and every redirect hop via isSSRFSafeURL()
         // with follow_location=0, preventing redirect-based SSRF bypass.
         $this->content = url_get_contents($this->url);
 
         if ($this->content === false || $this->content === '') {
+            $type = gettype($this->content);
+            $this->logDebug("fetch failed url={$this->url} response_type={$type}");
             throw new \RuntimeException('URL blocked by SSRF protection or fetch failed: ' . $this->url);
         }
 
+        $this->logDebug("fetch success url={$this->url} bytes=" . strlen($this->content));
         $this->checkXml();
         $this->saveTemp(); // will save the file.
+        $this->logDebug("temporary file saved url={$this->url} file={$this->file}");
         $this->parseFile();
     }
 
@@ -431,8 +443,10 @@ class EpgParser {
                 if ($this->onError && is_callable($this->onError)) {
                     call_user_func($this->onError, $errorMsg, $error);
                 }
+                $this->logDebug("invalid XML bytes=" . strlen($this->content) . " preview=" . substr(preg_replace('/\s+/', ' ', $this->content), 0, 200));
                 throw new \RuntimeException($errorMsg);
             } else {
+                $this->logDebug("invalid XML without libxml details bytes=" . strlen($this->content) . " preview=" . substr(preg_replace('/\s+/', ' ', $this->content), 0, 200));
                 throw new \RuntimeException("Content of this request is not valid XML");
             }
         }
