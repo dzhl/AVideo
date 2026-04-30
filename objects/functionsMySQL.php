@@ -189,17 +189,16 @@ function _mysql_connect($persistent = false, $try = 0)
                 //_error_log("_mysql_connect HOST=$mysqlHost,DB=$mysqlDatabase");
             }
         }
-    } catch (Exception $exc) {
+    } catch (\Throwable $exc) {
         if (empty($try)) {
             _error_log('Error on connect, trying again [' . mysqli_connect_error() . '] IP=' . getRealIpAddr());
             _mysql_close();
-            sleep(5);
+            sleep(1);
             return _mysql_connect($persistent, $try + 1);
         } else {
             _error_log($exc->getTraceAsString());
             include $global['systemRootPath'] . 'view/include/offlinePage.php';
             exit;
-            return false;
         }
     }
     return true;
@@ -303,7 +302,7 @@ function _mysql_is_open()
 
         // If there is a connection error, log it
         if ($global['mysqli']->connect_errno) {
-            error_log("MySQL connection error: " . $global['mysqli']->connect_error);
+            _error_log("MySQL connection error: " . $global['mysqli']->connect_error);
             return false;
         }
 
@@ -312,11 +311,11 @@ function _mysql_is_open()
             $result->free();
             return true;
         } else {
-            error_log("MySQL connection test query failed. Connection appears to be closed. Error: " . $global['mysqli']->error);
+            _error_log("MySQL connection test query failed. Connection appears to be closed. Error: " . $global['mysqli']->error);
             return false;
         }
-    } catch (Exception $exc) {
-        error_log("Exception in _mysql_is_open: " . $exc->getMessage());
+    } catch (\Throwable $exc) {
+        _error_log("Exception in _mysql_is_open: " . $exc->getMessage());
         return false;
     }
     return true;
