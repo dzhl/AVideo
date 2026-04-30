@@ -9,6 +9,8 @@ use DateTimeZone;
 
 class EpgParser {
 
+    private const PATCH_ID = '20260430-no-header-check';
+
     //	Source datas.
     private $file;
     private $url;
@@ -96,7 +98,7 @@ class EpgParser {
 
     private function logDebug(string $message): void {
         if (function_exists('_error_log')) {
-            _error_log("EPG parser: {$message}");
+            _error_log("EPG parser: patch=" . self::PATCH_ID . " {$message}");
         }
     }
 

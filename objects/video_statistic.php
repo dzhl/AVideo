@@ -12,6 +12,7 @@ require_once $global['systemRootPath'] . 'objects/functions.php';
 
 class VideoStatistic extends ObjectYPT
 {
+    private const USER_AGENT_MAX_LENGTH = 255;
 
     protected $id;
     protected $when;
@@ -34,7 +35,15 @@ class VideoStatistic extends ObjectYPT
 
     public function setUser_agent($user_agent)
     {
-        $this->user_agent = $user_agent;
+        $this->user_agent = self::normalizeUserAgent($user_agent);
+    }
+
+    private static function normalizeUserAgent($user_agent)
+    {
+        if ($user_agent === null) {
+            return null;
+        }
+        return _substr((string) $user_agent, 0, self::USER_AGENT_MAX_LENGTH);
     }
 
     public function getApp()
@@ -210,7 +219,9 @@ class VideoStatistic extends ObjectYPT
         $this->json = ($this->json);
 
         if(empty($this->user_agent) && !empty($_SERVER['HTTP_USER_AGENT'])){
-            $this->user_agent = ($_SERVER['HTTP_USER_AGENT']);
+            $this->user_agent = self::normalizeUserAgent($_SERVER['HTTP_USER_AGENT']);
+        } elseif (!empty($this->user_agent)) {
+            $this->user_agent = self::normalizeUserAgent($this->user_agent);
         }
 
         if(empty($this->app)){
