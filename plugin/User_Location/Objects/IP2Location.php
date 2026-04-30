@@ -33,7 +33,11 @@ class IP2Location extends ObjectYPT
         }
         if (empty($_SESSION['IP2Location'][$ip]['country_code'])) {
             $_SESSION['IP2Location'][$ip] = false;
-            if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            $ip2locCacheKey = 'ip2loc_' . md5($ip);
+            $ip2locCached = ObjectYPT::getCacheGlobal($ip2locCacheKey, 86400);
+            if (!empty($ip2locCached) && is_array($ip2locCached) && !empty($ip2locCached['country_code'])) {
+                $_SESSION['IP2Location'][$ip] = $ip2locCached;
+            } elseif (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
                 $sql = "SELECT * FROM ip2location_db3 WHERE INET_ATON(?) <= ip_to LIMIT 1";
                 // I had to add this because the about from customize plugin was not loading on the about page http://127.0.0.1/AVideo/about
                 $res = sqlDAL::readSql($sql, "s", array($ip));
@@ -46,6 +50,7 @@ class IP2Location extends ObjectYPT
                 }
                 $row['ip'] = $ip;
                 $_SESSION['IP2Location'][$ip] = $row;
+                ObjectYPT::setCacheGlobal($ip2locCacheKey, $row);
             } else if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) && ObjectYPT::isTableInstalled("ip2location_db1_ipv6")) {
                 $ipno = self::Dot2LongIPv6($ip);
                 $sql = "SELECT * FROM ip2location_db1_ipv6 WHERE ip_to >= $ipno order by ip_to limit 1 ";
@@ -59,6 +64,7 @@ class IP2Location extends ObjectYPT
                 }
                 $row['ip'] = $ip;
                 $_SESSION['IP2Location'][$ip] = $row;
+                ObjectYPT::setCacheGlobal($ip2locCacheKey, $row);
             }
         } //var_dump($_SESSION['IP2Location'][$ip]);exit;
         if (!empty($_SESSION['IP2Location'][$ip]['country_name']) && $_SESSION['IP2Location'][$ip]['country_name'] == "United States of America") {
