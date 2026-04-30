@@ -413,7 +413,7 @@ class IP2Location extends ObjectYPT
         );
         return $countries;
     }
-    
+
     static function getCaribbeanCountries() {
         $countries = array(
             "Antigua and Barbuda",
@@ -444,5 +444,5 @@ class IP2Location extends ObjectYPT
         );
         return $countries;
     }
-    
+
 }
