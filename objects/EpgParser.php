@@ -359,12 +359,8 @@ class EpgParser {
         // with follow_location=0, preventing redirect-based SSRF bypass.
         $this->content = url_get_contents($this->url);
 
-        if ($this->content === false) {
+        if ($this->content === false || $this->content === '') {
             throw new \RuntimeException('URL blocked by SSRF protection or fetch failed: ' . $this->url);
-        }
-
-        if (!isset($http_response_header[0]) || !strpos($http_response_header[0], "200")) {
-            throw new \RuntimeException("Invalid response headers: " . $http_response_header[0], 1);
         }
 
         $this->checkXml();
