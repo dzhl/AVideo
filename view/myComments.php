@@ -8,6 +8,7 @@ if (!User::isLogged()) {
     forbiddenPage('Permission denied');
 }
 require_once $global['systemRootPath'] . 'objects/comment.php';
+$userCanUpload = User::canUpload();
 $_page = new Page(array('My Comments'));
 $commentTemplate = json_encode(file_get_contents($global['systemRootPath'] . 'view/videoComments_template.php'));
 ?>
@@ -114,6 +115,7 @@ $commentTemplate = json_encode(file_get_contents($global['systemRootPath'] . 'vi
             </h3>
         </div>
         <div class="panel-body">
+            <?php if ($userCanUpload) { ?>
             <ul class="nav nav-tabs" role="tablist">
                 <li role="presentation" class="active">
                     <a href="#postedTab" aria-controls="postedTab" role="tab" data-toggle="tab">
@@ -130,6 +132,7 @@ $commentTemplate = json_encode(file_get_contents($global['systemRootPath'] . 'vi
                     </a>
                 </li>
             </ul>
+            <?php } ?>
             <div class="tab-content">
                 <div role="tabpanel" class="tab-pane active" id="postedTab">
                     <div id="postedCommentsArea" class="myCommentsTabArea canComment userLogged"></div>
@@ -139,6 +142,7 @@ $commentTemplate = json_encode(file_get_contents($global['systemRootPath'] . 'vi
                         </button>
                     </div>
                 </div>
+                <?php if ($userCanUpload) { ?>
                 <div role="tabpanel" class="tab-pane" id="receivedTab">
                     <div id="receivedCommentsArea" class="myCommentsTabArea canComment userLogged"></div>
                     <div class="text-center" style="margin-top: 10px;">
@@ -147,6 +151,7 @@ $commentTemplate = json_encode(file_get_contents($global['systemRootPath'] . 'vi
                         </button>
                     </div>
                 </div>
+                <?php } ?>
             </div>
         </div>
     </div>
