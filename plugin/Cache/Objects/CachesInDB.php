@@ -130,9 +130,15 @@ class CachesInDB extends ObjectYPT
         $sql = "SELECT * FROM " . static::getTableName() . " WHERE name = ? ";
         $formats = 's';
         $values = [$name];
-        $sql .= "  AND ishttps = ? AND domain = ? AND user_location = ? ";
-        $formats = 'siss';
-        $values = [$name, $ishttps, $domain, $user_location];
+        if (empty($ignoreMetadata)) {
+            $sql .= "  AND ishttps = ? AND domain = ? AND user_location = ? ";
+            $formats = 'siss';
+            $values = [$name, $ishttps, $domain, $user_location];
+        } else {
+            $sql .= "  AND ishttps = ? AND domain = ? ";
+            $formats = 'sis';
+            $values = [$name, $ishttps, $domain];
+        }
         if(empty($ignoreMetadata)){
             $sql .= " AND loggedType = ? ";
             $formats .= 's';

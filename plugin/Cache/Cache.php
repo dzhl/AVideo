@@ -401,7 +401,13 @@ class Cache extends PluginAbstract {
         $index = "{$name}_{$lifetime}";
         if (!isset($_getCacheDB[$index])) {
             $_getCacheDB[$index] = false;
-            $metadata = self::getCacheMetaData();
+            if ($ignoreMetadata) {
+                // Skip the expensive User_Location/ip2location lookup; only cheap fields are needed.
+                // CachesInDB._getCache() will omit user_location from its WHERE clause when ignoreMetadata=true.
+                $metadata = ['domain' => getDomain(), 'ishttps' => (isset($_SERVER['HTTPS']) ? 1 : 0), 'user_location' => '', 'loggedType' => ''];
+            } else {
+                $metadata = self::getCacheMetaData();
+            }
             $row = CacheDB::getCache($name, $metadata['domain'], $metadata['ishttps'], $metadata['user_location'], $metadata['loggedType'], $ignoreMetadata);
             if (!empty($row) && !empty($row['id'])) {
                 //$time = getTimeInTimezone(strtotime($row['modified']), $row['timezone']);

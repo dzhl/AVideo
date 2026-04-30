@@ -32,9 +32,15 @@ class CachesInDBMem extends CachesInDB
         // Query to retrieve cache metadata
         $sql = "SELECT m.id, m.created, m.modified, m.domain, m.ishttps, m.loggedType, m.user_location, m.expires, m.timezone, m.created_php_time, m.name ";
         $sql .= "FROM " . self::$metadataTable . " m ";
-        $sql .= "WHERE m.name = ? AND m.ishttps = ? AND m.domain = ? AND m.user_location = ? ";
-        $values = [$name, $ishttps, $domain, $user_location];
-        $formats = 'siss';
+        if (empty($ignoreMetadata)) {
+            $sql .= "WHERE m.name = ? AND m.ishttps = ? AND m.domain = ? AND m.user_location = ? ";
+            $values = [$name, $ishttps, $domain, $user_location];
+            $formats = 'siss';
+        } else {
+            $sql .= "WHERE m.name = ? AND m.ishttps = ? AND m.domain = ? ";
+            $values = [$name, $ishttps, $domain];
+            $formats = 'sis';
+        }
 
         if (empty($ignoreMetadata)) {
             $sql .= "AND m.loggedType = ? ";
@@ -95,7 +101,7 @@ class CachesInDBMem extends CachesInDB
         if (!is_string($content)) {
             $content = _json_encode($content);
         }
-        
+
         if (empty($content)){
             return false;
         }
@@ -105,16 +111,16 @@ class CachesInDBMem extends CachesInDB
         $timezone = date_default_timezone_get();;
 
         // Preparing SQL for Metadata Insertion
-        $metadataSql = "INSERT INTO " . self::$metadataTable . " (name, domain, ishttps, user_location, loggedType, created, modified, expires, timezone, created_php_time) 
+        $metadataSql = "INSERT INTO " . self::$metadataTable . " (name, domain, ishttps, user_location, loggedType, created, modified, expires, timezone, created_php_time)
                     VALUES (?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE 
+                    ON DUPLICATE KEY UPDATE
                     expires = VALUES(expires),
                     created_php_time = VALUES(created_php_time),
                     modified = NOW()";
 
-        $contentSqlBase = "INSERT INTO " . self::$contentTable . " (id, content) 
+        $contentSqlBase = "INSERT INTO " . self::$contentTable . " (id, content)
                        VALUES (?, ?)
-                       ON DUPLICATE KEY UPDATE 
+                       ON DUPLICATE KEY UPDATE
                        content = VALUES(content)";
 
         $name = self::hashName($name);
