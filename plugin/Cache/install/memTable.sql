@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS `CachesInDB_Memory` (
   INDEX `caches2` (`ishttps` ASC),
   INDEX `caches3` (`loggedType` ASC),
   INDEX `caches4` (`user_location` ASC),
-  INDEX `caches9` (`name` ASC))
+  INDEX `caches9` (`name` ASC),
+  UNIQUE INDEX `unique_cache_index` (`name`, `domain`, `ishttps`, `user_location`, `loggedType`))
 ENGINE = MEMORY;
 
 CREATE TABLE IF NOT EXISTS `CachesInDB_Blob` (

@@ -1,12 +1,15 @@
 <?php
 global $global, $config;
+$closeSessionEarlyIncludeConfig = 1;
 if (!isset($global['systemRootPath'])) {
     require_once '../videos/configuration.php';
 }
 
 if (!User::isAdmin()) {
+    _session_write_close();
     forbiddenPage();
 }
+_session_write_close();
 
 header('Content-Type: application/json');
 $row = Plugin::getAvailablePlugins(true);

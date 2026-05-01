@@ -22,7 +22,7 @@ if (!function_exists('str_starts_with')) {
 // Make sure SecureVideosDirectory will be the first
 function cmpPlugin($a, $b)
 {
-    $topOrder = ['SecureVideosDirectory', 'GoogleAds_IMA', 'Gift', 'Subscription', 'PayPerView', 'FansSubscriptions'];
+    $topOrder = ['SecureVideosDirectory', 'Cache', 'GoogleAds_IMA', 'Gift', 'Subscription', 'PayPerView', 'FansSubscriptions'];
     $bottomOrder = ['PlayerSkins'];
 
     $aTopIndex = array_search($a['name'], $topOrder);

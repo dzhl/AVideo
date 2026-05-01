@@ -253,6 +253,10 @@ ObjectYPT::checkSessionCacheBasedOnLastDeleteALLCacheTime();
 getDeviceID();
 allowOrigin();
 
+if (!empty($closeSessionEarlyIncludeConfig)) {
+    _session_write_close();
+}
+
 includeConfigLog(__LINE__);
 $baseName = basename($_SERVER['SCRIPT_FILENAME']);
 if (empty($doNotConnectDatabaseIncludeConfig) && $baseName !== 'xsendfile.php' && class_exists('Plugin')) {

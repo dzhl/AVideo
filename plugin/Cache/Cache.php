@@ -30,7 +30,21 @@ class Cache extends PluginAbstract {
     }
 
     public function getPluginVersion() {
-        return "8.0";
+        return "8.1";
+    }
+
+    public function updateScript() {
+        global $global;
+
+        parent::updateScript();
+
+        if (AVideoPlugin::compareVersion($this->getName(), "8.1") < 0) {
+            $file = $global['systemRootPath'] . 'plugin/Cache/install/memTable.sql';
+            sqlDal::executeFile($file);
+            _error_log('Cache::updateScript recreated CachesInDB_Memory from memTable.sql');
+        }
+
+        return true;
     }
 
     public function getEmptyDataObject() {

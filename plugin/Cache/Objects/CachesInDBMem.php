@@ -114,6 +114,7 @@ class CachesInDBMem extends CachesInDB
         $metadataSql = "INSERT INTO " . self::$metadataTable . " (name, domain, ishttps, user_location, loggedType, created, modified, expires, timezone, created_php_time)
                     VALUES (?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?)
                     ON DUPLICATE KEY UPDATE
+                    id = LAST_INSERT_ID(id),
                     expires = VALUES(expires),
                     created_php_time = VALUES(created_php_time),
                     modified = NOW()";

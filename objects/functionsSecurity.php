@@ -713,6 +713,7 @@ function ddosProtection()
     $timeoutReal = ($active_connections / $maxCon) < 1 ? 0 : ($active_connections / $maxCon) * $secondTimeout;
     if ($timeoutReal) {
         _error_log("ddosProtection:: progressive timeout timeoutReal = ($timeoutReal) active_connections = ($active_connections) maxCon = ($maxCon) ", AVideoLog::$SECURITY);
+        _session_write_close();
     }
     sleep($timeoutReal);
 
@@ -721,6 +722,10 @@ function ddosProtection()
         $str = "bruteForceBlock: maxCon: $maxCon => secondTimeout: $secondTimeout | IP: " . getRealIpAddr() . " | count:" . count($_SESSION['bruteForceBlock']);
         _error_log($str);
         die($str);
+    }
+
+    if ($timeoutReal) {
+        _session_start();
     }
 
     return true;

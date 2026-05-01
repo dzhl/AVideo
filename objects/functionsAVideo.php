@@ -213,7 +213,7 @@ if (!isCommandLineInterface() && !isAVideoEncoder()) {
 
 function avideoShutdown()
 {
-    global $global;
+    global $global, $cache_setCacheToSaveAtTheEnd;
 
     // Log session performance if applicable
     if (function_exists('_log_session_performance')) {
@@ -243,9 +243,9 @@ function avideoShutdown()
         }
         exit;
     }else{
-        if(class_exists('Cache')){
-            // Check if database connection is still valid before attempting to save cache
-            if (!_mysql_is_open()) {
+        if(class_exists('Cache') && !empty($cache_setCacheToSaveAtTheEnd)){
+            // Save deferred cache only while the database connection is valid.
+            if (_mysql_is_open()) {
                 Cache::saveCache();
             }
         }

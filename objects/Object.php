@@ -993,13 +993,26 @@ abstract class ObjectYPT implements ObjectInterface
      */
     public static function setSessionCache($name, $value)
     {
+        global $global;
         $name = self::cleanCacheName($name);
+        $json = json_encode($value);
+        if ($json === false) {
+            return false;
+        }
+
+        $maxSessionCacheBytes = !empty($global['maxSessionCacheBytes']) ? intval($global['maxSessionCacheBytes']) : 65536;
+        if ($maxSessionCacheBytes > 0 && strlen($json) > $maxSessionCacheBytes) {
+            self::setLastUsedCacheMode("Session cache skipped for $name, value is too large");
+            return false;
+        }
+
         _session_start();
-        $_SESSION['user']['sessionCache'][$name]['value'] = json_encode($value);
+        $_SESSION['user']['sessionCache'][$name]['value'] = $json;
         $_SESSION['user']['sessionCache'][$name]['time'] = time();
         if (empty($_SESSION['user']['sessionCache']['time'])) {
             $_SESSION['user']['sessionCache']['time'] = time();
         }
+        return true;
     }
 
     /**
