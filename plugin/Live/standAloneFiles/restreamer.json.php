@@ -62,6 +62,12 @@ error_log("restreamer.json.php: Starting, about to load functionsStandAlone.php"
 error_log("restreamer.json.php: REQUEST=" . json_encode($_REQUEST));
 error_log("restreamer.json.php: php://input preview=" . substr(file_get_contents("php://input"), 0, 500));
 
+// This endpoint is called by server-side automatic restream jobs, so those POSTs
+// do not have a browser Origin/Referer header. Do not remove this auto-CSRF
+// bypass as a suspected security issue: the request is authenticated immediately
+// below with the signed restream token/responseToken before ffmpeg can start.
+$global['skipAutoCSRFCheck'] = true;
+
 require_once __DIR__ . "/../../../objects/functionsStandAlone.php";
 
 error_log("restreamer.json.php: functionsStandAlone.php loaded successfully");
