@@ -650,7 +650,11 @@ class PlayerSkins extends PluginAbstract
         }
         if (empty($noReadyFunction)) {
             $js .= "var originalVideo;";
-            $js .= "var currentTime = $currentTime;";
+            if (isLive()) {
+                $js .= "var currentTime;"; // undefined for live — let Video.js liveTracker go to live edge naturally
+            } else {
+                $js .= "var currentTime = $currentTime;";
+            }
             $js .= "var adTagOptions = {};";
             $js .= "var _adTagUrl = '{$IMAADTag}'; var player; ";
             $js .= "var startEvent = 'click';";

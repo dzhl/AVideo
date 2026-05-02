@@ -2,15 +2,6 @@ player.ready(function () {
     console.log('player.ready');
     player.on('error', () => { AvideoJSError(player.error().code); });
 
-    if (typeof isLive !== 'undefined' && isLive) {
-        player.one('loadedmetadata', function () {
-            if (player.liveTracker && !player.liveTracker.atLiveEdge()) {
-                console.log('playerReady: live stream, seeking to live edge');
-                player.liveTracker.seekToLiveEdge();
-            }
-        });
-    }
-
     player.on('timeupdate', function() {
         if (player.liveTracker && player.liveTracker.atLiveEdge()) {
             if (player.playbackRate() !== 1) {
