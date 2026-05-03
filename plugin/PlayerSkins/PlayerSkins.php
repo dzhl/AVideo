@@ -604,9 +604,6 @@ class PlayerSkins extends PluginAbstract
         }
         if (!empty($dataSetup)) {
             $extraDataSetup = "{$str}{$obj->playerCustomDataSetup}";
-            if (isLive() && isVideoPlayerHasProgressBar()) {
-                $extraDataSetup .= ",liveui: true, liveTracker: {trackingThreshold: 0}";
-            }
             return ",{" . implode(",", $dataSetup) . "{$extraDataSetup}}";
         }
 
