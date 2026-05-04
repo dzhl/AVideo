@@ -76,13 +76,16 @@ class SecurityHardeningRegressionTest extends TestCase
             );
         }
 
-        // Verify the $allowAll path: it must derive and use $siteOriginForAllowAll for
-        // its same-origin guard before granting credentials — not blindly reflect any origin.
+        // Verify the $allowAll path: credentialed third-party CORS must require
+        // an explicit public-resource opt-in, so sensitive API endpoints that use
+        // allowOrigin(true) stay wildcard/non-credentialed by default.
         $this->assertStringContainsString(
-            '$siteOriginForAllowAll',
+            '$canUsePublicCredentialedCors',
             $source,
-            'allowOrigin($allowAll=true) must compare against $siteOriginForAllowAll before granting credentials.'
+            'allowOrigin($allowAll=true) must require an explicit public-resource opt-in before credentialed CORS.'
         );
+        $this->assertStringContainsString("'publicResource' => false", $source);
+        $this->assertStringContainsString("'allowCredentialedPublicResource' => false", $source);
         // The old dangerous pattern inside $allowAll — emit Allow-Credentials for any non-empty
         // $requestOrigin without a comparison — must not exist.
         $this->assertDoesNotMatchRegularExpression(

@@ -2841,57 +2841,43 @@ function object_to_array($obj, $level = 0)
     }
 }
 
-function allowOrigin($allowAll = false)
+/**
+ * Emits CORS headers with safe defaults.
+ *
+ * Usage:
+ * - allowOrigin(): same-origin gets credentials; trusted subdomains get reflected without credentials.
+ * - allowOrigin(true): public, non-credentialed wildcard CORS.
+ * - allowOrigin(true, ['publicResource' => true, 'allowCredentialedPublicResource' => true]):
+ *   public data that must work with SDKs using credentials mode "include" (for example IMA VAST/VMAP).
+ */
+function allowOrigin($allowAll = false, $options = [])
 {
     global $global;
     cleanUpAccessControlHeader();
 
-    // Public resources (e.g. VAST/VMAP ad XML) should be readable by any
-    // origin.  Pass $allowAll = true for permissive CORS.
-    // SECURITY: even in $allowAll mode we must NOT reflect an arbitrary third-party
-    // Origin together with Access-Control-Allow-Credentials:true — that lets any
-    // attacker page make credentialed cross-origin requests and read session-
-    // authenticated API responses (user PII, stream keys, admin flags).
-    // We therefore validate the origin the same way as the $allowAll=false path:
-    // - Same-origin requests get reflected + credentials (logged-in browser calls)
-    // - All other origins get wildcard without credentials (public/ad-tech reads)
-    // Mobile apps use APISecret token auth, not session cookies, so they are
-    // unaffected by removing Allow-Credentials for third-party origins.
-    if ($allowAll) {
-        $requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
-
-        $siteOriginForAllowAll = '';
-        if (!empty($global['webSiteRootURL'])) {
-            $parsedForAllowAll = parse_url($global['webSiteRootURL']);
-            if (!empty($parsedForAllowAll['scheme']) && !empty($parsedForAllowAll['host'])) {
-                $siteOriginForAllowAll = $parsedForAllowAll['scheme'] . '://' . $parsedForAllowAll['host'];
-                if (!empty($parsedForAllowAll['port'])) {
-                    $siteOriginForAllowAll .= ':' . $parsedForAllowAll['port'];
-                }
-            }
-        }
-
-        if (!empty($requestOrigin) && !empty($siteOriginForAllowAll) && $requestOrigin === $siteOriginForAllowAll) {
-            // Verified same-origin request — reflect with credentials
-            header('Access-Control-Allow-Origin: ' . $requestOrigin);
-            header('Access-Control-Allow-Credentials: true');
-        } else {
-            // Third-party or no origin: allow non-credentialed reads only.
-            // This covers IMA/ad-tech fetches (VAST/VMAP) which never send credentials.
-            header('Access-Control-Allow-Origin: *');
-        }
-        header('Access-Control-Allow-Private-Network: true');
-        header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, HEAD');
-        header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, ua-resolution, APISecret, Origin, Accept, Access-Control-Request-Method, Access-Control-Request-Headers');
-        if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-            header('Access-Control-Max-Age: 86400');
-            header('Access-Control-Allow-Private-Network: true');
-            http_response_code(204);
-            exit;
-        }
-        return;
+    if (is_array($allowAll)) {
+        $options = $allowAll;
+        $allowAll = !empty($options['allowAll']);
     }
 
+    $defaults = [
+        'allowAll' => (bool) $allowAll,
+        'publicResource' => false,
+        'allowCredentialedPublicResource' => false,
+        'trustedHosts' => [],
+        'trustedOrigins' => [],
+        'allowedHeaders' => 'Content-Type, Authorization, X-Requested-With, ua-resolution, APISecret, Origin, Accept, Access-Control-Request-Method, Access-Control-Request-Headers',
+        'allowedMethods' => 'GET, POST, PUT, DELETE, OPTIONS, HEAD',
+        'maxAge' => 86400,
+    ];
+    $options = array_merge($defaults, is_array($options) ? $options : []);
+    $allowAll = !empty($options['allowAll']);
+
+    // allowAll stays non-credentialed by default. Endpoints that are truly
+    // public (for example VAST/VMAP XML read by ad SDKs) can opt into
+    // reflected credentialed CORS with publicResource +
+    // allowCredentialedPublicResource. Do not enable that for endpoints that
+    // expose session-authenticated data.
 
     // Derive the site's own origin from configuration so we can validate
     // inbound Origin headers instead of blindly reflecting them.
@@ -2912,6 +2898,12 @@ function allowOrigin($allowAll = false)
     }
 
     $requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    $currentHost = '';
+    if (!empty($_SERVER['HTTP_HOST'])) {
+        $currentHost = $_SERVER['HTTP_HOST'];
+    } elseif (!empty($_SERVER['SERVER_NAME'])) {
+        $currentHost = $_SERVER['SERVER_NAME'];
+    }
 
     // Browsers send the literal string "null" as the Origin header when following
     // a cross-origin redirect (Fetch spec §4.4 – e.g. CDN on cdn.ypt.me redirects
@@ -2941,56 +2933,35 @@ function allowOrigin($allowAll = false)
     // cross-origin requests on behalf of embedded players.
     $isTrustedSubdomain = false;
     if (!$isSameOrigin && !empty($requestOrigin)) {
-        $currentHost = '';
-        if (!empty($_SERVER['HTTP_HOST'])) {
-            $currentHost = $_SERVER['HTTP_HOST'];
-        } elseif (!empty($_SERVER['SERVER_NAME'])) {
-            $currentHost = $_SERVER['SERVER_NAME'];
-        }
-        $isTrustedSubdomain = isTrustedOriginFamilyForCORS($requestOrigin, [$siteDomain, $currentHost, 'cdn.ypt.me']);
+        $trustedHosts = array_merge([$siteDomain, $currentHost, 'cdn.ypt.me'], (array) $options['trustedHosts']);
+        $isTrustedSubdomain = isTrustedOriginFamilyForCORS($requestOrigin, $trustedHosts);
     }
+    $isTrustedOrigin = !empty($requestOrigin) && in_array($requestOrigin, (array) $options['trustedOrigins'], true);
+    $canUsePublicCredentialedCors = !empty($options['publicResource']) && !empty($options['allowCredentialedPublicResource']);
 
-    // Handle CORS preflight requests (OPTIONS) first - must exit early
-    if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-        if ($isSameOrigin) {
-            header("Access-Control-Allow-Origin: " . $requestOrigin);
-            header("Access-Control-Allow-Credentials: true");
-        } elseif ($isTrustedSubdomain) {
-            // First-party subdomain preflight – allow without credentials
-            header("Access-Control-Allow-Origin: " . $requestOrigin);
-        } else {
-            // Non-same-origin preflight: reply without credentialed access
-            header("Access-Control-Allow-Origin: " . ($siteOrigin ?: '*'));
-        }
-        header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, HEAD");
-        header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, ua-resolution, APISecret, Origin, Accept, Access-Control-Request-Method, Access-Control-Request-Headers, Access-Control-Request-Private-Network");
-        header("Access-Control-Max-Age: 86400"); // Cache preflight response for 24 hours
-        // Required for Private Network Access (Chrome 104+)
-        header('Access-Control-Allow-Private-Network: true');
-        http_response_code(204); // No Content - more appropriate for preflight
-        exit;
-    }
-
-    if (empty($requestOrigin)) {
-        // No Origin header – direct request or same-origin browser navigation
-        header('Access-Control-Allow-Origin: *');
-    } elseif ($isSameOrigin) {
-        // Verified same-origin CORS request – allow with credentials
+    if (!empty($requestOrigin) && ($isSameOrigin || $isTrustedOrigin || ($allowAll && $canUsePublicCredentialedCors))) {
         header("Access-Control-Allow-Origin: " . $requestOrigin);
+        header('Vary: Origin', false);
         header("Access-Control-Allow-Credentials: true");
     } elseif ($isTrustedSubdomain) {
-        // First-party subdomain – reflect its origin, but no credentials
         header("Access-Control-Allow-Origin: " . $requestOrigin);
+        header('Vary: Origin', false);
+    } elseif ($allowAll || empty($requestOrigin)) {
+        header('Access-Control-Allow-Origin: *');
     } else {
         // Third-party origin: permit non-credentialed access only.
-        // Do NOT echo the caller's origin back with credentials – that would
-        // let any page read session-authenticated responses cross-origin.
+        // Do NOT echo the caller's origin back with credentials.
         header("Access-Control-Allow-Origin: " . ($siteOrigin ?: '*'));
     }
 
     header('Access-Control-Allow-Private-Network: true');
-    header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, HEAD");
-    header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, ua-resolution, APISecret, Origin, Accept, Access-Control-Request-Method, Access-Control-Request-Headers");
+    header("Access-Control-Allow-Methods: " . $options['allowedMethods']);
+    header("Access-Control-Allow-Headers: " . $options['allowedHeaders'] . ', Access-Control-Request-Private-Network');
+    if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+        header("Access-Control-Max-Age: " . intval($options['maxAge']));
+        http_response_code(204);
+        exit;
+    }
 }
 
 function normalizeCorsHost($host)
