@@ -75,9 +75,9 @@ $delay = 0.5;
         if (options.url !== webSiteRootURL + 'objects/pluginSwitch.json.php') {
             return;
         }
-        options.data = $.extend({}, originalOptions.data || {}, {
+        options.data = $.param($.extend({}, originalOptions.data || {}, {
             "globalToken": globalToken
-        });
+        }));
     });
 
     function checkSwitch() {
