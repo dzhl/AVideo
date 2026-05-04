@@ -56,8 +56,21 @@
     position: absolute;
     right: 0;
     transform: translateX(-30%);
-  }
-  
+}
+
+body.vjs-full-window {
+    overflow: hidden !important;
+}
+
+body.vjs-full-window #mainNavBar,
+body.vjs-full-window .navbar-fixed-top,
+body.vjs-full-window .fixed-top {
+    display: none !important;
+}
+
+.vjs-full-window .video-js.vjs-fullscreen {
+    z-index: 2147483647 !important;
+}
 
 @media all and (min-width: 900px) {
     .vjs-has-started.vjs-paused .vjs-big-play-button {
