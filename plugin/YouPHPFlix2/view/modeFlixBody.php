@@ -1,5 +1,12 @@
 <?php
 include $global['systemRootPath'] . 'plugin/YouPHPFlix2/view/BigVideo.php';
+
+// Pre-load the list of video IDs that have active PPV plans (one query, no
+// per-user data). Purchase status is checked client-side via AJAX so there
+// are no session-cache issues.
+if (AVideoPlugin::isEnabledByName('PayPerView')) {
+    PayPerView::preloadPPVVideoIds();
+}
 $percent = 90;
 $styleBG =  "
 background-color: rgb({$obj->backgroundRGB});
@@ -554,6 +561,33 @@ $videoFound = false;
     resetCurrentPage();
     ?>
 </div>
+<?php if (AVideoPlugin::isEnabledByName('PayPerView')): ?>
+<script>
+(function () {
+    // Fetch purchased video IDs once and hide buy buttons for them.
+    // Non-logged users get an empty array (endpoint returns [] immediately).
+    var _ppvPurchasedIds = null;
+
+    function ppvHidePurchased(scope) {
+        if (!_ppvPurchasedIds || !_ppvPurchasedIds.length) { return; }
+        var ctx = scope || document;
+        _ppvPurchasedIds.forEach(function (id) {
+            $(ctx).find('.ppv-netflix-rent-btn[data-ppv-videos-id="' + id + '"]').hide();
+        });
+    }
+
+    $.getJSON(webSiteRootURL + 'plugin/PayPerView/getPurchasedVideoIds.json.php', function (res) {
+        _ppvPurchasedIds = res.purchasedVideoIds || [];
+        ppvHidePurchased();
+    });
+
+    // Re-apply after infinite-scroll appends more rows
+    $('#carouselRows').on('append.infiniteScroll', function (event, response, path, items) {
+        ppvHidePurchased();
+    });
+}());
+</script>
+<?php endif; ?>
 <?php
 if(!$videoFound){
     include_once __DIR__.'/notFoundHTML.php';
