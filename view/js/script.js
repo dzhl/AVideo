@@ -4329,16 +4329,19 @@ function openFullscreenVideo(url, urlBar) {
 
 function addCloseButtonInVideo(forceButton = false) {
     try {
-        // If either function exists, add a close button inside videojs
-        if (window.self !== window.top || forceButton) {
+        var inIframeContext = window.self !== window.top;
+        if (inIframeContext || forceButton) {
             if (typeof player !== 'object') {
+                console.log('addCloseButtonInVideo: player not ready yet, retrying in 2s (forceButton=' + forceButton + ')');
                 setTimeout(function () { addCloseButtonInVideo(forceButton); }, 2000);
                 return false;
             }
             addCloseButton($(player.el()), forceButton);
+        } else {
+            console.log('addCloseButtonInVideo: skipped — not inside an iframe and forceButton is false');
         }
     } catch (error) {
-
+        console.log('addCloseButtonInVideo error:', error);
     }
 }
 
@@ -4375,6 +4378,11 @@ function closeFullScreenOrHistoryBack() {
 function addCloseButton(elementToAppend, forceButton = false) {
     // If either function exists, add a close button inside videojs
     if (window.self !== window.top || forceButton) {
+        if ($('#CloseButtonInVideo').length) {
+            console.log('addCloseButton: button already exists, skipping');
+            return;
+        }
+        console.log('addCloseButton: adding close button (inIframe=' + (window.self !== window.top) + ', forceButton=' + forceButton + ')');
         var closeButton = $('<button>', {
             'id': 'CloseButtonInVideo',
         });
