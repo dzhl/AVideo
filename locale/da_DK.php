@@ -1847,7 +1847,7 @@ $t['When some one buy something on your web site, the wallet balance will be tra
 $t['When the video is saved like this, it will show up under the menu-point'] = 'Du har brug for en video for at generere statistik';
 $t['World Wide'] = 'Du er nødt til at gøre pluginet dirwritable før upload, køre denne kommando og opdatere denne side';
 $t['You May find some help how to use Clone Plugin'] = 'Du vil ikke være i stand til at gendanne denne handling!';
-$t['You already sign up for this plan'] = 'YouTube Data API Oversigt';
+$t['You’re already subscribed to this plan.'] = 'You’re already subscribed to this plan.';
 $t['You are not allowed to enter here'] = 'Dit dokument er gemt!';
 $t['You are using'] = 'Dine POST-data er tomme, kan være, at din videofil er for stor til værten';
 $t['You can not manager edit subtitles'] = 'Dine konfigurationer er blevet opdateret!';

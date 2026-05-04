@@ -1637,7 +1637,7 @@ $t['youtube-dl uses Python and some servers do not come with python by default. 
 
 
 // Extras (might belong to a plugin, or might be outdated and not needed anymore; should confirm).
-$t['You already sign up for this plan'] = 'Έχετε ήδη εγγραφεί';
+$t['You’re already subscribed to this plan.'] = 'Έχετε ήδη εγγραφεί';
 $t['Choose this plan'] = 'Επιλέξτε αυτό το σχέδιο';
 $t['This video has Subscription Option'] = 'Αυτό το βίντεο διαθέτει επιλογή συνδρομής';
 $t['This video has PPV Option'] = 'Αυτό το βίντεο διαθέτει επιλογή ενοικίασης';
