@@ -3513,6 +3513,9 @@ function clearCache($firstPageOnly = false)
     }
     ObjectYPT::deleteCache("getEncoderURL");
     ObjectYPT::deleteAllSessionCache();
+    if (function_exists('opcache_reset')) {
+        opcache_reset();
+    }
     if (class_exists('Live')) {
         Live::checkAllFromStats();
     }
