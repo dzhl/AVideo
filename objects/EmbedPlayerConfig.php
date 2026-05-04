@@ -473,6 +473,8 @@ class EmbedPlayerConfig
 
         if ($this->forceCloseButton) {
             $js[] = "addCloseButtonInVideo(true);";
+        } else {
+            $js[] = "addCloseButtonInVideo();";
         }
 
         if ($this->closeOnEnd) {
