@@ -69,11 +69,15 @@ class ReportVideo extends PluginAbstract
         if (!isVideo()) {
             return '';
         }
-        if (empty($video['id']) && empty($videos_id)) {
+        $videoId = Video::getIdFromVideoVar($video) ?: intval($videos_id);
+        if (empty($videoId)) {
             return '';
         }
-        if (empty($video['id'])) {
-            $video['id'] = intval($videos_id);
+        if (!is_array($video) || empty($video['id'])) {
+            $video = Video::getVideoLight($videoId);
+            if (empty($video)) {
+                $video = ['id' => $videoId];
+            }
         }
         include $global['systemRootPath'] . 'plugin/ReportVideo/actionButton.php';
 

@@ -1,5 +1,4 @@
 {
     "git.ignoreLimitWarning": true,
     "search.useIgnoreFiles": false,
-    "intelephense.diagnostics.undefinedVariables": false
 }

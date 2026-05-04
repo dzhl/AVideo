@@ -10,8 +10,9 @@ if (empty($advancedCustom)) {
     $advancedCustom = AVideoPlugin::getObjectData("CustomizeAdvanced");
 }
 TimeLogEnd($timeLogHead, __LINE__);
-if (!empty($video) && is_object($video)) {
-    $video = Video::getVideoLight($video->getId());
+$headVideoId = Video::getIdFromVideoVar($video ?? null);
+if (!empty($headVideoId) && (!isset($video) || !is_array($video))) {
+    $video = Video::getVideoLight($headVideoId);
 }
 TimeLogEnd($timeLogHead, __LINE__);
 $custom = [];

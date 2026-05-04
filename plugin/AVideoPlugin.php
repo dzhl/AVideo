@@ -504,6 +504,12 @@ class AVideoPlugin
         return $isPluginTablesInstalled[$installSQLFile];
     }
 
+    /**
+     * Returns the plugin's stored data object, or false if the plugin is not found.
+     *
+     * @param string $name Plugin name
+     * @return stdClass|false
+     */
     public static function getObjectData($name)
     {
         return self::getDataObject($name);
@@ -547,6 +553,12 @@ class AVideoPlugin
         return false;
     }
 
+    /**
+     * Returns the plugin's stored data object, or false if the plugin is not found.
+     *
+     * @param string $name Plugin name
+     * @return stdClass|false
+     */
     public static function getDataObject($name)
     {
         global $pluginGetDataObject;

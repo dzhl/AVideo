@@ -21,8 +21,9 @@ if ($removeVideoList) {
     ?>
 </div>
 <?php
-if (is_object($video)) {
-    $video = Video::getVideoLight($video->getId());
+$modeYoutubeBundleVideoId = Video::getIdFromVideoVar($video ?? null);
+if (!empty($modeYoutubeBundleVideoId) && (!isset($video) || !is_array($video))) {
+    $video = Video::getVideoLight($modeYoutubeBundleVideoId);
 }
 TimeLogEnd($timeLogNameMYB, __LINE__, $TimeLogLimitMYB);
 if (!empty($video['id'])) {

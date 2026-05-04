@@ -267,8 +267,9 @@ class PlayerSkins extends PluginAbstract
             return '';
         }
         $global['requireVideoJSPS'] = true;
-        if (is_object($video)) {
-            $video = Video::getVideoLight($video->getId());
+        $videoId = Video::getIdFromVideoVar($video);
+        if (!empty($videoId) && !is_array($video)) {
+            $video = Video::getVideoLight($videoId);
         }
         $obj = $this->getDataObject();
         $css = "";
@@ -356,7 +357,7 @@ class PlayerSkins extends PluginAbstract
                         </style>";
             }
 
-            if ($obj->showShareSocial && CustomizeUser::canShareVideosFromVideo(@$video['id'])) {
+            if (!empty($videoId) && $obj->showShareSocial && CustomizeUser::canShareVideosFromVideo($videoId)) {
                 $css .= "<link href=\"" . getURL('plugin/PlayerSkins/shareButton.css') . "\" rel=\"stylesheet\" type=\"text/css\"/>";
             }
             if ($obj->showShareAutoplay && isVideoPlayerHasProgressBar() && empty($obj->forceAlwaysAutoplay) && empty($_REQUEST['hideAutoplaySwitch'])) {
@@ -454,6 +455,7 @@ class PlayerSkins extends PluginAbstract
         global $global, $config, $getStartPlayerJSWasRequested, $video, $url, $title;
         $js = "<!-- playerSkin -->";
         $obj = $this->getDataObject();
+        $videoId = Video::getIdFromVideoVar($video);
         if (!empty($obj->forceAlwaysAutoplay)) {
             $js .= "<script>$(document).ready(function () {enableAutoPlay();});</script>";
         }
@@ -462,7 +464,7 @@ class PlayerSkins extends PluginAbstract
             !empty($_GET['u']) ||
             !empty($_GET['evideo']) ||
             !empty($_GET['playlists_id']) ||
-            (is_array($video) && !empty($video['id']))
+            !empty($videoId)
         ) {
             if (empty($obj->showLoopButton) && empty($obj->contextMenuLoop)) {
                 $js .= "<script>setPlayerLoop(false);</script>";
@@ -480,8 +482,8 @@ class PlayerSkins extends PluginAbstract
             if (self::includeFullscreenBlock()) {
                 PlayerSkins::getStartPlayerJS(file_get_contents("{$global['systemRootPath']}plugin/PlayerSkins/fullscrenCheck.js"));
             }
-            if ($obj->showShareSocial && CustomizeUser::canShareVideosFromVideo(@$video['id'])) {
-                $social = getSocialModal(@$video['id'], @$url, @$title);
+            if (!empty($videoId) && $obj->showShareSocial && CustomizeUser::canShareVideosFromVideo($videoId)) {
+                $social = getSocialModal($videoId, @$url, @$title);
                 PlayerSkins::getStartPlayerJS(file_get_contents("{$global['systemRootPath']}plugin/PlayerSkins/shareButton.js"));
                 $js .= $social['html'];
                 $js .= "<script>function togglePlayerSocial(){showSharing{$social['id']}();}</script>";

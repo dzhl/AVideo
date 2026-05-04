@@ -3643,6 +3643,50 @@ if (!class_exists('Video')) {
             return $this->id;
         }
 
+        /**
+         * Extracts the numeric video ID from a video variable regardless of its type.
+         *
+         * Handles the forms that `$video` can take across the codebase:
+         *   - numeric scalar: $videos_id
+         *   - array:  $video['videos_id'] or $video['id']
+         *   - object with getter: $video->getVideos_id() or $video->getId()
+         *   - plain object / stdClass: $video->videos_id or $video->id
+         *
+         * Returns 0 when the ID cannot be determined.
+         *
+         * @param array|Video|object|int|string|null $video
+         * @return int
+         */
+        public static function getIdFromVideoVar($video): int
+        {
+            if (is_numeric($video)) {
+                return intval($video);
+            }
+            if (is_array($video)) {
+                if (array_key_exists('videos_id', $video)) {
+                    return intval($video['videos_id']);
+                }
+                return intval($video['id'] ?? 0);
+            }
+            if (is_object($video)) {
+                if (method_exists($video, 'getVideos_id')) {
+                    return intval($video->getVideos_id());
+                }
+                if (method_exists($video, 'getId')) {
+                    $videos_id = intval($video->getId());
+                    if (!empty($videos_id)) {
+                        return $videos_id;
+                    }
+                }
+                $publicProperties = get_object_vars($video);
+                if (array_key_exists('videos_id', $publicProperties)) {
+                    return intval($publicProperties['videos_id']);
+                }
+                return intval($publicProperties['id'] ?? 0);
+            }
+            return 0;
+        }
+
         public function getVideoDownloadedLink()
         {
             return $this->videoDownloadedLink;
@@ -7179,9 +7223,24 @@ if (!class_exists('Video')) {
             // Get video data
             if (is_array($videos_id)) {
                 $video = $videos_id;
-                $videos_id = $video['id'];
+                $videos_id = self::getIdFromVideoVar($video);
+                if (!empty($videos_id) && (empty($video['filename']) || empty($video['type']) || empty($video['clean_title']))) {
+                    $videoFromDb = Video::getVideoLight($videos_id);
+                    if (!empty($videoFromDb)) {
+                        foreach ($video as $key => $value) {
+                            if ($value !== null && $value !== '') {
+                                $videoFromDb[$key] = $value;
+                            }
+                        }
+                        $video = $videoFromDb;
+                    }
+                }
             } else {
+                $videos_id = self::getIdFromVideoVar($videos_id) ?: $videos_id;
                 $video = Video::getVideoLight($videos_id);
+            }
+            if (empty($videos_id) || empty($video)) {
+                return '';
             }
 
             // Get video images

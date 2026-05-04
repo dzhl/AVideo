@@ -4030,7 +4030,7 @@ function getVideos_id($returnPlaylistVideosIDIfIsSerie = false)
             if (empty($videos_id) && !empty($_REQUEST['videoName'])) {
                 $video = Video::getVideoFromCleanTitle($_REQUEST['videoName']);
                 if (!empty($video)) {
-                    $videos_id = $video['id'];
+                    $videos_id = Video::getIdFromVideoVar($video);
                 }
             }
             setVideos_id($videos_id);
@@ -4039,7 +4039,7 @@ function getVideos_id($returnPlaylistVideosIDIfIsSerie = false)
             AVideoPlugin::loadPlugin('PlayLists');
             $video = PlayLists::isPlayListASerie($_REQUEST['playlists_id']);
             if (!empty($video)) {
-                $videos_id = $video['id'];
+                $videos_id = Video::getIdFromVideoVar($video);
             }
         }
 
@@ -4060,7 +4060,7 @@ function getVideos_id($returnPlaylistVideosIDIfIsSerie = false)
             }
             $video = $plp->getCurrentVideo();
             if (!empty($video)) {
-                $videos_id = $video['id'];
+                $videos_id = Video::getIdFromVideoVar($video);
             }
         }
 
