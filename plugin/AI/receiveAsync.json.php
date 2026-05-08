@@ -1,4 +1,5 @@
 <?php
+$global['bypassSameDomainCheck'] = 1;
 require_once '../../videos/configuration.php';
 
 header('Content-Type: application/json');
