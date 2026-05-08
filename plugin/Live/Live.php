@@ -434,6 +434,7 @@ class Live extends PluginAbstract
             'hls_path',
             'autoFishLiveEveryHour',
             'restreamStandAloneFFMPEG',
+            'restream_resolution',
         );
     }
 
@@ -510,6 +511,12 @@ class Live extends PluginAbstract
         $obj->whoCanRestream = $o;
         self::addDataObjectHelper('whoCanRestream', 'Who can Restream');
         $obj->restreamStandAloneFFMPEG = '';
+
+        $o = new stdClass();
+        $o->type = array('480' => '480p (854×480 — 1.2 Mbps)', '720' => '720p (1280×720 — 2.5 Mbps)', '1080' => '1080p (1920×1080 — 4.5 Mbps)');
+        $o->value = '720';
+        $obj->restream_resolution = $o;
+        self::addDataObjectHelper('restream_resolution', 'Restream Output Resolution', 'Resolution and bitrate used when re-encoding the live stream for restream destinations. Default: 720p.');
 
         $obj->disableDVR = false;
         self::addDataObjectHelper('disableDVR', 'Disable DVR', 'Enable or disable the DVR Feature, you can control the DVR length in your nginx.conf on the parameter hls_playlist_length');
@@ -3678,6 +3685,8 @@ Click <a href=\"{link}\">here</a> to join our live.";
         $obj->users_id = $lth->getUsers_id();
         $obj->liveTransmitionHistory_id = $liveTransmitionHistory_id;
         $obj->key = $key;
+        $liveConf = AVideoPlugin::getObjectData('Live');
+        $obj->restream_resolution = !empty($liveConf->restream_resolution->value) ? (int)$liveConf->restream_resolution->value : 720;
 
         foreach ($restreamRowItems as $key => $value) {
             $obj->restreamsDestinations[$key] = $value['restreamsDestinations'];

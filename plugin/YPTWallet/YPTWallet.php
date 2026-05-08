@@ -1173,4 +1173,61 @@ class YPTWallet extends PluginAbstract
         $newSecret = self::generateRandomString(32);
         return self::setDonationNotificationSecret($users_id, $newSecret);
     }
+
+    /**
+     * Given a plan's how_many_days value, returns a stdClass with
+     * provider-specific frequency/interval fields so all payment
+     * plugins stay in sync automatically.
+     *
+     * Properties returned:
+     *   ->dateExpr         — strtotime expression: '1 year' | '1 month' | 'N days'
+     *   ->paypalFrequency  — PayPal frequency string: 'Year' | 'Month' | 'Day'
+     *   ->paypalInterval   — PayPal interval count
+     *   ->stripeFrequency  — Stripe interval: 'year' | 'month' | 'day'
+     *   ->stripeInterval   — Stripe interval_count
+     *   ->razorpayPeriod   — RazorPay period: 'yearly' | 'monthly' | 'daily'
+     *   ->razorpayInterval — RazorPay interval count
+     *   ->authnetUnit      — AuthorizeNet unit: 'months' | 'days'
+     *   ->authnetInterval  — AuthorizeNet interval count (365 days → 12 months)
+     *
+     * @param  int    $howManyDays
+     * @return stdClass
+     */
+    public static function getBillingInterval($howManyDays)
+    {
+        $howManyDays = (int)$howManyDays;
+        $obj = new stdClass();
+        if ($howManyDays === 365) {
+            $obj->dateExpr         = '1 year';
+            $obj->paypalFrequency  = 'Year';
+            $obj->paypalInterval   = 1;
+            $obj->stripeFrequency  = 'year';
+            $obj->stripeInterval   = 1;
+            $obj->razorpayPeriod   = 'yearly';
+            $obj->razorpayInterval = 1;
+            $obj->authnetUnit      = 'months'; // ARB does not support 'years'; 12 months = 1 year
+            $obj->authnetInterval  = 12;
+        } elseif ($howManyDays === 30) {
+            $obj->dateExpr         = '1 month';
+            $obj->paypalFrequency  = 'Month';
+            $obj->paypalInterval   = 1;
+            $obj->stripeFrequency  = 'month';
+            $obj->stripeInterval   = 1;
+            $obj->razorpayPeriod   = 'monthly';
+            $obj->razorpayInterval = 1;
+            $obj->authnetUnit      = 'months';
+            $obj->authnetInterval  = 1;
+        } else {
+            $obj->dateExpr         = $howManyDays . ' days';
+            $obj->paypalFrequency  = 'Day';
+            $obj->paypalInterval   = $howManyDays;
+            $obj->stripeFrequency  = 'day';
+            $obj->stripeInterval   = $howManyDays;
+            $obj->razorpayPeriod   = 'daily';
+            $obj->razorpayInterval = $howManyDays;
+            $obj->authnetUnit      = 'days';
+            $obj->authnetInterval  = $howManyDays;
+        }
+        return $obj;
+    }
 }

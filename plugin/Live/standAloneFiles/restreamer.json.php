@@ -718,6 +718,21 @@ function startRestream($m3u8, $restreamsDestinations, $logFile, $robj, $tries = 
 
     $FFMPEGcommand .= " -i \"{$m3u8}\" ";
 
+    // Resolve output resolution from the request (set by Live plugin config)
+    $restreamResolution = (int)($robj->restream_resolution ?? 720);
+    switch ($restreamResolution) {
+        case 480:
+            $vWidth = 854;  $vHeight = 480;  $vBitrate = '1200k'; $vBufsize = '2400k';
+            break;
+        case 1080:
+            $vWidth = 1920; $vHeight = 1080; $vBitrate = '4500k'; $vBufsize = '9000k';
+            break;
+        default: // 720
+            $vWidth = 1280; $vHeight = 720;  $vBitrate = '2500k'; $vBufsize = '5000k';
+            break;
+    }
+    error_log("Restreamer.json.php resolution={$restreamResolution}p ({$vWidth}x{$vHeight}) bitrate={$vBitrate}");
+
     // ===== ENCODER/OUTPUT =====
     $FFMPEGComplement =
         " -vsync cfr "                              // força CFR corretamente
@@ -727,9 +742,9 @@ function startRestream($m3u8, $restreamsDestinations, $logFile, $robj, $tries = 
         . " -pix_fmt yuv420p "
         . " -r 30 -g 60 -sc_threshold 0 "             // GOP fixo 2s
         . " -x264-params \"keyint=60:min-keyint=60:scenecut=0:nal-hrd=cbr\" "
-        . " -b:v 2500k -minrate 2500k -maxrate 2500k -bufsize 5000k "
-        . " -vf \"scale=1280:720:force_original_aspect_ratio=decrease,"
-        . "pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=yuv420p\" "
+        . " -b:v {$vBitrate} -minrate {$vBitrate} -maxrate {$vBitrate} -bufsize {$vBufsize} "
+        . " -vf \"scale={$vWidth}:{$vHeight}:force_original_aspect_ratio=decrease,"
+        . "pad={$vWidth}:{$vHeight}:(ow-iw)/2:(oh-ih)/2,format=yuv420p\" "
         . " -flvflags no_duration_filesize "
         . " -f flv "
         . " {tls_verify} "

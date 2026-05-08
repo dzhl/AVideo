@@ -400,7 +400,7 @@ class AuthorizeNet extends PluginAbstract
             if (!empty($analysis['plans_id'])) {
                 try {
                     // Load subscription plan
-                    require_once $global['systemRootPath'] . 'plugin/YPTWallet/Objects/SubscriptionPlansTable.php';
+                    require_once $global['systemRootPath'] . 'plugin/Subscription/Objects/SubscriptionPlansTable.php';
                     $plan = new SubscriptionPlansTable($analysis['plans_id']);
 
                     if (!empty($plan->getId())) {
@@ -551,13 +551,13 @@ class AuthorizeNet extends PluginAbstract
             'initial_payment_id' => $transactionId,
         ];
 
-        $interval = (int)($sp->getHow_many_days() ?? 30);
+        $bi = YPTWallet::getBillingInterval($sp->getHow_many_days() ?? 30);
         $subscriptionResult = self::createSubscription(
             (int)$analysis['users_id'],
             (float)$analysis['amount'],
             $subscriptionMetadata,
-            $interval,
-            'days'
+            $bi->authnetInterval,
+            $bi->authnetUnit
         );
 
         Subscription::renew(

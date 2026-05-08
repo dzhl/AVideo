@@ -20,12 +20,12 @@ class RazorPayYPT extends PluginAbstract {
         $str = "Go to Razorpay dashboard Site <a href='https://dashboard.razorpay.com/#/app/keys'>here</a>  (you must have Razorpay account, of course)<br>";
         $str .= "For Subscriptions, you MUST go to your <a href='https://dashboard.razorpay.com/#/app/webhooks'>Webhooks dashboard</a> check all checkboxes and setup this: <br>Webhook URL: ({$global['webSiteRootURL']}plugin/RazorPayYPT/ipn.php) <br>Secret: {$obj->webhookSecret} <br>
             Check more details here <a href='https://razorpay.com/docs/subscriptions/api/webhooks/#setup-webhooks'>here</a> <br>";
-        
+
         $p = AVideoPlugin::loadPlugin("Subscription");
         if(!empty($p) && version_compare($p->getPluginVersion(), "3.6")==-1){
             $str .= " <br><strong class='alert alert-danger'>The <a href='#plugin27570156-dc62-46e3-ace9-86c6e8f9c84b'>Subscription</a> with RazorPay Requires <a href='#plugin27570156-dc62-46e3-ace9-86c6e8f9c84b'>Subscription plugin</a> version 3.6 or greater.</strong>";
         }
-        
+
         return $str;
     }
 
@@ -80,9 +80,10 @@ class RazorPayYPT extends PluginAbstract {
             }
         }
         if (empty($id)) {
+            $bi = YPTWallet::getBillingInterval($plan->getHow_many_days());
             $plans = $api->plan->create(array(
-                'period' => 'daily',
-                'interval' => $plan->getHow_many_days(),
+                'period' => $bi->razorpayPeriod,
+                'interval' => $bi->razorpayInterval,
                 'item' => array(
                     'name' => $plan->getName(),
                     'description' => $plan->getDescription(),

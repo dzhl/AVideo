@@ -465,14 +465,14 @@ class StripeYPT extends PluginAbstract
             // check plan
             $stripe_plan_id = $subs->getStripe_plan_id();
             if (empty($stripe_plan_id)) {
-                $interval = $subs->getHow_many_days();
+                $bi = YPTWallet::getBillingInterval($subs->getHow_many_days());
                 $price = $subs->getPrice();
                 $paymentName = $subs->getName();
                 if (empty($paymentName)) {
                     $paymentName = "Recurrent Payment";
                 }
 
-                $plan = $this->createBillingPlan($price, $obj->currency, "day", $interval, $paymentName);
+                $plan = $this->createBillingPlan($price, $obj->currency, $bi->stripeFrequency, $bi->stripeInterval, $paymentName);
                 if (empty($plan)) {
                     _error_log("setUpSubscription: could not create stripe plan");
                     return false;

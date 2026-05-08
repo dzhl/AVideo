@@ -30,7 +30,7 @@ if(empty($subs)){
     die("Plan Not found");
 }
 
-$interval = $subs->getHow_many_days();
+$bi = YPTWallet::getBillingInterval($subs->getHow_many_days());
 $price = $subs->getPrice();
 $paymentName = $subs->getName();
 if(empty($paymentName)){
@@ -41,7 +41,7 @@ $RedirectURL = "{$global['webSiteRootURL']}plugin/YPTWallet/plugins/YPTWalletPay
 $CancelURL = "{$global['webSiteRootURL']}plugin/YPTWallet/plugins/YPTWalletPayPal/cancel_url.php";
 
 //setUpSubscription($invoiceNumber, $redirect_url, $cancel_url, $total = '1.00', $currency = "USD", $frequency = "Month", $interval = 1, $name = 'Base Agreement')
-$payment = $plugin->setUpSubscription($invoiceNumber, $RedirectURL, $CancelURL, $price, $objS->currency, "Day",$interval, $paymentName);
+$payment = $plugin->setUpSubscription($invoiceNumber, $RedirectURL, $CancelURL, $price, $objS->currency, $bi->paypalFrequency, $bi->paypalInterval, $paymentName);
 if (!empty($payment)) {
     if(AVideoPlugin::isEnabledByName('Subscription')){
         // create a subscription here
@@ -49,7 +49,7 @@ if (!empty($payment)) {
     }
     $obj->error = false;
     $obj->approvalLink = $payment->getApprovalLink();
-    $url = Subscription::getBuyURL(); 
+    $url = Subscription::getBuyURL();
     YPTWallet::setAddFundsSuccessRedirectURL($url);
 }
 die(json_encode($obj));
