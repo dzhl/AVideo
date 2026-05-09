@@ -35,7 +35,8 @@ if (empty($user->getUser())) {
 }
 
 $obj->users_id_statistics = $obj->users_id;
-if (User::isAdmin() && !empty($_REQUEST['isAdminPanel'])) {
+$isAdminPanel = User::isAdmin() && !empty($_REQUEST['isAdminPanel']);
+if ($isAdminPanel) {
     $obj->users_id_statistics = 0; // show all results
     $obj->totalUsers = User::getTotalUsers(false, 'a');
 } elseif (User::getId() !== $obj->users_id_statistics) {
@@ -47,6 +48,9 @@ $cacheName = 'statisticsReport_'.$obj->users_id_statistics;
 
 $cache = ObjectYPT::getCache($cacheName, 300); // 5 min cache
 if (!empty($cache)) {
+    if ($isAdminPanel) {
+        $cache->totalUsers = User::getTotalUsers(false, 'a');
+    }
     if (empty($cache->performance)) {
         $cache->performance = new stdClass();
     }
