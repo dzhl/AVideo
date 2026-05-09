@@ -2485,7 +2485,7 @@ if (typeof gtag !== \"function\") {
         //will receive
         //current=1&rowCount=10&sort[sender]=asc&searchPhrase=
         global $global;
-        $sql = "SELECT id FROM users WHERE 1=1  ";
+        $sql = "SELECT COUNT(*) as total FROM users WHERE 1=1  ";
 
         if (!empty($status)) {
             if (strtolower($status) === 'i') {
@@ -2518,10 +2518,10 @@ if (typeof gtag !== \"function\") {
         $sql .= BootGrid::getSqlSearchFromPost(['name', 'email', 'user']);
 
         $res = sqlDAL::readSql($sql);
-        $result = sqlDal::num_rows($res);
+        $row = sqlDAL::fetchAssoc($res);
         sqlDAL::close($res);
 
-        return $result;
+        return !empty($row) ? intval($row['total']) : 0;
     }
 
     public static function userExists($user)
