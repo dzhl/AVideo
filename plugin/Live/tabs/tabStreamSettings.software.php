@@ -33,7 +33,7 @@
                 <div class="panel-heading">
                     <?php echo __('Active Livestreams'); ?>
                 </div>
-                <div class="panel-body myUsedKeys<?php echo $key; ?>">
+                <div class="panel-body myUsedKeys<?php echo htmlspecialchars($key, ENT_QUOTES, 'UTF-8'); ?>">
                     <?php echo implode('', $onliveApplicationsButtons); ?>
                 </div>
             </div>

@@ -200,7 +200,7 @@ if (!empty($advancedCustomUser->showChannelBannerOnModeYoutube)) {
                         <?php
                         }
                         ?>
-                        <span class="title_liveKey_<?php echo $livet['key'] ?>"><?php echo getSEOTitle($liveTitle); ?></span>
+                        <span class="title_liveKey_<?php echo htmlspecialchars($livet['key'], ENT_QUOTES, 'UTF-8') ?>"><?php echo getSEOTitle($liveTitle); ?></span>
                         <small class="text-muted">
                             <?php
                             echo $liveInfo['displayTime'];

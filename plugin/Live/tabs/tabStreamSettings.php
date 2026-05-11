@@ -9,7 +9,7 @@ if ($objLive->allowMultipleLivesPerUser) {
             continue;
         }
         if (preg_match('/' . $trasnmition['key'] . '/', $value['key'])) {
-            $onliveApplicationsButtons[] = '<a class="btn btn-default btn-block live_' . $value['live_servers_id'] . '_' . $value['key'] . '" href="' . $value['href'] . '" target="_blank"><span class="label label-danger liveNow faa-flash faa-slow animated">' . __('LIVE NOW') . '</span> ' . $value['title'] . '</a>';
+            $onliveApplicationsButtons[] = '<a class="btn btn-default btn-block live_' . htmlspecialchars($value['live_servers_id'], ENT_QUOTES, 'UTF-8') . '_' . htmlspecialchars($value['key'], ENT_QUOTES, 'UTF-8') . '" href="' . htmlspecialchars($value['href'], ENT_QUOTES, 'UTF-8') . '" target="_blank"><span class="label label-danger liveNow faa-flash faa-slow animated">' . __('LIVE NOW') . '</span> ' . $value['title'] . '</a>';
         }
     }
 }
