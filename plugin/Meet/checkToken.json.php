@@ -12,23 +12,30 @@ $objM = AVideoPlugin::getObjectDataIfEnabled("Meet");
 if (empty($objM)) {
     die("Plugin disabled");
 }
+
+// Only admins may probe whether a secret matches — this endpoint is a
+// confirmation oracle and must not be reachable by unauthenticated callers.
+if (!User::isAdmin()) {
+    forbiddenPage('Admin only');
+}
+
 $obj = new stdClass();
 $obj->error = true;
 $obj->msg = "";
 $obj->match = false;
-$obj->secret = $_GET['secret'];
 
 if (empty($_GET['secret'])) {
     $obj->msg = "Empty Token";
     die(json_encode($obj));
 }
 
-if ($objM->secret === $_GET['secret']) {
-    $obj->msg = "Token and secret match {$_GET['secret']}";
+// Constant-time comparison to prevent byte-by-byte timing analysis.
+if (hash_equals($objM->secret, $_GET['secret'])) {
+    $obj->msg = "Token and secret match";
     $obj->error = false;
     $obj->match = true;
 } else {
-    $obj->msg = "Different token and secret ";
+    $obj->msg = "Different token and secret";
 }
 
 die(json_encode($obj));

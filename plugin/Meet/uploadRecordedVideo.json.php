@@ -43,7 +43,7 @@ if (empty($objM)) {
 }
 error_log(__FILE__ . " line " . __LINE__);
 
-if ($objM->secret != $token) {
+if (!hash_equals($objM->secret, $token)) {
     forbiddenPage('Token does not match');
 }
 error_log(__FILE__ . " line " . __LINE__);
@@ -53,11 +53,23 @@ if (empty($_FILES['upl'])) {
 }
 error_log(__FILE__ . " line " . __LINE__);
 
-$users_id = explode('-', $_FILES['upl']['name'])[0];
+$users_id = (int) explode('-', $_FILES['upl']['name'])[0];
+if ($users_id <= 0) {
+    forbiddenPage('Invalid users_id in filename');
+}
 
+// Credit the upload to $users_id in-process without minting an HTTP session.
+// login(true,true) would issue Set-Cookie + regenerate PHPSESSID, handing the
+// caller a fully-authenticated session as the named user — not needed here.
+// getUserFromID() + direct $_SESSION assignment is sufficient for
+// aVideoQueueEncoder.json.php to run under the correct user context.
 error_log(__FILE__ . " line " . __LINE__);
-$userObject = new User($users_id);
-$userObject->login(true, true);
+$userRow = User::getUserFromID($users_id);
+if (empty($userRow['id'])) {
+    forbiddenPage('Recording references unknown user');
+}
+_session_start();
+$_SESSION['user'] = $userRow;
 
 $tmpFile = getTmpDir() . uniqid();
 
