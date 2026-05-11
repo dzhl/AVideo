@@ -264,7 +264,11 @@ if (!empty($obj) && empty($obj->error)) {
         if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
             include "{$global['systemRootPath']}plugin/Live/on_publish_socket_notification.php";
         } else {
-            $command = get_php(). " {$global['systemRootPath']}plugin/Live/on_publish_socket_notification.php '$users_id' '$m3u8' '{$obj->liveTransmitionHistory_id}'";
+            $command = get_php()
+                . ' ' . escapeshellarg($global['systemRootPath'] . 'plugin/Live/on_publish_socket_notification.php')
+                . ' ' . escapeshellarg((string) $users_id)
+                . ' ' . escapeshellarg((string) $m3u8)
+                . ' ' . escapeshellarg((string) $obj->liveTransmitionHistory_id);
             _error_log("NGINX Live::on_publish YPTSocket start  ($command)");
             $pid = execAsync($command);
             _error_log("NGINX Live::on_publish YPTSocket end ".json_encode($pid));
