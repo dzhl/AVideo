@@ -25,10 +25,13 @@ if (!User::isLogged() && !canSearchUsers()) {
 
 if(preg_match('/^@/', $_REQUEST['term'])){
     $_GET['searchPhrase'] = xss_esc(substr($_REQUEST['term'], 1));
-    // Allow any logged-in user to query mentions (needed for @mention autocomplete);
-    // unauthenticated callers are blocked by the gate above.
-    $ignoreAdmin = (User::isLogged() || canSearchUsers()) ? true : false;
-    $users = User::getAllUsers($ignoreAdmin, ['name', 'email', 'user', 'channelName'], 'a');
+    // $ignoreAdmin = true: all active logged-in users may see the full user list for
+    // autocomplete. Unauthenticated callers are already blocked by the gate above.
+    // email intentionally excluded from searchFields: @mention autocomplete has no
+    // legitimate need to match on email, and including it would let any logged-in
+    // user enumerate accounts by email domain (e.g. @gmail.com).
+    $ignoreAdmin = true;
+    $users = User::getAllUsers($ignoreAdmin, ['name', 'user', 'channelName'], 'a');
     foreach ($users as $key => $value) {
         $response[] = [
             'id'=>$value['id'],
