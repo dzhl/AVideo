@@ -10,6 +10,7 @@ if (!User::isLogged()) {
     $obj->msg = "Not logged";
     die(json_encode($obj));
 }
+forbidIfIsUntrustedRequest('LoginControl-set');
 if (empty($_POST['type'])) {
     $obj->msg = "Type is empty";
     die(json_encode($obj));
