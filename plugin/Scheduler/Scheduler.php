@@ -165,7 +165,11 @@ class Scheduler extends PluginAbstract
         if (!isValidURL($callBackURL)) {
             return false;
         }
-        if (!isSSRFSafeURL($callBackURL)) {
+        // SSRF + DNS-pinning: capture $resolvedIP_callback so ssrfPinnedFetch() can
+        // pin the validated IP via CURLOPT_RESOLVE, closing the DNS TOCTOU window
+        // between isSSRFSafeURL() and the actual TCP connection.
+        $resolvedIP_callback = null;
+        if (!isSSRFSafeURL($callBackURL, $resolvedIP_callback)) {
             _error_log("Scheduler::run SSRF protection blocked callbackURL: " . $callBackURL);
             return false;
         }
@@ -173,7 +177,7 @@ class Scheduler extends PluginAbstract
             $callBackURL = addQueryStringParameter($callBackURL, 'token', getToken(60));
             $callBackURL = addQueryStringParameter($callBackURL, 'scheduler_commands_id', $scheduler_commands_id);
             _error_log("Scheduler::run getting callback URL {$callBackURL}");
-            $_executeSchelude[$callBackURL] = url_get_contents($callBackURL, '', 30);
+            $_executeSchelude[$callBackURL] = ssrfPinnedFetch($callBackURL, $resolvedIP_callback, 30);
             _error_log("Scheduler::run got callback " . json_encode($_executeSchelude[$callBackURL]));
             $json = _json_decode($_executeSchelude[$callBackURL]);
             if (is_object($json) && !empty($json->error)) {

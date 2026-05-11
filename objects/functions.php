@@ -2115,13 +2115,33 @@ function url_get_contents($url, $ctx = "", $timeout = 0, $debug = false, $mantai
                     }
                 }
                 if ($redirectTarget) {
+                    $redirectTarget = ssrfResolveRedirectURL($currentUrl, $redirectTarget);
+                    if (empty($redirectTarget)) {
+                        _error_log("url_get_contents: invalid redirect from {$currentUrl}");
+                        return false;
+                    }
                     // SECURITY: Re-validate the redirect destination before following it.
                     // This is the core of the fix -- every redirect hop is checked.
                     // If the target is an internal/private/reserved IP, we stop
                     // immediately and return false instead of leaking data.
-                    if (!isSSRFSafeURL($redirectTarget)) {
+                    //
+                    // DNS TOCTOU fix: capture $redirectHopIP so we can pin it via
+                    // CURLOPT_RESOLVE for the next hop, eliminating the race window
+                    // between the isSSRFSafeURL() check above and the actual TCP connect.
+                    $redirectHopIP = null;
+                    if (!isSSRFSafeURL($redirectTarget, $redirectHopIP)) {
                         _error_log("url_get_contents: blocked unsafe redirect from {$currentUrl} to {$redirectTarget}");
                         return false;
+                    }
+                    // When cURL is available, switch to a DNS-pinned cURL call for this
+                    // hop instead of re-using file_get_contents(), which would re-resolve
+                    // DNS and re-open the TOCTOU window.  ssrfPinnedFetch() follows
+                    // redirects manually, re-validating and re-pinning each hop.
+                    // Same-origin URLs ($redirectHopIP empty) and custom stream
+                    // contexts fall through to the file_get_contents path as before.
+                    if (!empty($redirectHopIP) && empty($ctx) && function_exists('curl_init')) {
+                        $pinnedContent = ssrfPinnedFetch($redirectTarget, $redirectHopIP, !empty($timeout) ? $timeout : 0);
+                        return $pinnedContent !== false ? remove_utf8_bom((string) $pinnedContent) : false;
                     }
                     $currentUrl = $redirectTarget;
                     continue;
@@ -4465,6 +4485,9 @@ function isSSRFSafeURL($url, &$resolvedIP = null)
  *   if (!isSSRFSafeURL($url, $resolvedIP)) { return false; }
  *   $body = ssrfPinnedFetch($url, $resolvedIP);
  *
+ * Redirects are followed manually. Each Location is resolved against the current
+ * URL, validated with isSSRFSafeURL(), and pinned again before the next request.
+ *
  * When $resolvedIP is null (same-origin shortcut — no DNS resolution was performed
  * inside isSSRFSafeURL), this falls back to url_get_contents() so that Docker URL
  * rewriting and existing redirect handling are preserved unchanged.
@@ -4472,9 +4495,10 @@ function isSSRFSafeURL($url, &$resolvedIP = null)
  * @param string      $url        URL that has already passed isSSRFSafeURL().
  * @param string|null $resolvedIP IP populated by isSSRFSafeURL(); null triggers fallback.
  * @param int         $timeout    cURL timeout in seconds (0 = no limit).
+ * @param int         $maxRedirects Maximum number of redirects to follow.
  * @return string|false           Response body, or false on failure.
  */
-function ssrfPinnedFetch($url, $resolvedIP = null, $timeout = 0)
+function ssrfPinnedFetch($url, $resolvedIP = null, $timeout = 0, $maxRedirects = 5)
 {
     // Same-origin URLs pass isSSRFSafeURL via the early-return shortcut without
     // resolving DNS, so $resolvedIP stays null. Fall back to url_get_contents()
@@ -4488,40 +4512,182 @@ function ssrfPinnedFetch($url, $resolvedIP = null, $timeout = 0)
         return url_get_contents($url, '', $timeout);
     }
 
-    $parsed = parse_url($url);
-    $host   = $parsed['host'] ?? '';
-    $scheme = strtolower($parsed['scheme'] ?? 'http');
-    $port   = (int)($parsed['port'] ?? ($scheme === 'https' ? 443 : 80));
+    $currentUrl = $url;
+    $currentIP = $resolvedIP;
 
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL,            $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);  // never re-resolve on redirect
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-    curl_setopt($ch, CURLOPT_USERAGENT,      getSelfUserAgent());
-    if ($timeout > 0) {
-        curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
-    }
-    // Pin DNS: cURL uses this map instead of resolving the hostname again,
-    // eliminating the window between isSSRFSafeURL's gethostbyname() and connect().
-    curl_setopt($ch, CURLOPT_RESOLVE, ["{$host}:{$port}:{$resolvedIP}"]);
+    for ($redirectCount = 0; $redirectCount <= $maxRedirects; $redirectCount++) {
+        $parsed = parse_url($currentUrl);
+        $host   = $parsed['host'] ?? '';
+        $scheme = strtolower($parsed['scheme'] ?? 'http');
+        $port   = (int)($parsed['port'] ?? ($scheme === 'https' ? 443 : 80));
 
-    $content  = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+        if (empty($host) || !in_array($scheme, ['http', 'https'])) {
+            _error_log("ssrfPinnedFetch: invalid URL {$currentUrl}");
+            return false;
+        }
 
-    if ($content === false) {
-        _error_log("ssrfPinnedFetch: cURL error for {$url}");
-        return false;
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL,            $currentUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);  // redirects are validated below
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        curl_setopt($ch, CURLOPT_USERAGENT,      getSelfUserAgent());
+        curl_setopt($ch, CURLOPT_HEADER,         true);
+        if ($timeout > 0) {
+            curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+        }
+        // Pin DNS: cURL uses this map instead of resolving the hostname again,
+        // eliminating the window between isSSRFSafeURL's gethostbyname() and connect().
+        if (!empty($currentIP)) {
+            curl_setopt($ch, CURLOPT_RESOLVE, ["{$host}:{$port}:{$currentIP}"]);
+        }
+
+        $response   = curl_exec($ch);
+        $curlError  = curl_error($ch);
+        $httpCode   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+        curl_close($ch);
+
+        if ($response === false) {
+            _error_log("ssrfPinnedFetch: cURL error for {$currentUrl}: {$curlError}");
+            return false;
+        }
+
+        $responseHeaders = substr($response, 0, $headerSize);
+        $body = substr($response, $headerSize);
+
+        if ($httpCode >= 300 && $httpCode < 400) {
+            if ($redirectCount >= $maxRedirects) {
+                _error_log("ssrfPinnedFetch: too many redirects for {$url}");
+                return false;
+            }
+            if (!preg_match('/^Location:\s*(.+)$/im', $responseHeaders, $m)) {
+                _error_log("ssrfPinnedFetch: redirect {$httpCode} without Location for {$currentUrl}");
+                return false;
+            }
+
+            $redirectUrl = ssrfResolveRedirectURL($currentUrl, trim($m[1]));
+            if (empty($redirectUrl)) {
+                _error_log("ssrfPinnedFetch: invalid redirect Location from {$currentUrl}");
+                return false;
+            }
+
+            $nextIP = null;
+            if (!isSSRFSafeURL($redirectUrl, $nextIP)) {
+                _error_log("ssrfPinnedFetch: blocked unsafe redirect from {$currentUrl} to {$redirectUrl}");
+                return false;
+            }
+
+            if (empty($nextIP)) {
+                return url_get_contents($redirectUrl, '', $timeout);
+            }
+
+            $currentUrl = $redirectUrl;
+            $currentIP = $nextIP;
+            continue;
+        }
+
+        return $body;
     }
-    if ($httpCode >= 300 && $httpCode < 400) {
-        // Redirect received but not followed (FOLLOWLOCATION=false). Callers that
-        // need redirect support must handle each hop individually via isSSRFSafeURL.
-        _error_log("ssrfPinnedFetch: redirect {$httpCode} not followed for {$url}");
-        return false;
+
+    _error_log("ssrfPinnedFetch: too many redirects for {$url}");
+    return false;
+}
+
+function ssrfResolveRedirectURL($baseUrl, $location)
+{
+    $location = trim((string) $location);
+    if ($location === '' || preg_match('/[\x00-\x1F\x7F]/', $location)) {
+        return '';
     }
-    return $content;
+
+    $locationScheme = parse_url($location, PHP_URL_SCHEME);
+    if (!empty($locationScheme)) {
+        if (in_array(strtolower($locationScheme), ['http', 'https']) && filter_var($location, FILTER_VALIDATE_URL)) {
+            return $location;
+        }
+        return '';
+    }
+
+    $base = parse_url($baseUrl);
+    if (empty($base['scheme']) || empty($base['host'])) {
+        return '';
+    }
+
+    $scheme = strtolower($base['scheme']);
+    if (!in_array($scheme, ['http', 'https'])) {
+        return '';
+    }
+
+    if (str_starts_with($location, '//')) {
+        return "{$scheme}:{$location}";
+    }
+
+    $port = '';
+    if (!empty($base['port'])) {
+        $port = ":{$base['port']}";
+    }
+    $authority = "{$scheme}://{$base['host']}{$port}";
+
+    $relative = parse_url($location);
+    if ($relative === false) {
+        return '';
+    }
+    if (!empty($relative['scheme'])) {
+        return '';
+    }
+
+    $basePath = $base['path'] ?? '/';
+    if ($location[0] === '/') {
+        $path = $relative['path'] ?? '/';
+    } elseif ($location[0] === '?') {
+        $path = $basePath ?: '/';
+    } elseif ($location[0] === '#') {
+        $path = $basePath ?: '/';
+    } else {
+        $baseDir = preg_replace('#/[^/]*$#', '/', $basePath);
+        if ($baseDir === null || $baseDir === '') {
+            $baseDir = '/';
+        }
+        $path = $baseDir . ($relative['path'] ?? '');
+    }
+
+    if ($location[0] === '#' && isset($base['query'])) {
+        $query = "?{$base['query']}";
+    } else {
+        $query = isset($relative['query']) ? "?{$relative['query']}" : '';
+    }
+    return $authority . ssrfNormalizeRedirectPath($path) . $query;
+}
+
+function ssrfNormalizeRedirectPath($path)
+{
+    $path = (string) $path;
+    if ($path === '') {
+        return '/';
+    }
+
+    $hasTrailingSlash = substr($path, -1) === '/';
+    $segments = explode('/', $path);
+    $normalized = [];
+
+    foreach ($segments as $segment) {
+        if ($segment === '' || $segment === '.') {
+            continue;
+        }
+        if ($segment === '..') {
+            array_pop($normalized);
+            continue;
+        }
+        $normalized[] = $segment;
+    }
+
+    $result = '/' . implode('/', $normalized);
+    if ($hasTrailingSlash && $result !== '/') {
+        $result .= '/';
+    }
+    return $result;
 }
 
 function isValidURLOrPath($str, $insideCacheOrTmpDirOnly = true)
