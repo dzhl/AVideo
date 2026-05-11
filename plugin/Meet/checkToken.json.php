@@ -30,12 +30,10 @@ if (empty($_GET['secret'])) {
 }
 
 // Constant-time comparison to prevent byte-by-byte timing analysis.
+// No message difference between match and no-match to avoid an oracle.
 if (hash_equals($objM->secret, $_GET['secret'])) {
-    $obj->msg = "Token and secret match";
     $obj->error = false;
     $obj->match = true;
-} else {
-    $obj->msg = "Different token and secret";
 }
 
 die(json_encode($obj));
