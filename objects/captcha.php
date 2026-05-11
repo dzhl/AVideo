@@ -22,7 +22,10 @@ class Captcha
     public function getCaptchaImage()
     {
         global $global;
-        header('Content-type: image/jpeg');
+        header('Content-Type: image/jpeg');
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('Pragma: no-cache');
+        header('Expires: 0');
         $imagem = imagecreate($this->largura, $this->altura); // define a largura e a altura da imagem
         $fonte = $global['systemRootPath'] . 'objects/monof55.ttf'; //voce deve ter essa ou outra fonte de sua preferencia em sua pasta
         $preto  = imagecolorallocate($imagem, 0, 0, 0); // define a cor preta
