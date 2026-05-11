@@ -72,8 +72,9 @@ $obj->jpgDest = "{$destination_local}.jpg";
 $_jpgExistedBefore = file_exists($obj->jpgDest) && fileIsAnValidImage($obj->jpgDest);
 if (!file_exists($obj->jpgDest) || !fileIsAnValidImage($obj->jpgDest)) {
 
-    if (isValidURL($_REQUEST['downloadURL_image']) && isSSRFSafeURL($_REQUEST['downloadURL_image'])) {
-        $content = url_get_contents($_REQUEST['downloadURL_image']);
+    $resolvedIP_image = null;
+    if (isValidURL($_REQUEST['downloadURL_image']) && isSSRFSafeURL($_REQUEST['downloadURL_image'], $resolvedIP_image)) {
+        $content = ssrfPinnedFetch($_REQUEST['downloadURL_image'], $resolvedIP_image);
         $obj->jpgDestSize = _file_put_contents($obj->jpgDest, $content);
         _error_log("ReceiveImage: download {$_REQUEST['downloadURL_image']} to {$obj->jpgDest} " . humanFileSize($obj->jpgDestSize));
     } elseif (!empty($_FILES['image']['tmp_name']) && (!empty($_REQUEST['update_video_id']) || !fileIsAnValidImage($obj->jpgDest))) {
@@ -112,8 +113,9 @@ if (!$_jpgExistedBefore && file_exists($obj->jpgDest) && fileIsAnValidImage($obj
     Video::deleteThumbs($videoFileName);
 }
 
-if (!empty($_REQUEST['downloadURL_spectrumimage']) && isSSRFSafeURL($_REQUEST['downloadURL_spectrumimage'])) {
-    $content = url_get_contents($_REQUEST['downloadURL_spectrumimage']);
+$resolvedIP_spectrum = null;
+if (!empty($_REQUEST['downloadURL_spectrumimage']) && isSSRFSafeURL($_REQUEST['downloadURL_spectrumimage'], $resolvedIP_spectrum)) {
+    $content = ssrfPinnedFetch($_REQUEST['downloadURL_spectrumimage'], $resolvedIP_spectrum);
     $obj->jpgSpectrumDestSize = _file_put_contents($obj->jpgSpectrumDest, $content);
     _error_log("ReceiveImage: download {$_REQUEST['downloadURL_spectrumimage']} {$obj->jpgDestSize}");
 } elseif (!empty($_FILES['spectrumimage']['tmp_name'])) {
@@ -140,8 +142,9 @@ if (!empty($_REQUEST['downloadURL_spectrumimage']) && isSSRFSafeURL($_REQUEST['d
 }
 
 $obj->gifDest = "{$destination_local}.gif";
-if (!empty($_REQUEST['downloadURL_gifimage']) && isSSRFSafeURL($_REQUEST['downloadURL_gifimage'])) {
-    $content = url_get_contents($_REQUEST['downloadURL_gifimage']);
+$resolvedIP_gif = null;
+if (!empty($_REQUEST['downloadURL_gifimage']) && isSSRFSafeURL($_REQUEST['downloadURL_gifimage'], $resolvedIP_gif)) {
+    $content = ssrfPinnedFetch($_REQUEST['downloadURL_gifimage'], $resolvedIP_gif);
     $obj->gifDestSize = file_put_contents($obj->gifDest, $content);
     _error_log("ReceiveImage: download {$_REQUEST['downloadURL_gifimage']} {$obj->gifDestSize}");
 } elseif (!empty($_FILES['gifimage']['tmp_name']) && (!empty($_REQUEST['update_video_id']) || !file_exists($obj->gifDest) || filesize($obj->gifDest) === 2095341)) {
@@ -165,8 +168,9 @@ if (!empty($_REQUEST['downloadURL_gifimage']) && isSSRFSafeURL($_REQUEST['downlo
 }
 
 $obj->webpDest = "{$destination_local}.webp";
-if (!empty($_REQUEST['downloadURL_webpimage']) && isSSRFSafeURL($_REQUEST['downloadURL_webpimage'])) {
-    $content = url_get_contents($_REQUEST['downloadURL_webpimage']);
+$resolvedIP_webp = null;
+if (!empty($_REQUEST['downloadURL_webpimage']) && isSSRFSafeURL($_REQUEST['downloadURL_webpimage'], $resolvedIP_webp)) {
+    $content = ssrfPinnedFetch($_REQUEST['downloadURL_webpimage'], $resolvedIP_webp);
     $obj->webpDestSize = file_put_contents($obj->webpDest, $content);
     _error_log("ReceiveImage: download {$_REQUEST['downloadURL_webpimage']} {$obj->webpDestSize}");
 } elseif (!empty($_FILES['webpimage']['tmp_name']) && (!empty($_REQUEST['update_video_id']) || !file_exists($obj->webpDest) || filesize($obj->webpDest) === 2095341)) {

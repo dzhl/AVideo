@@ -4456,6 +4456,74 @@ function isSSRFSafeURL($url, &$resolvedIP = null)
     return true;
 }
 
+/**
+ * Fetch a URL via cURL with DNS pinning (CURLOPT_RESOLVE) to close the TOCTOU race
+ * between isSSRFSafeURL() validation and the actual TCP connection.
+ *
+ * Usage:
+ *   $resolvedIP = null;
+ *   if (!isSSRFSafeURL($url, $resolvedIP)) { return false; }
+ *   $body = ssrfPinnedFetch($url, $resolvedIP);
+ *
+ * When $resolvedIP is null (same-origin shortcut — no DNS resolution was performed
+ * inside isSSRFSafeURL), this falls back to url_get_contents() so that Docker URL
+ * rewriting and existing redirect handling are preserved unchanged.
+ *
+ * @param string      $url        URL that has already passed isSSRFSafeURL().
+ * @param string|null $resolvedIP IP populated by isSSRFSafeURL(); null triggers fallback.
+ * @param int         $timeout    cURL timeout in seconds (0 = no limit).
+ * @return string|false           Response body, or false on failure.
+ */
+function ssrfPinnedFetch($url, $resolvedIP = null, $timeout = 0)
+{
+    // Same-origin URLs pass isSSRFSafeURL via the early-return shortcut without
+    // resolving DNS, so $resolvedIP stays null. Fall back to url_get_contents()
+    // to keep Docker loopback rewriting and session-cookie handling intact.
+    if (empty($resolvedIP)) {
+        return url_get_contents($url, '', $timeout);
+    }
+
+    if (!function_exists('curl_init')) {
+        _error_log("ssrfPinnedFetch: cURL unavailable, DNS pinning disabled for {$url}");
+        return url_get_contents($url, '', $timeout);
+    }
+
+    $parsed = parse_url($url);
+    $host   = $parsed['host'] ?? '';
+    $scheme = strtolower($parsed['scheme'] ?? 'http');
+    $port   = (int)($parsed['port'] ?? ($scheme === 'https' ? 443 : 80));
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL,            $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);  // never re-resolve on redirect
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+    curl_setopt($ch, CURLOPT_USERAGENT,      getSelfUserAgent());
+    if ($timeout > 0) {
+        curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+    }
+    // Pin DNS: cURL uses this map instead of resolving the hostname again,
+    // eliminating the window between isSSRFSafeURL's gethostbyname() and connect().
+    curl_setopt($ch, CURLOPT_RESOLVE, ["{$host}:{$port}:{$resolvedIP}"]);
+
+    $content  = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($content === false) {
+        _error_log("ssrfPinnedFetch: cURL error for {$url}");
+        return false;
+    }
+    if ($httpCode >= 300 && $httpCode < 400) {
+        // Redirect received but not followed (FOLLOWLOCATION=false). Callers that
+        // need redirect support must handle each hop individually via isSSRFSafeURL.
+        _error_log("ssrfPinnedFetch: redirect {$httpCode} not followed for {$url}");
+        return false;
+    }
+    return $content;
+}
+
 function isValidURLOrPath($str, $insideCacheOrTmpDirOnly = true)
 {
     global $global;

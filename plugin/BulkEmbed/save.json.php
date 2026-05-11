@@ -93,10 +93,11 @@ if(!BulkEmbed::canBulkEmbed()){
         $thumbs = $value['thumbs'];
         if (!empty($thumbs)) {
             // Security: SSRF protection for user-supplied thumbnail URLs
-            if (!isSSRFSafeURL($thumbs)) {
+            $resolvedIP_thumbs = null;
+            if (!isSSRFSafeURL($thumbs, $resolvedIP_thumbs)) {
                 _error_log("BulkEmbed: SSRF protection blocked thumbnail URL: " . $thumbs);
             } else {
-                $contentThumbs = url_get_contents($thumbs);
+                $contentThumbs = ssrfPinnedFetch($thumbs, $resolvedIP_thumbs);
                 if (!empty($contentThumbs)) {
                     make_path($poster);
                     $bytes = file_put_contents($poster, $contentThumbs);

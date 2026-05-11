@@ -438,7 +438,8 @@ function downloadVideoFromDownloadURL($downloadURL)
     // Keeping an extension bypass would allow any authenticated uploader to reach loopback
     // or internal services (e.g. http://127.0.0.1:9998/probe.mp4) and exfiltrate the
     // response body as publicly retrievable media — a confirmed SSRF exfiltration primitive.
-    if (!isSSRFSafeURL($downloadURL)) {
+    $resolvedIP_download = null;
+    if (!isSSRFSafeURL($downloadURL, $resolvedIP_download)) {
         __errlog("aVideoEncoder.json:downloadVideoFromDownloadURL SSRF protection blocked URL: " . $downloadURL);
         return false;
     }
@@ -448,7 +449,7 @@ function downloadVideoFromDownloadURL($downloadURL)
     ini_set('max_execution_time', 7200);
 
     _error_log("aVideoEncoder.json: Try to download " . $downloadURL);
-    $file = url_get_contents($downloadURL);
+    $file = ssrfPinnedFetch($downloadURL, $resolvedIP_download, 7200);
     $strlen = strlen($file);
     $minLen = 20000;
     if (preg_match('/\.mp3$/', $downloadURL)) {
