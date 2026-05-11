@@ -1,0 +1,177 @@
+<?php
+global $global, $config;
+require_once __DIR__ . '/../videos/configuration.php';
+require_once $global['systemRootPath'] . 'objects/comment.php';
+require_once $global['systemRootPath'] . 'objects/user.php';
+
+if (!User::isLogged()) {
+    forbiddenPage('Permission denied', true);
+}
+
+$type = 'posted';
+if (!empty($_GET['type']) && $_GET['type'] === 'received') {
+    $type = 'received';
+}
+
+$includeImages = !empty($_GET['includeImages']) && $_GET['includeImages'] == '1';
+
+$_POST['sort'] = [];
+$_POST['sort']['id'] = 'DESC';
+setRowCount(0); // remove pagination limit — fetch all rows
+
+if ($type === 'received') {
+    $comments = Comment::getCommentsOnMyVideos(true);
+    $typeLabel = __('Comments on My Videos');
+} else {
+    $comments = Comment::getMyPostedComments(true);
+    $typeLabel = __('Comments I Wrote');
+}
+
+$comments = Comment::addExtraInfo2InRows($comments);
+
+$exportDate = date('Y-m-d H:i');
+$username = htmlspecialchars(User::getName(), ENT_QUOTES, 'UTF-8');
+
+$filename = 'comments-' . $type . '-' . date('Ymd-His') . '.html';
+header('Content-Type: text/html; charset=UTF-8');
+header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+function safeURL($url) {
+    $url = trim($url ?? '');
+    if ($url === '') {
+        return '';
+    }
+    $scheme = strtolower(parse_url($url, PHP_URL_SCHEME));
+    if (!in_array($scheme, ['http', 'https', 'data'], true)) {
+        return '';
+    }
+    return htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+}
+
+function renderRepliesRows($replies, $includeImages, $depth = 1) {
+    $html = '';
+    if (empty($replies)) {
+        return $html;
+    }
+    $indent = str_repeat('&nbsp;&nbsp;&nbsp;&nbsp;', $depth) . '&#x21b3; ';
+    foreach ($replies as $reply) {
+        if (!is_array($reply)) {
+            continue;
+        }
+        $date        = htmlspecialchars($reply['created'] ?? '', ENT_QUOTES, 'UTF-8');
+        $author      = htmlspecialchars($reply['identification'] ?? ($reply['name'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $photoURL    = safeURL($reply['userPhotoURL'] ?? ($reply['photo'] ?? ''));
+        $plain       = htmlspecialchars($reply['commentPlain'] ?? '', ENT_QUOTES, 'UTF-8');
+        $likes       = (int)($reply['likes'] ?? 0);
+        $dislikes    = (int)($reply['dislikes'] ?? 0);
+
+        $photoCell = '';
+        if ($includeImages) {
+            $photoCell = '<td style="vertical-align:middle;text-align:center;">'
+                . '<img src="' . $photoURL . '" alt="" style="width:32px;height:32px;border-radius:50%;"/>'
+                . '</td>';
+        }
+        $html .= '<tr style="background:#f9f9f9;">';
+        $html .= $photoCell;
+        $html .= '<td style="color:#888;font-size:0.85em;">' . $date . '</td>';
+        $html .= '<td>' . $author . '</td>';
+        $html .= '<td colspan="2" style="color:#555;">' . $indent . nl2br($plain) . '</td>';
+        $html .= '<td style="text-align:center;color:#888;">&#x2194;</td>';
+        $html .= '<td style="text-align:center;">&#x1F44D; ' . $likes . ' / &#x1F44E; ' . $dislikes . '</td>';
+        $html .= '</tr>';
+
+        if (!empty($reply['responses'])) {
+            $html .= renderRepliesRows($reply['responses'], $includeImages, $depth + 1);
+        }
+    }
+    return $html;
+}
+
+
+?><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title><?php echo htmlspecialchars($typeLabel, ENT_QUOTES, 'UTF-8'); ?> – <?php echo $username; ?></title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 14px; color: #333; margin: 20px; background: #fff; }
+  h1 { font-size: 1.4em; margin-bottom: 4px; }
+  .meta { color: #888; font-size: 0.85em; margin-bottom: 20px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #4a4a4a; color: #fff; padding: 8px 10px; text-align: left; font-size: 0.9em; }
+  td { padding: 8px 10px; border-bottom: 1px solid #e0e0e0; vertical-align: top; font-size: 0.9em; }
+  tr:hover td { background: #f5f5f5; }
+  .video-title { font-weight: bold; }
+  .video-link { font-size: 0.8em; color: #1a73e8; word-break: break-all; }
+  .empty { text-align: center; padding: 40px; color: #aaa; }
+  @media print { body { margin: 10px; } }
+</style>
+</head>
+<body>
+<h1>&#x1F4AC; <?php echo htmlspecialchars($typeLabel, ENT_QUOTES, 'UTF-8'); ?></h1>
+<p class="meta">
+    <?php echo $username; ?> &nbsp;&bull;&nbsp; <?php echo $exportDate; ?>
+    &nbsp;&bull;&nbsp; <?php echo count($comments); ?> <?php echo __('comments'); ?>
+</p>
+<?php if (empty($comments)): ?>
+<p class="empty">&#x1F4AC; <?php echo __('No comments found.'); ?></p>
+<?php else: ?>
+<table>
+  <thead>
+    <tr>
+      <?php if ($includeImages): ?><th style="width:44px;"><?php echo __('Photo'); ?></th><?php endif; ?>
+      <th style="width:130px;"><?php echo __('Date'); ?></th>
+      <th style="width:140px;"><?php echo __('Author'); ?></th>
+      <th><?php echo __('Video'); ?></th>
+      <th><?php echo __('Comment'); ?></th>
+      <th style="width:60px;text-align:center;"><?php echo __('Replies'); ?></th>
+      <th style="width:120px;text-align:center;"><?php echo __('Likes / Dislikes'); ?></th>
+    </tr>
+  </thead>
+  <tbody>
+<?php foreach ($comments as $row):
+    if (!is_array($row)) { continue; }
+    $date       = htmlspecialchars($row['created'] ?? '', ENT_QUOTES, 'UTF-8');
+    $author     = htmlspecialchars($row['identification'] ?? ($row['name'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $photoURL   = safeURL($row['userPhotoURL'] ?? ($row['photo'] ?? ''));
+    $plain      = htmlspecialchars($row['commentPlain'] ?? '', ENT_QUOTES, 'UTF-8');
+    $videoTitle = '';
+    $videoURL   = '';
+    if (!empty($row['video'])) {
+        $videoTitle = htmlspecialchars($row['video']['title'] ?? '', ENT_QUOTES, 'UTF-8');
+        $videoURL   = safeURL($row['video']['link'] ?? '');
+    }
+    $totalReplies = (int)($row['total_replies'] ?? 0);
+    $likes        = (int)($row['likes'] ?? 0);
+    $dislikes     = (int)($row['dislikes'] ?? 0);
+?>
+    <tr>
+      <?php if ($includeImages): ?>
+      <td style="text-align:center;vertical-align:middle;">
+        <img src="<?php echo $photoURL; ?>" alt="" style="width:40px;height:40px;border-radius:50%;"/>
+      </td>
+      <?php endif; ?>
+      <td style="white-space:nowrap;"><?php echo $date; ?></td>
+      <td><?php echo $author; ?></td>
+      <td>
+        <div class="video-title"><?php echo $videoTitle; ?></div>
+        <?php if (!empty($videoURL)): ?>
+        <div class="video-link"><a href="<?php echo $videoURL; ?>" target="_blank"><?php echo $videoURL; ?></a></div>
+        <?php endif; ?>
+      </td>
+      <td><?php echo nl2br($plain); ?></td>
+      <td style="text-align:center;"><?php echo $totalReplies; ?></td>
+      <td style="text-align:center;">&#x1F44D; <?php echo $likes; ?> / &#x1F44E; <?php echo $dislikes; ?></td>
+    </tr>
+<?php
+    // Render nested replies
+    if (!empty($row['responses'])) {
+        echo renderRepliesRows($row['responses'], $includeImages, 1);
+    }
+endforeach; ?>
+  </tbody>
+</table>
+<?php endif; ?>
+</body>
+</html>

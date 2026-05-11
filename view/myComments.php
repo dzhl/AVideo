@@ -112,6 +112,11 @@ $commentTemplate = json_encode(file_get_contents($global['systemRootPath'] . 'vi
         <div class="panel-heading">
             <h3 class="panel-title">
                 <i class="fas fa-comments"></i> <?php echo __('My Comments'); ?>
+                <span class="pull-right">
+                    <button class="btn btn-default btn-xs" onclick="openDownloadCommentsModal();">
+                        <i class="fas fa-download"></i> <?php echo __('Download'); ?>
+                    </button>
+                </span>
             </h3>
         </div>
         <div class="panel-body">
@@ -379,6 +384,24 @@ $commentTemplate = json_encode(file_get_contents($global['systemRootPath'] . 'vi
         });
     }
 
+    function openDownloadCommentsModal() {
+        // detect active tab
+        var activeTab = $('#myCommentsPanel .nav-tabs li.active a').attr('href');
+        var type = (activeTab === '#receivedTab') ? 'received' : 'posted';
+        $('#downloadCommentsType').val(type);
+        $('#downloadCommentsModal').modal('show');
+    }
+
+    function doDownloadComments() {
+        var type = $('#downloadCommentsType').val();
+        var includeImages = $('#downloadIncludeImages').is(':checked') ? '1' : '0';
+        var url = webSiteRootURL + 'objects/myComments.download.php'
+            + '?type=' + encodeURIComponent(type)
+            + '&includeImages=' + includeImages;
+        window.location.href = url;
+        $('#downloadCommentsModal').modal('hide');
+    }
+
     $(document).ready(function() {
         loadPostedComments(0, 1);
         $('a[href="#receivedTab"]').on('shown.bs.tab', function() {
@@ -389,6 +412,43 @@ $commentTemplate = json_encode(file_get_contents($global['systemRootPath'] . 'vi
         });
     });
 </script>
+
+<!-- Download Comments Modal -->
+<div class="modal fade" id="downloadCommentsModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+        <h4 class="modal-title"><i class="fas fa-download"></i> <?php echo __('Download Comments'); ?></h4>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label><?php echo __('Type'); ?></label>
+          <select class="form-control" id="downloadCommentsType">
+            <option value="posted"><?php echo __('Comments I Wrote'); ?></option>
+            <?php if ($userCanUpload): ?>
+            <option value="received"><?php echo __('Comments on My Videos'); ?></option>
+            <?php endif; ?>
+          </select>
+        </div>
+        <div class="checkbox">
+          <label>
+            <input type="checkbox" id="downloadIncludeImages" checked>
+            <?php echo __('Include user photos in file'); ?>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal"><?php echo __('Cancel'); ?></button>
+        <button type="button" class="btn btn-primary" onclick="doDownloadComments();">
+          <i class="fas fa-download"></i> <?php echo __('Download'); ?>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 <?php
 $_page->print();
 ?>
