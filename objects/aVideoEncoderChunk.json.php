@@ -134,28 +134,11 @@ error_log("aVideoEncoderChunk.json.php: {$json} ");
 die($json);
 
 
-// Security: enforce a per-request size cap (mirrors PHP's post_max_size; falls back to 4 GB).
-// Legitimate encoder uploads of individual video files fit within this bound.
-function _parseIniSize(string $val): int
-{
-    $val = trim($val);
-    $last = strtolower($val[strlen($val) - 1]);
-    $num = (int) $val;
-    switch ($last) {
-        case 'g': $num *= 1024;
-        // fall through
-        case 'm': $num *= 1024;
-        // fall through
-        case 'k': $num *= 1024;
-    }
-    return $num;
-}
-$rawLimit = ini_get('post_max_size');
-$floorBytes = 4 * 1024 * 1024 * 1024; // 4 GB floor — encoder uploads can be large
-$maxBytes = $rawLimit ? max(_parseIniSize($rawLimit), $floorBytes) : $floorBytes;
-
+// -----------------------------------------------------------------------
+// Legacy single-PUT mode (backward compatibility for older encoder builds)
+// -----------------------------------------------------------------------
+// $maxBytes is already set at the top of the file; reuse it here.
 // Reject obviously oversized requests using the Content-Length hint.
-$contentLength = isset($_SERVER['CONTENT_LENGTH']) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
 if ($contentLength > $maxBytes) {
     http_response_code(413);
     error_log("aVideoEncoderChunk.json.php: rejected oversized request ({$contentLength} bytes)");
