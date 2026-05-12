@@ -1,4 +1,8 @@
 <?php
+// Allow PHP to keep running even if Apache closes the gateway connection
+// (Apache TimeOut default = 180 s).  Large video downloads take much longer.
+ignore_user_abort(true);
+
 // Early diagnostic log — fires before configuration.php loads.
 // Captures the raw Content-Type header and whether PHP parsed any POST or FILES.
 // This is the first thing to check when response_raw is empty: if post_count=0 and
@@ -444,43 +448,38 @@ function downloadVideoFromDownloadURL($downloadURL)
         return false;
     }
 
-    // Allow up to 2 hours for large video uploads/encoding
-    @set_time_limit(7200);
-    ini_set('max_execution_time', 7200);
+    // Allow unlimited time: large video files (>8 GB) can take hours to download.
+    // set_time_limit(0) resets the PHP execution clock from this point.
+    @set_time_limit(0);
+    ignore_user_abort(true);
 
-    _error_log("aVideoEncoder.json: Try to download " . $downloadURL);
-    $file = ssrfPinnedFetch($downloadURL, $resolvedIP_download, 7200);
-    $strlen = strlen($file);
-    $minLen = 20000;
-    if (preg_match('/\.mp3$/', $downloadURL)) {
-        $minLen = 5000;
-    }
-    if ($strlen < $minLen) {
-        __errlog("aVideoEncoder.json:downloadVideoFromDownloadURL this is not a video " . $downloadURL . " strlen={$strlen} " . humanFileSize($strlen));
-        //it is not a video
-        return false;
-    }
-    _error_log("aVideoEncoder.json:downloadVideoFromDownloadURL Got the download " . $downloadURL . ' ' . humanFileSize($strlen));
-    if ($file) {
-        $_FILES['video']['name'] = basename($downloadURL);
-        //$temp = getTmpDir('zip') . $_FILES['video']['name'];
-        $temp = Video::getStoragePath() . "cache/tmpFile/" . $_FILES['video']['name'];
-        make_path($temp);
-        $bytesSaved = file_put_contents($temp, $file);
+    $_FILES['video']['name'] = basename($downloadURL);
+    $temp = Video::getStoragePath() . "cache/tmpFile/" . $_FILES['video']['name'];
+    make_path($temp);
 
-        if ($bytesSaved) {
-            _error_log("aVideoEncoder.json:downloadVideoFromDownloadURL saved " . $temp  . ' ' . humanFileSize($bytesSaved));
-            return $temp;
-        } else {
-            $dir = dirname($temp);
-            if (!is_writable($dir)) {
+    // Stream directly to disk — avoids loading the entire file into PHP memory.
+    // ssrfPinnedFetch() with CURLOPT_RETURNTRANSFER would exhaust memory_limit for
+    // files larger than a few hundred MB and cause the Apache TimeOut to fire.
+    _error_log("aVideoEncoder.json: Try to download " . $downloadURL . " to " . $temp);
+    $bytesSaved = ssrfPinnedFetchToFile($downloadURL, $temp, $resolvedIP_download, 7200);
+
+    $minLen = preg_match('/\.mp3$/', $downloadURL) ? 5000 : 20000;
+    if (!$bytesSaved || $bytesSaved < $minLen) {
+        $dir = dirname($temp);
+        if ($bytesSaved === false || $bytesSaved === 0) {
+            if (is_file($temp) && !is_writable($dir)) {
                 __errlog("aVideoEncoder.json:downloadVideoFromDownloadURL ERROR on save file " . $temp . ". Directory is not writable. To make the directory writable and set www-data as owner, use the following commands: sudo chmod -R 775 " . $dir . " && sudo chown -R www-data:www-data " . $dir);
             } else {
-                __errlog("aVideoEncoder.json:downloadVideoFromDownloadURL ERROR on save file " . $temp . ". Directory is writable, but the file could not be saved. Possible causes could be disk space issues, file permission issues, or file system errors.");
+                __errlog("aVideoEncoder.json:downloadVideoFromDownloadURL download failed for " . $downloadURL . ". bytesSaved=" . var_export($bytesSaved, true));
             }
+        } else {
+            __errlog("aVideoEncoder.json:downloadVideoFromDownloadURL this is not a video " . $downloadURL . " bytesSaved=" . humanFileSize($bytesSaved));
         }
+        return false;
     }
-    return false;
+
+    _error_log("aVideoEncoder.json:downloadVideoFromDownloadURL saved " . $temp . ' ' . humanFileSize($bytesSaved));
+    return $temp;
 }
 
 function __errlog($txt)

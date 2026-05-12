@@ -4595,6 +4595,144 @@ function ssrfPinnedFetch($url, $resolvedIP = null, $timeout = 0, $maxRedirects =
     return false;
 }
 
+/**
+ * Like ssrfPinnedFetch() but streams the response body directly to $destPath
+ * instead of loading it into memory.  Required for large video files (>1 GB)
+ * where CURLOPT_RETURNTRANSFER would exhaust PHP memory_limit.
+ *
+ * Returns the number of bytes written on success, or false on failure.
+ */
+function ssrfPinnedFetchToFile($url, $destPath, $resolvedIP = null, $timeout = 0, $maxRedirects = 5)
+{
+    if (empty($resolvedIP)) {
+        // Same-origin / loopback URL: stream directly without DNS pinning.
+        $fp = fopen($destPath, 'w');
+        if (!$fp) {
+            _error_log("ssrfPinnedFetchToFile: cannot open dest file {$destPath}");
+            return false;
+        }
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_FILE,           $fp);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_MAXREDIRS,      $maxRedirects);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        curl_setopt($ch, CURLOPT_USERAGENT,      getSelfUserAgent());
+        if ($timeout > 0) {
+            curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+        }
+        curl_exec($ch);
+        $curlError = curl_error($ch);
+        $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        fclose($fp);
+        if ($curlError) {
+            @unlink($destPath);
+            _error_log("ssrfPinnedFetchToFile: cURL error for {$url}: {$curlError}");
+            return false;
+        }
+        if ($httpCode < 200 || $httpCode >= 300) {
+            @unlink($destPath);
+            _error_log("ssrfPinnedFetchToFile: HTTP {$httpCode} for {$url}");
+            return false;
+        }
+        return filesize($destPath);
+    }
+
+    // External URL with SSRF-pinned DNS: follow redirects manually with SSRF checks.
+    $currentUrl = $url;
+    $currentIP  = $resolvedIP;
+
+    for ($redirectCount = 0; $redirectCount <= $maxRedirects; $redirectCount++) {
+        $parsed = parse_url($currentUrl);
+        $host   = $parsed['host'] ?? '';
+        $scheme = strtolower($parsed['scheme'] ?? 'http');
+        $port   = (int)($parsed['port'] ?? ($scheme === 'https' ? 443 : 80));
+
+        if (empty($host) || !in_array($scheme, ['http', 'https'])) {
+            _error_log("ssrfPinnedFetchToFile: invalid URL {$currentUrl}");
+            return false;
+        }
+
+        $fp = fopen($destPath, 'w');
+        if (!$fp) {
+            _error_log("ssrfPinnedFetchToFile: cannot open dest file {$destPath}");
+            return false;
+        }
+
+        $responseHeaders = '';
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL,            $currentUrl);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);  // redirects validated below
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        curl_setopt($ch, CURLOPT_USERAGENT,      getSelfUserAgent());
+        curl_setopt($ch, CURLOPT_FILE,           $fp);
+        curl_setopt($ch, CURLOPT_HEADERFUNCTION, function ($ch, $header) use (&$responseHeaders) {
+            $responseHeaders .= $header;
+            return strlen($header);
+        });
+        if ($timeout > 0) {
+            curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+        }
+        if (!empty($currentIP)) {
+            curl_setopt($ch, CURLOPT_RESOLVE, ["{$host}:{$port}:{$currentIP}"]);
+        }
+
+        curl_exec($ch);
+        $curlError = curl_error($ch);
+        $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        fclose($fp);
+
+        if ($curlError) {
+            @unlink($destPath);
+            _error_log("ssrfPinnedFetchToFile: cURL error for {$currentUrl}: {$curlError}");
+            return false;
+        }
+
+        if ($httpCode >= 300 && $httpCode < 400) {
+            @unlink($destPath);
+            if ($redirectCount >= $maxRedirects) {
+                _error_log("ssrfPinnedFetchToFile: too many redirects for {$url}");
+                return false;
+            }
+            if (!preg_match('/^Location:\s*(.+)$/im', $responseHeaders, $m)) {
+                _error_log("ssrfPinnedFetchToFile: redirect {$httpCode} without Location for {$currentUrl}");
+                return false;
+            }
+            $redirectUrl = ssrfResolveRedirectURL($currentUrl, trim($m[1]));
+            if (empty($redirectUrl)) {
+                _error_log("ssrfPinnedFetchToFile: invalid redirect Location from {$currentUrl}");
+                return false;
+            }
+            $nextIP = null;
+            if (!isSSRFSafeURL($redirectUrl, $nextIP)) {
+                _error_log("ssrfPinnedFetchToFile: blocked unsafe redirect from {$currentUrl} to {$redirectUrl}");
+                return false;
+            }
+            if (empty($nextIP)) {
+                // Redirect to same-origin: stream without pinning for remaining hops
+                return ssrfPinnedFetchToFile($redirectUrl, $destPath, null, $timeout, $maxRedirects - $redirectCount - 1);
+            }
+            $currentUrl = $redirectUrl;
+            $currentIP  = $nextIP;
+            continue;
+        }
+
+        if ($httpCode < 200 || $httpCode >= 300) {
+            @unlink($destPath);
+            _error_log("ssrfPinnedFetchToFile: HTTP {$httpCode} for {$currentUrl}");
+            return false;
+        }
+
+        return filesize($destPath);
+    }
+
+    _error_log("ssrfPinnedFetchToFile: too many redirects for {$url}");
+    return false;
+}
+
 function ssrfResolveRedirectURL($baseUrl, $location)
 {
     $location = trim((string) $location);
