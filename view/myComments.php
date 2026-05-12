@@ -394,9 +394,11 @@ $commentTemplate = json_encode(file_get_contents($global['systemRootPath'] . 'vi
 
     function doDownloadComments() {
         var type = $('#downloadCommentsType').val();
-        var includeImages = $('#downloadIncludeImages').is(':checked') ? '1' : '0';
+        var format = $('#downloadCommentsFormat').val();
+        var includeImages = ($('#downloadIncludeImages').is(':checked') && format === 'html') ? '1' : '0';
         var url = webSiteRootURL + 'objects/myComments.download.php'
             + '?type=' + encodeURIComponent(type)
+            + '&format=' + encodeURIComponent(format)
             + '&includeImages=' + includeImages;
         window.location.href = url;
         $('#downloadCommentsModal').modal('hide');
@@ -425,7 +427,7 @@ $commentTemplate = json_encode(file_get_contents($global['systemRootPath'] . 'vi
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label><?php echo __('Type'); ?></label>
+          <label><?php echo __('Comments to download'); ?></label>
           <select class="form-control" id="downloadCommentsType">
             <option value="posted"><?php echo __('Comments I Wrote'); ?></option>
             <?php if ($userCanUpload): ?>
@@ -433,7 +435,14 @@ $commentTemplate = json_encode(file_get_contents($global['systemRootPath'] . 'vi
             <?php endif; ?>
           </select>
         </div>
-        <div class="checkbox">
+        <div class="form-group">
+          <label><?php echo __('Format'); ?></label>
+          <select class="form-control" id="downloadCommentsFormat" onchange="$('#imagesOption').toggle(this.value === 'html');">
+            <option value="html"><?php echo __('HTML (web page)'); ?></option>
+            <option value="csv"><?php echo __('CSV (spreadsheet)'); ?></option>
+          </select>
+        </div>
+        <div class="checkbox" id="imagesOption">
           <label>
             <input type="checkbox" id="downloadIncludeImages" checked>
             <?php echo __('Include user photos in file'); ?>

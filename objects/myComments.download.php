@@ -13,7 +13,13 @@ if (!empty($_GET['type']) && $_GET['type'] === 'received') {
     $type = 'received';
 }
 
-$includeImages = !empty($_GET['includeImages']) && $_GET['includeImages'] == '1';
+$format = 'html';
+if (!empty($_GET['format']) && $_GET['format'] === 'csv') {
+    $format = 'csv';
+}
+
+// Images only make sense in HTML format
+$includeImages = ($format === 'html') && !empty($_GET['includeImages']) && $_GET['includeImages'] == '1';
 
 $_POST['sort'] = [];
 $_POST['sort']['id'] = 'DESC';
@@ -32,9 +38,9 @@ $comments = Comment::addExtraInfo2InRows($comments);
 $exportDate = date('Y-m-d H:i');
 $username = htmlspecialchars(User::getName(), ENT_QUOTES, 'UTF-8');
 
-$filename = 'comments-' . $type . '-' . date('Ymd-His') . '.html';
-header('Content-Type: text/html; charset=UTF-8');
-header('Content-Disposition: attachment; filename="' . $filename . '"');
+$fileBase = 'comments-' . $type . '-' . date('Ymd-His');
+
+// ── Helpers ───────────────────────────────────────────────────────────────
 
 function safeURL($url) {
     $url = trim($url ?? '');
@@ -48,6 +54,74 @@ function safeURL($url) {
     return htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
 }
 
+/** Short canonical URL for a video: webSiteRootURL + video/{id} */
+function shortVideoURL($videos_id) {
+    global $global;
+    return rtrim($global['webSiteRootURL'], '/') . '/video/' . (int)$videos_id;
+}
+
+/**
+ * Strip HTML tags and decode entities for use in plain-text contexts (CSV).
+ * Preserves bare URLs so they remain clickable in spreadsheets.
+ */
+function commentToPlainText($commentWithLinks, $commentPlain) {
+    $text = !empty($commentWithLinks) ? $commentWithLinks : ($commentPlain ?? '');
+    // Extract bare URLs from <a href="..."> before stripping so they survive
+    $text = preg_replace('/<a[^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)<\/a>/is', '$2 [$1]', $text);
+    // Replace <img ...> with its src so images show as URLs
+    $text = preg_replace('/<img[^>]+src=["\']([^"\']+)["\'][^>]*\/?>/is', '[img: $1]', $text);
+    $text = strip_tags($text);
+    $text = html_entity_decode($text, ENT_QUOTES, 'UTF-8');
+    return trim($text);
+}
+
+// ── CSV export ───────────────────────────────────────────────────────────
+if ($format === 'csv') {
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $fileBase . '.csv"');
+    // BOM for Excel UTF-8 detection
+    echo "\xEF\xBB\xBF";
+    $out = fopen('php://output', 'w');
+
+    $headers = [__('Date'), __('Author'), __('Video Title'), __('Video URL'),
+                __('Comment'), __('Reply Level'), __('Replies'), __('Likes'), __('Dislikes')];
+    fputcsv($out, $headers);
+
+    function csvRow($fh, $row, $level = 0) {
+        $videoTitle = $row['video']['title'] ?? '';
+        $videoURL   = shortVideoURL($row['videos_id'] ?? ($row['video']['id'] ?? 0));
+        $commentTxt = commentToPlainText($row['commentWithLinks'] ?? '', $row['commentPlain'] ?? '');
+        fputcsv($fh, [
+            $row['created']      ?? '',
+            strip_tags($row['identification'] ?? ($row['name'] ?? '')),
+            $videoTitle,
+            $videoURL,
+            $commentTxt,
+            $level,
+            (int)($row['total_replies'] ?? 0),
+            (int)($row['likes']    ?? 0),
+            (int)($row['dislikes'] ?? 0),
+        ]);
+        if (!empty($row['responses'])) {
+            foreach ($row['responses'] as $reply) {
+                if (!is_array($reply)) { continue; }
+                csvRow($fh, $reply, $level + 1);
+            }
+        }
+    }
+
+    foreach ($comments as $row) {
+        if (!is_array($row)) { continue; }
+        csvRow($out, $row, 0);
+    }
+    fclose($out);
+    exit;
+}
+
+// ── HTML export ───────────────────────────────────────────────────────────
+header('Content-Type: text/html; charset=UTF-8');
+header('Content-Disposition: attachment; filename="' . $fileBase . '.html"');
+
 function renderRepliesRows($replies, $includeImages, $depth = 1) {
     $html = '';
     if (empty($replies)) {
@@ -59,23 +133,23 @@ function renderRepliesRows($replies, $includeImages, $depth = 1) {
             continue;
         }
         $date        = htmlspecialchars($reply['created'] ?? '', ENT_QUOTES, 'UTF-8');
-        $author      = htmlspecialchars($reply['identification'] ?? ($reply['name'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $author      = htmlspecialchars(strip_tags($reply['identification'] ?? ($reply['name'] ?? '')), ENT_QUOTES, 'UTF-8');
         $photoURL    = safeURL($reply['userPhotoURL'] ?? ($reply['photo'] ?? ''));
-        $plain       = htmlspecialchars($reply['commentPlain'] ?? '', ENT_QUOTES, 'UTF-8');
+        $commentHTML = $reply['commentWithLinks'] ?? nl2br(htmlspecialchars($reply['commentPlain'] ?? '', ENT_QUOTES, 'UTF-8'));
         $likes       = (int)($reply['likes'] ?? 0);
         $dislikes    = (int)($reply['dislikes'] ?? 0);
 
         $photoCell = '';
         if ($includeImages) {
             $photoCell = '<td style="vertical-align:middle;text-align:center;">'
-                . '<img src="' . $photoURL . '" alt="" style="width:32px;height:32px;border-radius:50%;"/>'
+                . ($photoURL ? '<img src="' . $photoURL . '" alt="" style="width:32px;height:32px;border-radius:50%;"/>' : '')
                 . '</td>';
         }
         $html .= '<tr style="background:#f9f9f9;">';
         $html .= $photoCell;
         $html .= '<td style="color:#888;font-size:0.85em;">' . $date . '</td>';
         $html .= '<td>' . $author . '</td>';
-        $html .= '<td colspan="2" style="color:#555;">' . $indent . nl2br($plain) . '</td>';
+        $html .= '<td colspan="2" style="color:#555;">' . $indent . $commentHTML . '</td>';
         $html .= '<td style="text-align:center;color:#888;">&#x2194;</td>';
         $html .= '<td style="text-align:center;">&#x1F44D; ' . $likes . ' / &#x1F44E; ' . $dislikes . '</td>';
         $html .= '</tr>';
@@ -104,6 +178,7 @@ function renderRepliesRows($replies, $includeImages, $depth = 1) {
   tr:hover td { background: #f5f5f5; }
   .video-title { font-weight: bold; }
   .video-link { font-size: 0.8em; color: #1a73e8; word-break: break-all; }
+  td img.chatImage, td img { max-width: 220px; max-height: 180px; border-radius: 4px; display: block; margin: 4px 0; }
   .empty { text-align: center; padding: 40px; color: #aaa; }
   @media print { body { margin: 10px; } }
 </style>
@@ -132,15 +207,15 @@ function renderRepliesRows($replies, $includeImages, $depth = 1) {
   <tbody>
 <?php foreach ($comments as $row):
     if (!is_array($row)) { continue; }
-    $date       = htmlspecialchars($row['created'] ?? '', ENT_QUOTES, 'UTF-8');
-    $author     = htmlspecialchars($row['identification'] ?? ($row['name'] ?? ''), ENT_QUOTES, 'UTF-8');
-    $photoURL   = safeURL($row['userPhotoURL'] ?? ($row['photo'] ?? ''));
-    $plain      = htmlspecialchars($row['commentPlain'] ?? '', ENT_QUOTES, 'UTF-8');
-    $videoTitle = '';
-    $videoURL   = '';
+    $date        = htmlspecialchars($row['created'] ?? '', ENT_QUOTES, 'UTF-8');
+    $author      = htmlspecialchars(strip_tags($row['identification'] ?? ($row['name'] ?? '')), ENT_QUOTES, 'UTF-8');
+    $photoURL    = safeURL($row['userPhotoURL'] ?? ($row['photo'] ?? ''));
+    $commentHTML = $row['commentWithLinks'] ?? nl2br(htmlspecialchars($row['commentPlain'] ?? '', ENT_QUOTES, 'UTF-8'));
+    $videoTitle  = '';
+    $videoURL    = '';
     if (!empty($row['video'])) {
         $videoTitle = htmlspecialchars($row['video']['title'] ?? '', ENT_QUOTES, 'UTF-8');
-        $videoURL   = safeURL($row['video']['link'] ?? '');
+        $videoURL   = safeURL(shortVideoURL($row['videos_id'] ?? ($row['video']['id'] ?? 0)));
     }
     $totalReplies = (int)($row['total_replies'] ?? 0);
     $likes        = (int)($row['likes'] ?? 0);
@@ -160,7 +235,7 @@ function renderRepliesRows($replies, $includeImages, $depth = 1) {
         <div class="video-link"><a href="<?php echo $videoURL; ?>" target="_blank"><?php echo $videoURL; ?></a></div>
         <?php endif; ?>
       </td>
-      <td><?php echo nl2br($plain); ?></td>
+      <td><?php echo $commentHTML; ?></td>
       <td style="text-align:center;"><?php echo $totalReplies; ?></td>
       <td style="text-align:center;">&#x1F44D; <?php echo $likes; ?> / &#x1F44E; <?php echo $dislikes; ?></td>
     </tr>
