@@ -123,6 +123,10 @@ $_page->setExtraScripts(
             <?php
             }
         } else {
+            $allowedUpdateFiles = array_column(getUpdatesFilesArray(), 'filename');
+            if (!in_array($_POST['updateFile'], $allowedUpdateFiles, true)) {
+                forbiddenPage('Invalid update file', true);
+            }
             $obj = new stdClass();
             $templine = '';
             $logfile = Video::getStoragePath() . "avideo.";
