@@ -137,7 +137,7 @@ function renderRepliesRows($replies, $includeImages, $depth = 1) {
         $photoURL    = safeURL($reply['userPhotoURL'] ?? ($reply['photo'] ?? ''));
         $commentHTML = $reply['commentWithLinks'] ?? nl2br(htmlspecialchars($reply['commentPlain'] ?? '', ENT_QUOTES, 'UTF-8'));
         if (!$includeImages) {
-            $commentHTML = preg_replace('/<img[^>]+>/is', '', $commentHTML);
+            $commentHTML = preg_replace('/<img[^>]+>/is', '<span class="img-placeholder">&#x1F5BC; [image]</span>', $commentHTML);
         }
         $likes       = (int)($reply['likes'] ?? 0);
         $dislikes    = (int)($reply['dislikes'] ?? 0);
@@ -182,6 +182,7 @@ function renderRepliesRows($replies, $includeImages, $depth = 1) {
   .video-title { font-weight: bold; }
   .video-link { font-size: 0.8em; color: #1a73e8; word-break: break-all; }
   td img.chatImage, td img { max-width: 220px; max-height: 180px; border-radius: 4px; display: block; margin: 4px 0; }
+  .img-placeholder { display: inline-block; padding: 2px 6px; background: #f0f0f0; border: 1px dashed #bbb; border-radius: 4px; color: #888; font-size: 0.8em; }
   .empty { text-align: center; padding: 40px; color: #aaa; }
   @media print { body { margin: 10px; } }
 </style>
@@ -215,7 +216,7 @@ function renderRepliesRows($replies, $includeImages, $depth = 1) {
     $photoURL    = safeURL($row['userPhotoURL'] ?? ($row['photo'] ?? ''));
     $commentHTML = $row['commentWithLinks'] ?? nl2br(htmlspecialchars($row['commentPlain'] ?? '', ENT_QUOTES, 'UTF-8'));
     if (!$includeImages) {
-        $commentHTML = preg_replace('/<img[^>]+>/is', '', $commentHTML);
+        $commentHTML = preg_replace('/<img[^>]+>/is', '<span class="img-placeholder">&#x1F5BC; [image]</span>', $commentHTML);
     }
     $videoTitle  = '';
     $videoURL    = '';
