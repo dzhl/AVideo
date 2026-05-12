@@ -136,6 +136,9 @@ function renderRepliesRows($replies, $includeImages, $depth = 1) {
         $author      = htmlspecialchars(strip_tags($reply['identification'] ?? ($reply['name'] ?? '')), ENT_QUOTES, 'UTF-8');
         $photoURL    = safeURL($reply['userPhotoURL'] ?? ($reply['photo'] ?? ''));
         $commentHTML = $reply['commentWithLinks'] ?? nl2br(htmlspecialchars($reply['commentPlain'] ?? '', ENT_QUOTES, 'UTF-8'));
+        if (!$includeImages) {
+            $commentHTML = preg_replace('/<img[^>]+>/is', '', $commentHTML);
+        }
         $likes       = (int)($reply['likes'] ?? 0);
         $dislikes    = (int)($reply['dislikes'] ?? 0);
 
@@ -211,6 +214,9 @@ function renderRepliesRows($replies, $includeImages, $depth = 1) {
     $author      = htmlspecialchars(strip_tags($row['identification'] ?? ($row['name'] ?? '')), ENT_QUOTES, 'UTF-8');
     $photoURL    = safeURL($row['userPhotoURL'] ?? ($row['photo'] ?? ''));
     $commentHTML = $row['commentWithLinks'] ?? nl2br(htmlspecialchars($row['commentPlain'] ?? '', ENT_QUOTES, 'UTF-8'));
+    if (!$includeImages) {
+        $commentHTML = preg_replace('/<img[^>]+>/is', '', $commentHTML);
+    }
     $videoTitle  = '';
     $videoURL    = '';
     if (!empty($row['video'])) {
