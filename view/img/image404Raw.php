@@ -1,12 +1,29 @@
 <?php
 
 // Fetch requested image URL
-$imageURL = !empty($_GET['image']) ? $_GET['image'] : $_SERVER["REQUEST_URI"];
+$imageURL = !empty($_GET['image']) ? $_GET['image'] : '';
+if ($imageURL === '') {
+    $scriptFilename = $_SERVER['SCRIPT_FILENAME'] ?? '';
+    if (basename($scriptFilename) === basename(__FILE__)) {
+        http_response_code(404);
+    }
+    return;
+}
 $rootDir = dirname(__FILE__) . '/../../';
-if($imageURL == 'favicon.ico'){
-    $imgLocalFile = "{$rootDir}/videos/{$imageURL}";
-}else{
-    $imgLocalFile = "{$rootDir}/{$imageURL}";
+if ($imageURL === 'favicon.ico') {
+    $imgLocalFile = realpath($rootDir . 'videos/' . $imageURL);
+} else {
+    $imgLocalFile = realpath($rootDir . $imageURL);
+}
+
+// Containment: resolved path must stay within the AVideo install root.
+// realpath() returns false for non-existent files, which also exits here.
+$resolvedRoot = realpath($rootDir);
+if ($imgLocalFile === false
+    || $resolvedRoot === false
+    || strpos($imgLocalFile, $resolvedRoot . DIRECTORY_SEPARATOR) !== 0) {
+    http_response_code(404);
+    exit;
 }
 
 if (file_exists($imgLocalFile)) {
@@ -41,4 +58,4 @@ if (file_exists($imgLocalFile)) {
     header('Content-Length: ' . filesize($imgLocalFile));
     readfile($imgLocalFile);
     exit;
-} 
+}
