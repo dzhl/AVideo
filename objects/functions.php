@@ -5675,34 +5675,19 @@ function showAlertMessage()
         }
     }
 
-    foreach ($check as $value) {
-        if (!empty($newAlerts[$value])) {
-            if (is_array($newAlerts[$value])) {
-                $newStr = [];
-                foreach ($newAlerts[$value] as $key => $value2) {
-                    $value2 = str_replace('"', "''", $value2);
-                    if (!empty($value2)) {
-                        $newStr[] = $value2;
-                    }
-                }
-                $newAlerts[$value] = $newStr;
-            } else {
-                $newAlerts[$value] = str_replace('"', "''", $newAlerts[$value]);
-            }
-        }
-    }
+    $selfURI = json_encode(getSelfURI());
     echo "/** showAlertMessage **/", PHP_EOL;
     if (!empty($newAlerts['error'])) {
-        echo 'avideoAlertError("' . $newAlerts['error'] . '");';
-        echo 'window.history.pushState({}, document.title, "' . getSelfURI() . '");';
+        echo 'avideoAlertError(' . json_encode($newAlerts['error']) . ');';
+        echo 'window.history.pushState({}, document.title, ' . $selfURI . ');';
     }
     if (!empty($newAlerts['msg'])) {
-        echo 'avideoAlertInfo("' . $newAlerts['msg'] . '");';
-        echo 'window.history.pushState({}, document.title, "' . getSelfURI() . '");';
+        echo 'avideoAlertInfo(' . json_encode($newAlerts['msg']) . ');';
+        echo 'window.history.pushState({}, document.title, ' . $selfURI . ');';
     }
     if (!empty($newAlerts['success'])) {
-        echo 'avideoAlertSuccess("' . $newAlerts['success'] . '");';
-        echo 'window.history.pushState({}, document.title, "' . getSelfURI() . '");';
+        echo 'avideoAlertSuccess(' . json_encode($newAlerts['success']) . ');';
+        echo 'window.history.pushState({}, document.title, ' . $selfURI . ');';
     }
     if (!empty($newAlerts['toast'])) {
         if (!is_array($newAlerts['toast'])) {
@@ -5721,11 +5706,11 @@ function showAlertMessage()
             }
 
             echo '$.toast({
-                    text: "' . strip_tags($value) . '",
+                    text: ' . json_encode(strip_tags($value)) . ',
                     hideAfter: ' . $hideAfter . '   // in milli seconds
-                });console.log("Toast Hide after ' . $hideAfter . '");';
+                });console.log(' . json_encode("Toast Hide after {$hideAfter}") . ');';
         }
-        echo 'window.history.pushState({}, document.title, "' . getSelfURI() . '");';
+        echo 'window.history.pushState({}, document.title, ' . $selfURI . ');';
     }
     echo PHP_EOL, "/** showAlertMessage END **/";
 }
