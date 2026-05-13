@@ -699,10 +699,7 @@ function startRestream($m3u8, $restreamsDestinations, $logFile, $robj, $tries = 
     $userAgent = 'AVideoRestreamer';
 
     $FFMPEGcommand = "{$ffmpegBinary} -hide_banner -y -v info "
-        // NOTE: -re is intentionally omitted for live HLS input.
-        // HLS segments already arrive at real-time rate; adding -re causes
-        // artificial throttling that drops speed below 1x and disconnects.
-        // ===== INPUT (HTTP/HLS) =====
+        . "-re "
         . "-rw_timeout 120000000 "                 // 120s em microssegundos
         . "-timeout 120000000 "                    // pode ser ignorado por alguns protocolos
         . "-reconnect 1 -reconnect_streamed 1 "
