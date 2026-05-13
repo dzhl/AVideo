@@ -3,7 +3,7 @@
 // Directory where FFmpeg logs are stored
 $logDir = '/var/www/tmp/';
 // Command to list FFmpeg processes
-$psCommand = 'ps -eo pid,cmd | grep ffmpeg';
+$psCommand = 'ps -eo pid,cmd | grep ffmpeg | grep -v grep';
 // Number of retries allowed
 $retryLimit = 10;
 // Number of log lines to check from the end of the file
@@ -18,31 +18,29 @@ function tailFile($file, $lines = 50) {
         return [];
     }
 
-    $data = [];
-    fseek($fp, -1, SEEK_END);
-    $pos = ftell($fp);
-    $lastLine = '';
-
-    while ($lines > 0 && $pos > 0) {
-        $char = fgetc($fp);
-        if ($char === "\n" && trim($lastLine)) {
-            $lines--;
-            $data[] = $lastLine; // Add the line to the array
-            $lastLine = '';
-        } else {
-            $lastLine = $char . $lastLine;
-        }
-        fseek($fp, $pos--);
+    $fileSize = filesize($file);
+    if ($fileSize === 0) {
+        fclose($fp);
+        return [];
     }
 
+    // Read at most the last 100 KB to avoid slow processing of large files.
+    // FFmpeg logs with \r-only line endings would cause the old char-by-char
+    // loop to iterate the entire file byte by byte, hanging for minutes.
+    $readLimit = min($fileSize, 100 * 1024);
+    fseek($fp, -$readLimit, SEEK_END);
+    $content = fread($fp, $readLimit);
     fclose($fp);
 
-    // If there is a last line that wasn't added (file without a newline at the end)
-    if (!empty($lastLine)) {
-        $data[] = $lastLine;
+    if ($content === false || $content === '') {
+        return [];
     }
 
-    return $data;
+    // Normalize all line endings (\r\n and \r) to \n before splitting
+    $content = str_replace(["\r\n", "\r"], "\n", $content);
+    $allLines = array_values(array_filter(explode("\n", $content), 'strlen'));
+
+    return array_slice($allLines, -$lines);
 }
 
 // Function to format the last modified time
@@ -118,7 +116,7 @@ foreach ($logFiles as $logFile) {
     // Loop through the last N lines of the log file
     foreach ($logContent as $key => $line) {
         $line = str_replace(array("\r", "\n"), '', $line);
-            
+
         // Check if the line contains "Exiting normally" or "Conversion failed"
         if (strpos($line, 'Exiting normally') !== false || strpos($line, 'Conversion failed') !== false) {
             echo "Skipping ERROR log file $logFile due to message: $line (last modified on $lastModifiedFormatted).\n";
@@ -170,11 +168,13 @@ foreach ($logFiles as $logFile) {
                 // Extract the process ID
                 preg_match('/^\s*(\d+)/', $processLine, $pidMatch);
                 if (isset($pidMatch[1])) {
-                    $pid = $pidMatch[1];
-                    echo "Killed FFmpeg process with PID: $pid for URL: $lastUrlOpened".PHP_EOL;
-                    // Kill the process
-                    shell_exec("kill -9 $pid");
-                    echo "Killed FFmpeg process with PID: $pid for URL: $lastUrlOpened (log file last modified on $lastModifiedFormatted).\n";
+                    $pid = (int) $pidMatch[1];
+                    if ($pid > 0) {
+                        echo "Killed FFmpeg process with PID: $pid for URL: $lastUrlOpened".PHP_EOL;
+                        // Kill the process
+                        shell_exec("kill -9 $pid");
+                        echo "Killed FFmpeg process with PID: $pid for URL: $lastUrlOpened (log file last modified on $lastModifiedFormatted).\n";
+                    }
                 }
             }
         }
