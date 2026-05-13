@@ -162,7 +162,7 @@ foreach ($logFiles as $logFile) {
         $processList = shell_exec($psCommand);
 
         // Loop through each process and find the one related to the last URL opened
-        $lines = explode("\n", $processList);
+        $lines = explode("\n", $processList ?? '');
         foreach ($lines as $processLine) {
             if (strpos($processLine, $lastUrlOpened) !== false) {
                 // Extract the process ID
