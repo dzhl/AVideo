@@ -513,10 +513,10 @@ class Live extends PluginAbstract
         $obj->restreamStandAloneFFMPEG = '';
 
         $o = new stdClass();
-        $o->type = array('480' => '480p (854×480 — 1.2 Mbps)', '720' => '720p (1280×720 — 2.5 Mbps)', '1080' => '1080p (1920×1080 — 4.5 Mbps)');
+        $o->type = array('passthrough' => 'Passthrough (no transcoding — saves CPU)', '480' => '480p (854×480 — 1.2 Mbps)', '720' => '720p (1280×720 — 2.5 Mbps)', '1080' => '1080p (1920×1080 — 4.5 Mbps)');
         $o->value = '720';
         $obj->restream_resolution = $o;
-        self::addDataObjectHelper('restream_resolution', 'Restream Output Resolution', 'Resolution and bitrate used when re-encoding the live stream for restream destinations. Default: 720p.');
+        self::addDataObjectHelper('restream_resolution', 'Restream Output Resolution', 'Resolution and bitrate used when re-encoding the live stream for restream destinations. Choose "Passthrough" to copy the stream without transcoding (lowest CPU usage, recommended when the source resolution already matches the destination).');
 
         $obj->disableDVR = false;
         self::addDataObjectHelper('disableDVR', 'Disable DVR', 'Enable or disable the DVR Feature, you can control the DVR length in your nginx.conf on the parameter hls_playlist_length');

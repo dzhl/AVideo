@@ -699,7 +699,7 @@ function startRestream($m3u8, $restreamsDestinations, $logFile, $robj, $tries = 
     $userAgent = 'AVideoRestreamer';
 
     $FFMPEGcommand = "{$ffmpegBinary} -hide_banner -y -v info "
-        . "-re "
+        // . "-re "
         . "-rw_timeout 120000000 "                 // 120s em microssegundos
         . "-timeout 120000000 "                    // pode ser ignorado por alguns protocolos
         . "-reconnect 1 -reconnect_streamed 1 "
@@ -717,41 +717,56 @@ function startRestream($m3u8, $restreamsDestinations, $logFile, $robj, $tries = 
     $FFMPEGcommand .= " -i \"{$m3u8}\" ";
 
     // Resolve output resolution from the request (set by Live plugin config)
-    $restreamResolution = (int)($robj->restream_resolution ?? 720);
-    switch ($restreamResolution) {
-        case 480:
-            $vWidth = 854;  $vHeight = 480;  $vBitrate = '1200k'; $vBufsize = '2400k';
-            break;
-        case 1080:
-            $vWidth = 1920; $vHeight = 1080; $vBitrate = '4500k'; $vBufsize = '9000k';
-            break;
-        default: // 720
-            $vWidth = 1280; $vHeight = 720;  $vBitrate = '2500k'; $vBufsize = '5000k';
-            break;
-    }
-    error_log("Restreamer.json.php resolution={$restreamResolution}p ({$vWidth}x{$vHeight}) bitrate={$vBitrate}");
+    $restreamResolution = $robj->restream_resolution ?? '720';
+    $isPassthrough = ($restreamResolution === 'passthrough' || $restreamResolution === 0 || $restreamResolution === '0');
 
-    // ===== ENCODER/OUTPUT =====
-    $FFMPEGComplement =
-        " -vsync cfr "                              // força CFR corretamente
-        . " -max_muxing_queue_size 8192 "             // fila maior p/ picos
-        . " {audioConfig}"
-        . " -c:v libx264 -preset superfast -tune zerolatency "
-        . " -pix_fmt yuv420p "
-        . " -r 30 -g 60 -sc_threshold 0 "             // GOP fixo 2s
-        . " -x264-params \"keyint=60:min-keyint=60:scenecut=0:nal-hrd=cbr\" "
-        . " -b:v {$vBitrate} -minrate {$vBitrate} -maxrate {$vBitrate} -bufsize {$vBufsize} "
-        . " -vf \"scale={$vWidth}:{$vHeight}:force_original_aspect_ratio=decrease,"
-        . "pad={$vWidth}:{$vHeight}:(ow-iw)/2:(oh-ih)/2,format=yuv420p\" "
-        . " -flvflags no_duration_filesize "
-        . " -f flv "
-        . " {tls_verify} "
-        . " \"{restreamsDestinations}\"";   // sug.: append ?rtmp_live=1 na URL
+    if ($isPassthrough) {
+        error_log("Restreamer.json.php resolution=passthrough (stream copy, no transcoding)");
+        // ===== PASSTHROUGH — no re-encoding, lowest CPU usage =====
+        $FFMPEGComplement =
+            " -max_muxing_queue_size 8192 "
+            . " -c:v copy -c:a copy "
+            . " -flvflags no_duration_filesize "
+            . " -f flv "
+            . " {tls_verify} "
+            . " \"{restreamsDestinations}\"";
+    } else {
+        $restreamResolution = (int) $restreamResolution;
+        switch ($restreamResolution) {
+            case 480:
+                $vWidth = 854;  $vHeight = 480;  $vBitrate = '1200k'; $vBufsize = '2400k';
+                break;
+            case 1080:
+                $vWidth = 1920; $vHeight = 1080; $vBitrate = '4500k'; $vBufsize = '9000k';
+                break;
+            default: // 720
+                $vWidth = 1280; $vHeight = 720;  $vBitrate = '2500k'; $vBufsize = '5000k';
+                break;
+        }
+        error_log("Restreamer.json.php resolution={$restreamResolution}p ({$vWidth}x{$vHeight}) bitrate={$vBitrate}");
+
+        // ===== ENCODER/OUTPUT =====
+        $FFMPEGComplement =
+            " -vsync cfr "                              // força CFR corretamente
+            . " -max_muxing_queue_size 8192 "             // fila maior p/ picos
+            . " {audioConfig}"
+            . " -c:v libx264 -preset superfast -tune zerolatency "
+            . " -pix_fmt yuv420p "
+            . " -r 30 -g 60 -sc_threshold 0 "             // GOP fixo 2s
+            . " -x264-params \"keyint=60:min-keyint=60:scenecut=0:nal-hrd=cbr\" "
+            . " -b:v {$vBitrate} -minrate {$vBitrate} -maxrate {$vBitrate} -bufsize {$vBufsize} "
+            . " -vf \"scale={$vWidth}:{$vHeight}:force_original_aspect_ratio=decrease,"
+            . "pad={$vWidth}:{$vHeight}:(ow-iw)/2:(oh-ih)/2,format=yuv420p\" "
+            . " -flvflags no_duration_filesize "
+            . " -f flv "
+            . " {tls_verify} "
+            . " \"{restreamsDestinations}\"";   // sug.: append ?rtmp_live=1 na URL
+    }
 
     if (count($restreamsDestinations) > 1) {
         $command = $FFMPEGcommand;
         foreach ($restreamsDestinations as $value) {
-            $audioConfig = getAudioConfiguration($value);
+            $audioConfig = $isPassthrough ? '' : getAudioConfiguration($value);
             $value = clearCommandURL($value);
             $tcurl = buildRtmpTcurl($value);
             $tls_verify = preg_match("/^rtmps:/i", $value) ? "-tls_verify 0 -rtmp_tcurl \"{$tcurl}\" " : "";
@@ -763,7 +778,7 @@ function startRestream($m3u8, $restreamsDestinations, $logFile, $robj, $tries = 
             );
         }
     } else {
-        $audioConfig = getAudioConfiguration($restreamsDestinations[0]);
+        $audioConfig = $isPassthrough ? '' : getAudioConfiguration($restreamsDestinations[0]);
         $dst = clearCommandURL($restreamsDestinations[0]);
 
         $tcurl = buildRtmpTcurl($dst);
