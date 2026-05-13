@@ -23,7 +23,8 @@ $includeImages = ($format === 'html') && !empty($_GET['includeImages']) && $_GET
 
 $_POST['sort'] = [];
 $_POST['sort']['id'] = 'DESC';
-setRowCount(0); // remove pagination limit — fetch all rows
+
+setRowCount(100000);
 
 if ($type === 'received') {
     $comments = Comment::getCommentsOnMyVideos(true);
