@@ -24,7 +24,7 @@ $includeImages = ($format === 'html') && !empty($_GET['includeImages']) && $_GET
 $_POST['sort'] = [];
 $_POST['sort']['id'] = 'DESC';
 
-setRowCount(100000);
+setRowCount(1000000);
 
 if ($type === 'received') {
     $comments = Comment::getCommentsOnMyVideos(true);
