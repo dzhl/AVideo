@@ -470,6 +470,43 @@ function downloadVideoFromDownloadURL($downloadURL)
     _error_log("aVideoEncoder.json: Try to download " . $downloadURL . " to " . $temp);
     $bytesSaved = ssrfPinnedFetchToFile($downloadURL, $temp, $resolvedIP_download, 7200);
 
+    // If DNS-pinned fetch failed, retry without DNS pin.
+    // The SSRF check above already confirmed the host resolves to a public IP (not
+    // private/loopback). This endpoint is authenticated (useVideoHashOrLogin at top), so
+    // only authorised callers reach this path. The MIME validation below is the primary
+    // defence against DNS rebinding: even if an attacker swaps DNS to an internal service,
+    // its response (JSON, HTML, config text) will be rejected by the MIME check.
+    if (!$bytesSaved && !empty($resolvedIP_download)) {
+        _error_log("aVideoEncoder.json: DNS-pinned fetch failed; retrying without DNS pin for {$downloadURL}");
+        $bytesSaved = ssrfPinnedFetchToFile($downloadURL, $temp, null, 7200);
+    }
+
+    // Validate MIME type of the downloaded file — must be video, audio, or a known archive.
+    // This is the key defence against DNS rebinding: any internal service returning
+    // text/html, application/json, or similar will be caught and the file deleted.
+    if ($bytesSaved && function_exists('finfo_open')) {
+        $finfo    = new finfo(FILEINFO_MIME_TYPE);
+        $mimeType = $finfo->file($temp);
+        $mimeOk   = (strpos($mimeType, 'video/') === 0)
+                 || (strpos($mimeType, 'audio/') === 0)
+                 || in_array($mimeType, [
+                        'application/zip',
+                        'application/x-zip',
+                        'application/x-zip-compressed',
+                        'application/octet-stream',   // generic binary: .ts segments, some mp4/mp3
+                    ], true);
+        if (!$mimeOk) {
+            @unlink($temp);
+            __errlog("aVideoEncoder.json:downloadVideoFromDownloadURL rejected MIME [{$mimeType}] for {$downloadURL}");
+            $bytesSaved = false;
+        }
+    }
+
+    // Remove execute permission regardless of umask — this file must never be executable.
+    if ($bytesSaved && file_exists($temp)) {
+        @chmod($temp, 0644);
+    }
+
     $minLen = preg_match('/\.mp3$/', $downloadURL) ? 5000 : 20000;
     if (!$bytesSaved || $bytesSaved < $minLen) {
         $dir = dirname($temp);

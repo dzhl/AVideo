@@ -4618,6 +4618,7 @@ function ssrfPinnedFetchToFile($url, $destPath, $resolvedIP = null, $timeout = 0
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
         curl_setopt($ch, CURLOPT_USERAGENT,      getSelfUserAgent());
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 30);
         if ($timeout > 0) {
             curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
         }
@@ -4667,6 +4668,7 @@ function ssrfPinnedFetchToFile($url, $destPath, $resolvedIP = null, $timeout = 0
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
         curl_setopt($ch, CURLOPT_USERAGENT,      getSelfUserAgent());
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 30);
         curl_setopt($ch, CURLOPT_FILE,           $fp);
         curl_setopt($ch, CURLOPT_HEADERFUNCTION, function ($ch, $header) use (&$responseHeaders) {
             $responseHeaders .= $header;
