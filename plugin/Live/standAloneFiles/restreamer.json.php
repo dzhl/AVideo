@@ -699,8 +699,9 @@ function startRestream($m3u8, $restreamsDestinations, $logFile, $robj, $tries = 
     $userAgent = 'AVideoRestreamer';
 
     $FFMPEGcommand = "{$ffmpegBinary} -hide_banner -y -v info "
-        // throttling de leitura em tempo real (se desejar manter)
-        . "-re "
+        // NOTE: -re is intentionally omitted for live HLS input.
+        // HLS segments already arrive at real-time rate; adding -re causes
+        // artificial throttling that drops speed below 1x and disconnects.
         // ===== INPUT (HTTP/HLS) =====
         . "-rw_timeout 120000000 "                 // 120s em microssegundos
         . "-timeout 120000000 "                    // pode ser ignorado por alguns protocolos
@@ -738,7 +739,7 @@ function startRestream($m3u8, $restreamsDestinations, $logFile, $robj, $tries = 
         " -vsync cfr "                              // força CFR corretamente
         . " -max_muxing_queue_size 8192 "             // fila maior p/ picos
         . " {audioConfig}"
-        . " -c:v libx264 -preset veryfast -tune zerolatency "
+        . " -c:v libx264 -preset superfast -tune zerolatency "
         . " -pix_fmt yuv420p "
         . " -r 30 -g 60 -sc_threshold 0 "             // GOP fixo 2s
         . " -x264-params \"keyint=60:min-keyint=60:scenecut=0:nal-hrd=cbr\" "
