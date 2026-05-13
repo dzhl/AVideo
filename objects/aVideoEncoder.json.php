@@ -232,6 +232,13 @@ if (!empty($_FILES)) {
         if (empty($_FILES['video']['tmp_name'])) {
             $obj->lines[] = __LINE__;
             _error_log("aVideoEncoder.json: ********  Download ERROR " . $_REQUEST['downloadURL']);
+            // Return error immediately so the encoder can fall back to chunked upload.
+            // Without this the endpoint continues, saves only metadata, and returns
+            // error=false — the encoder logs "no need, we could download" but the
+            // video file is never actually saved on the streamer.
+            $obj->error = true;
+            $obj->msg = "Download failed for " . $_REQUEST['downloadURL'];
+            dieJsonResponse($obj, 'download-url-failed');
         } else {
             $obj->lines[] = __LINE__;
         }
