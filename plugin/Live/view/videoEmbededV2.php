@@ -6,11 +6,15 @@ require_once '../../videos/configuration.php';
 /**
  * this was made to mask the main URL
  */
-if (!empty($_GET['webSiteRootURL'])) {
-    if (isValidURL($_REQUEST['webSiteRootURL'])) {
-        $global['webSiteRootURL'] = @$_REQUEST['webSiteRootURL'];
+if (!empty($_GET['webSiteRootURL']) && is_string($_GET['webSiteRootURL'])) {
+    $webSiteRootURL = $_GET['webSiteRootURL'];
+    if (isValidURL($webSiteRootURL)) {
+        $global['webSiteRootURL'] = $webSiteRootURL;
     } else {
-        $global['webSiteRootURL'] = base64_decode(@$_REQUEST['webSiteRootURL']);
+        $decodedWebSiteRootURL = base64_decode($webSiteRootURL, true);
+        if ($decodedWebSiteRootURL !== false && isValidURL($decodedWebSiteRootURL)) {
+            $global['webSiteRootURL'] = $decodedWebSiteRootURL;
+        }
     }
 }
 require_once $global['systemRootPath'] . 'plugin/Live/Objects/LiveTransmition.php';
@@ -76,7 +80,7 @@ $poster = Live::getRegularPosterImage($livet['users_id'], $_REQUEST['live_server
             }
         </style>
         <script>
-            var webSiteRootURL = '<?php echo $global['webSiteRootURL']; ?>';
+            var webSiteRootURL = <?php echo json_encode($global['webSiteRootURL'] ?? '', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
             var player;
         </script>
     </head>
