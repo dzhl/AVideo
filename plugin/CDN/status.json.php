@@ -30,7 +30,7 @@ if (empty($obj->key)) {
 }
 
 // Only CDN URL properties may be reported by edge nodes; credentials and key are admin-only.
-$allowedPars = ['CDN', 'CDN_S3', 'CDN_B2', 'CDN_FTP', 'CDN_Live', 'CDN_YPTStorage', 'CDN_LiveServers'];
+$allowedPars = ['CDN', 'CDN_S3', 'CDN_B2', 'CDN_FTP', 'CDN_Live', 'CDN_YPTStorage', 'CDN_LiveServers', 'storage_pullzone'];
 if (!empty($_REQUEST['par']) && is_array($_REQUEST['par'])) {
     foreach ($_REQUEST['par'] as $key => $value) {
         if (!in_array($key, $allowedPars, true)) {

@@ -38,6 +38,8 @@ if ($CDNstorage->modifiedTime($remote_file) > 0) {
     echo '<h4>Default configuration fail</h4>' . PHP_EOL;
 }
 
-$pz = CDNStorage::getPZ();
+$url = CDNStorage::getURLFromPZ($filename);
 
-echo "<br><a href='https://{$pz}{$filename}' target='_blank'>{$filename}</a><br>";
+if (!empty($url)) {
+    echo "<br><a href='{$url}' target='_blank'>{$filename}</a><br>";
+}

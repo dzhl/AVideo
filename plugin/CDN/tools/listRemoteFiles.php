@@ -1,8 +1,9 @@
 <?php
 
-$config = dirname(__FILE__) . '/../videos/configuration.php';
+$config = dirname(__FILE__) . '/../../../videos/configuration.php';
 
 require_once $config;
+require_once $global['systemRootPath'] . 'plugin/CDN/CDN.php';
 
 error_reporting(E_ALL); // Report all errors and warnings
 ini_set('display_errors', 1); // Show errors on the page
@@ -22,7 +23,10 @@ $parts = explode('.', $cdnObj->storage_hostname);
 $apiAccessKey = $cdnObj->storage_password;
 $storageZoneName = $cdnObj->storage_username;
 $storageZoneRegion = trim(strtolower($parts[0]));
-$pullZone = "https://{$cdnObj->storage_pullzone}"; // Bunny Pull Zone
+$pullZone = CDNStorage::getPZ(); // Bunny Pull Zone
+if (empty($pullZone)) {
+    forbiddenPage('Invalid pull zone URL');
+}
 
 // Get the requested path (default to basePath)
 $path = isset($_GET['path']) ? $_GET['path'] : $basePath;
@@ -83,7 +87,7 @@ echo "<h3>📄 Files</h3>";
 $hasFiles = false;
 foreach ($files as $file) {
     if (!$file['IsDirectory']) {
-        $fileURL = $pullZone . $path . $file['ObjectName'];
+        $fileURL = $pullZone . ltrim($path . $file['ObjectName'], '/');
         $fileSize = humanFileSize($file['Length']);
         echo "<p><a href='$fileURL' target='_blank'>📄 " . $file['ObjectName'] . " ($fileSize)</a></p>";
         $hasFiles = true;

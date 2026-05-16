@@ -6135,8 +6135,10 @@ function pathOrURLToValidURL($filenameOrURL)
 
         $obj = AVideoPlugin::getDataObjectIfEnabled('CDN');
         if (!empty($obj) && $obj->enable_storage) {
-            $pz = CDNStorage::getPZ();
-            return "https://{$pz}{$relativePath}";
+            $url = CDNStorage::getURLFromPZ($relativePath);
+            if (!empty($url)) {
+                return $url;
+            }
         }
         $yptStorage = AVideoPlugin::loadPluginIfEnabled("YPTStorage");
         if (!empty($yptStorage)) {

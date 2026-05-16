@@ -56,6 +56,7 @@ class CDN extends PluginAbstract
             'storage_username',
             'storage_password',
             'storage_hostname',
+            'storage_pullzone',
         );
     }
 
@@ -82,6 +83,8 @@ class CDN extends PluginAbstract
         $obj->storage_username = "";
         $obj->storage_password = "";
         $obj->storage_hostname = "";
+        $obj->storage_pullzone = "";
+        self::addDataObjectHelper('storage_pullzone', 'Storage Pullzone URL', "Custom CDN pullzone URL(s) for storage files. Separate multiple URLs with semicolons (;) for load balancing — a random valid URL will be chosen on each request. If empty, the URL will be auto-generated from the storage username as {username}.cdn.ypt.me");
 
         return $obj;
     }
@@ -119,6 +122,38 @@ class CDN extends PluginAbstract
 
 
     /**
+     * Explode a semicolon-separated list of URLs, validate each one, and return
+     * a random valid entry with a trailing slash. Returns false if none are valid.
+     *
+     * @param string $rawValue
+     * @return string|false
+     */
+    public static function pickRandomURL($rawValue)
+    {
+        $valid = self::getValidURLs($rawValue);
+        if (empty($valid)) {
+            return false;
+        }
+        return $valid[array_rand($valid)];
+    }
+
+    public static function getValidURLs($rawValue)
+    {
+        if (empty($rawValue) || !is_string($rawValue)) {
+            return [];
+        }
+
+        $parts = array_filter(array_map('trim', explode(';', $rawValue)));
+        $valid = [];
+        foreach ($parts as $u) {
+            if (isValidURL($u)) {
+                $valid[] = addLastSlash($u);
+            }
+        }
+        return $valid;
+    }
+
+    /**
      *
      * @param string $type enum(CDN, CDN_S3,CDN_B2,CDN_YPTStorage,CDN_Live,CDN_LiveServers)
      * @param string $id the ID of the URL in case the CDN is an array
@@ -139,35 +174,35 @@ class CDN extends PluginAbstract
             _error_log('The CDN will not work under a private network $type=' . $type);
             return false;
         }
-        $url = '';
         switch ($type) {
             case 'CDN':
             case 'CDN_S3':
             case 'CDN_B2':
             case 'CDN_FTP':
             case 'CDN_Live':
-                $url = $obj->{$type};
-                break;
+                return self::pickRandomURL($obj->{$type});
             case 'CDN_LiveServers':
             case 'CDN_YPTStorage':
+                $url = '';
                 if (!empty($id)) {
                     $json = _json_decode($obj->{$type});
                     //var_dump(!empty($json), is_object($json), is_array($json));//exit;
                     if (!empty($json) && (is_object($json) || is_array($json))) {
                         foreach ($json as $value) {
-                            if ($value->id == $id) {
-                                $url = $value->URLToCDN;
+                            $valueId = is_object($value) ? @$value->id : @$value['id'];
+                            if ($valueId == $id) {
+                                if (is_object($value)) {
+                                    $url = !empty($value->URLToCDN) ? $value->URLToCDN : @$value->url;
+                                } else {
+                                    $url = !empty($value['URLToCDN']) ? $value['URLToCDN'] : @$value['url'];
+                                }
                                 break;
                             }
                         }
                     }
                 }
                 //var_dump($url);exit;
-                break;
-        }
-
-        if (!empty($url) && isValidURL($url)) {
-            return addLastSlash($url);
+                return self::pickRandomURL($url);
         }
 
         return false;

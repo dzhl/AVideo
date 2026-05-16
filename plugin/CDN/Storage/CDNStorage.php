@@ -110,8 +110,81 @@ class CDNStorage
 
     public static function getPZ()
     {
+        $urls = self::getPZURLs();
+        if (empty($urls)) {
+            return false;
+        }
+        return $urls[array_rand($urls)];
+    }
+
+    public static function getPZURLs()
+    {
         $obj = AVideoPlugin::getDataObject('CDN');
-        return addLastSlash($obj->storage_username . '.cdn.ypt.me');
+        if (!empty($obj->storage_pullzone)) {
+            $urls = self::getValidPullZoneURLs($obj->storage_pullzone);
+            if (!empty($urls)) {
+                return $urls;
+            }
+        }
+        $fallback = addLastSlash('https://' . trim($obj->storage_username) . '.cdn.ypt.me');
+        if (isValidURL($fallback)) {
+            return [$fallback];
+        }
+        return [];
+    }
+
+    private static function getValidPullZoneURLs($rawValue)
+    {
+        if (class_exists('CDN')) {
+            return CDN::getValidURLs($rawValue);
+        }
+        if (empty($rawValue) || !is_string($rawValue)) {
+            return [];
+        }
+
+        $parts = array_filter(array_map('trim', explode(';', $rawValue)));
+        $valid = [];
+        foreach ($parts as $url) {
+            if (isValidURL($url)) {
+                $valid[] = addLastSlash($url);
+            }
+        }
+        return $valid;
+    }
+
+    public static function getURLFromPZ($relativeFilename)
+    {
+        $relativeFilename = ltrim($relativeFilename, '/');
+        $pz = self::getPZ();
+        if (empty($pz)) {
+            return false;
+        }
+        return $pz . $relativeFilename;
+    }
+
+    public static function getRelativeFilenameFromURL($url)
+    {
+        if (!isValidURL($url)) {
+            return false;
+        }
+
+        $urlWithoutQuery = preg_replace('/\?.*$/', '', $url);
+        foreach (self::getPZURLs() as $pz) {
+            if (stripos($urlWithoutQuery, $pz) === 0) {
+                return ltrim(substr($urlWithoutQuery, strlen($pz)), '/');
+            }
+        }
+
+        $path = parse_url($url, PHP_URL_PATH);
+        if (empty($path)) {
+            return false;
+        }
+
+        $relative = ltrim($path, '/');
+        if (preg_match('/^videos\/(.+)/i', $relative, $matches)) {
+            return $matches[1];
+        }
+        return $relative;
     }
 
     public static function getFilesListRemote($videos_id, $client = null)
@@ -176,7 +249,7 @@ class CDNStorage
                 'local_path' => $local_path,
                 'remote_path' => $remote_path,
                 'local_url' => "{$global['webSiteRootURL']}videos/{$relative}",
-                'remote_url' => "https://{$pz}{$relative}",
+                'remote_url' => empty($pz) ? false : "{$pz}" . ltrim($relative, '/'),
                 'relative' => $relative,
                 'local_filesize' => $local_filesize,
                 'remote_filesize' => $remote_filesize,
@@ -236,7 +309,7 @@ class CDNStorage
             'local_path' => $local_path,
             'remote_path' => $remote_path,
             'local_url' => "{$global['webSiteRootURL']}videos/{$relative}",
-            'remote_url' => "https://{$pz}{$relative}",
+            'remote_url' => empty($pz) ? false : "{$pz}" . ltrim($relative, '/'),
             'relative' => $relative,
             'local_filesize' => $local_filesize,
         ];
@@ -1165,14 +1238,13 @@ class CDNStorage
             return $_getFilesList_CDNSTORAGE[$videos_id];
         }
 
-        $pz = self::getPZ();
         $files = self::getLocalFolder($videos_id);
         $filesList = [];
         $acumulative = 0;
 
         // Iterate over root files or directories
         foreach ($files as $value) {
-            self::processFileOrDirectory($value, $filesList, $acumulative, $pz, $videos_id, $skipDummyFiles);
+            self::processFileOrDirectory($value, $filesList, $acumulative, $videos_id, $skipDummyFiles);
         }
 
         $_getFilesList_CDNSTORAGE[$videos_id] = $filesList;
@@ -1180,11 +1252,11 @@ class CDNStorage
     }
 
     // Recursive function to process files and directories
-    private static function processFileOrDirectory($value, &$filesList, &$acumulative, $pz, $videos_id, $skipDummyFiles)
+    private static function processFileOrDirectory($value, &$filesList, &$acumulative, $videos_id, $skipDummyFiles)
     {
         if (is_array($value)) {
             foreach ($value as $subValue) {
-                self::processFileOrDirectory($subValue, $filesList, $acumulative, $pz, $videos_id, $skipDummyFiles);
+                self::processFileOrDirectory($subValue, $filesList, $acumulative, $videos_id, $skipDummyFiles);
             }
         } else {
             $file = self::getFilesListInfo($value, $videos_id, $skipDummyFiles);
@@ -1252,9 +1324,7 @@ class CDNStorage
         } else {
             $relativeFilename = "{$paths['filename']}/{$filename}";
         }
-        $obj = AVideoPlugin::getDataObject('CDN');
-        $pz = self::getPZ();
-        return "https://{$pz}{$relativeFilename}";
+        return self::getURLFromPZ($relativeFilename);
     }
 
     public static function getLogFile($videos_id)
@@ -1352,11 +1422,19 @@ class CDNStorage
         $m3u8File = false;
         $mp4File = false;
 
+        $quotedFilename = preg_quote($filename, '/');
         foreach ($files as $key => $theLink) {
-            if (preg_match('/cdn\.ypt\.me(.*)' . $filename . '\/index\.m3u8/i', $theLink['url'])) {
+            if (empty($theLink['url'])) {
+                continue;
+            }
+            $relativeURL = self::getRelativeFilenameFromURL($theLink['url']);
+            if (empty($relativeURL)) {
+                continue;
+            }
+            if (preg_match('/(^|\/)' . $quotedFilename . '\/index\.m3u8$/i', $relativeURL)) {
                 $m3u8File = $theLink['url'];
                 break;
-            } else if (preg_match('/cdn\.ypt\.me(.*)' . $filename . '\/.*.mp4/i', $theLink['url'])) {
+            } else if (preg_match('/(^|\/)' . $quotedFilename . '\/.*\.mp4$/i', $relativeURL)) {
                 $mp4File = $theLink['url'];
                 break;
             }
@@ -1371,14 +1449,12 @@ class CDNStorage
         }
 
         $url = str_replace('.m3u8', '.' . $format, $m3u8File);
-        $parts1 = explode('cdn.ypt.me/', $url);
-        $url = addQueryStringParameter($url, 'download', 1);
-        if (empty($parts1[1])) {
+        $relativeFilename = self::getRelativeFilenameFromURL($url);
+        if (empty($relativeFilename)) {
             _error_log('convertCDNHLSVideoToDownload: Invalid filename ' . $url);
             return false;
         }
-        $parts2 = explode('?', $parts1[1]);
-        $relativeFilename = $parts2[0];
+        $url = addQueryStringParameter($url, 'download', 1);
         $localFile = getVideosDir() . "{$relativeFilename}";
         $localFile = str_replace('/videos/videos/', '/videos/', $localFile);
         //var_dump($localFile);exit;
@@ -1402,18 +1478,21 @@ class CDNStorage
                 self::createDummy($localFile);
             }
         }
-        if ($file_exists && isURL200($url, true)) {
-            if(!preg_match('/cdnstorage.cdn.ypt.me/', $url)){
-                // if the local file is a dummy file, then use the storage url
-                if(isDummyFile($localFile)){
-                    _error_log("convertCDNHLSVideoToDownload: before url ($url) - {$localFile}");
-                    $url = str_replace('.cdn.ypt.me', 'cdnstorage.cdn.ypt.me', $url);
-                    $url = str_replace('/videos/', '/', $url);
+        if ($file_exists) {
+            // If the local file is a dummy file, return the configured storage pullzone.
+            if(isDummyFile($localFile)){
+                _error_log("convertCDNHLSVideoToDownload: before url ($url) - {$localFile}");
+                $storageURL = self::getURLFromPZ($relativeFilename);
+                if (!empty($storageURL)) {
+                    $url = addQueryStringParameter($storageURL, 'download', 1);
                 }
             }
-            $returnURL = $url;
-            _error_log("convertCDNHLSVideoToDownload: returnURL ($returnURL)");
-        } else {
+            if (isURL200($url, true)) {
+                $returnURL = $url;
+                _error_log("convertCDNHLSVideoToDownload: returnURL ($returnURL)");
+            }
+        }
+        if (empty($returnURL)) {
             //var_dump($localFile);exit;
             if (!file_exists($localFile)) {
                 _error_log("convertCDNHLSVideoToDownload: convertVideoFileWithFFMPEG($m3u8File, $localFile, $logFile)");
