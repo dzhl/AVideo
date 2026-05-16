@@ -338,7 +338,8 @@ function isBot($returnTrueIfNoUserAgent=true)
         'http-client',
         'hello',
         'google',
-        'Expanse'
+        'Expanse',
+        'externalagent', // meta-externalagent (Facebook/Meta crawler)
     ];
 
     // See if one of the identifiers is in the UA string.
