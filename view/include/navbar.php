@@ -158,11 +158,15 @@ if (!User::isLogged() && !empty($advancedCustomUser->userMustBeLoggedIn) && !emp
         </ul>
         <?php
         TimeLogEnd($tname, __LINE__, $tTolerance);
-        $varsArray = array('sidebarStyle' => $sidebarStyle);
-        $filePath = $global['systemRootPath'] . 'view/include/navbarSidebar.php';
-        echo getIncludeFileContent($filePath, $varsArray, true);
-        //echo getIncludeFileContent($filePath);
-        //include $filePath;
+        if (!isBot()) {
+            $varsArray = array('sidebarStyle' => $sidebarStyle);
+            $filePath = $global['systemRootPath'] . 'view/include/navbarSidebar.php';
+            echo getIncludeFileContent($filePath, $varsArray, true);
+            //echo getIncludeFileContent($filePath);
+            //include $filePath;
+        } else {
+            echo '<!-- navbar sidebar skipped for bot -->';
+        }
         TimeLogEnd($tname, __LINE__, $tTolerance);
         ?>
     </nav>

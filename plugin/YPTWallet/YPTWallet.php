@@ -441,6 +441,12 @@ class YPTWallet extends PluginAbstract
 
     public static function transferBalanceToSiteOwner($users_id_from, $value, $description = "", $forceTransfer = false)
     {
+        // Cron / CLI processes run without a logged-in user (User::getId() == 0).
+        // Any call originating from the command line is a trusted system transfer,
+        // so forceTransfer is implied — even if an older caller omitted the flag.
+        if (isCommandLineInterface()) {
+            $forceTransfer = true;
+        }
         $obj = AVideoPlugin::getObjectData('YPTWallet');
         if (empty($obj->manualWithdrawFundsTransferToUserId)) {
             _error_log("YPTWallet::transferBalanceToSiteOwner site owner is not defined in the plugin, define it on the option manualWithdrawFundsTransferToUserId", AVideoLog::$ERROR);
@@ -450,6 +456,10 @@ class YPTWallet extends PluginAbstract
 
     public static function transferBalanceFromSiteOwner($users_id_from, $value, $description = "", $forceTransfer = false)
     {
+        // Same CLI / cron trust rule — see transferBalanceToSiteOwner.
+        if (isCommandLineInterface()) {
+            $forceTransfer = true;
+        }
         $obj = AVideoPlugin::getObjectData('YPTWallet');
         return self::transferBalance($obj->manualWithdrawFundsTransferToUserId, $users_id_from, $value, $description, $forceTransfer);
     }
